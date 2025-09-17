@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "476663936983",
+    "project_id": "mi-recibo-business",
+    "storage_bucket": "mi-recibo-business.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:476663936983:android:4116d1a6036d27da773d92",
+        "android_client_info": {
+          "package_name": "com.example.mi_recibo"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "476663936983-ervo4pfbuo6lmdvgls84b2636q9ujchj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.mi_recibo",
+            "certificate_hash": "f1b68a97341d8da71b5d718fb34358ced1cb0995"
+          }
+        },
+        {
+          "client_id": "476663936983-5idspm5ekmriqhjrr8otgkknd5ed52i7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBfwRD3VLdn0JHEBWwnOK5-RANe15vSIe8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "476663936983-5idspm5ekmriqhjrr8otgkknd5ed52i7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
