@@ -84,17 +84,20 @@ class ReciboUIConfig {
     this.gradientColors = const [Color(0xFF11A7A0), Color(0xFF1D60C9)],
 
     // Capturable (recibo)
-    this.cardHeight = 580,
-    this.designWidth = 360,
-    this.cardRadius = const BorderRadius.all(Radius.circular(36)),
-    this.cardPadding = const EdgeInsets.fromLTRB(16, 14, 16, 14),
+    this.cardHeight = 630,
+    this.designWidth = 400,
+    this.cardRadius = const BorderRadius.all(Radius.circular(20)),
+    this.cardPadding = const EdgeInsets.fromLTRB(16, 16, 16, 16),
 
     // Header
     this.showHeaderTitle = true,
     this.headerTitle = 'RECIBO',
     this.headerTitleStyle = const TextStyle(
-      color: Colors.white, fontSize: 28, fontStyle: FontStyle.italic,
-      fontWeight: FontWeight.w700, letterSpacing: 0.5,
+      color: Colors.white,
+      fontSize: 30, // ↑ sutil
+      fontStyle: FontStyle.italic,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.6,
     ),
 
     // Logo independiente (overlay)
@@ -104,26 +107,37 @@ class ReciboUIConfig {
     this.brandLogoDx = 0,
 
     // Paloma
-    this.checkCircleSize = 64,
-    this.checkBorderWidth = 3,
-    this.checkIconSize = 32,
+    this.checkCircleSize = 78,    // ↑
+    this.checkBorderWidth = 5,
+    this.checkIconSize = 40,      // ↑
 
     // Título
     this.recibidoTitleStyle = const TextStyle(
-      fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF0F172A),
+      fontSize: 27, // ↑
+      fontWeight: FontWeight.w900,
+      color: Color(0xFF0F172A),
+      letterSpacing: 0.2,
     ),
-    this.titleMargin = const EdgeInsets.only(top: 8, bottom: 10),
+    this.titleMargin = const EdgeInsets.only(top: 10, bottom: 12), // ↑
 
     // Monto
     this.amountPanelGradientColors = const [Color(0xFFF3FBF7), Color(0xFFEAF5F0)],
     this.amountPanelRadius = const BorderRadius.all(Radius.circular(18)),
-    this.amountPanelPadding = const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    this.amountPanelPadding = const EdgeInsets.symmetric(horizontal: 14, vertical: 14), // ↑
     this.amountPanelBorder = const Color(0xFFDDE7E1),
     this.amountPrefixStyle = const TextStyle(
-      fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF10B981),
+      fontSize: 58, // ↑
+      fontWeight: FontWeight.w900,
+      color: Color(0xFF10B981),
+      height: 1.0,
+      letterSpacing: 0.2,
     ),
     this.amountNumberStyle = const TextStyle(
-      fontSize: 48, fontWeight: FontWeight.w900, letterSpacing: 0.5, color: Color(0xFF10B981),
+      fontSize: 64, // ↑
+      fontWeight: FontWeight.w900,
+      letterSpacing: 0.6,
+      color: Color(0xFF10B981),
+      height: 1.0,
     ),
 
     // Paleta
@@ -138,10 +152,30 @@ class ReciboUIConfig {
     this.mintDivider = const Color(0xFFE7F0EA),
 
     // Textos
-    this.labelStyle = const TextStyle(fontSize: 12.5, color: Color(0xFF667084), fontWeight: FontWeight.w600),
-    this.valueStyle = const TextStyle(fontSize: 14.5, color: Color(0xFF0F172A), fontWeight: FontWeight.w800),
-    this.valueStrongStyle = const TextStyle(fontSize: 14.5, color: Color(0xFF0F172A), fontWeight: FontWeight.w900),
-    this.valueClientStyle = const TextStyle(fontSize: 17, color: Color(0xFF0F172A), fontWeight: FontWeight.w900),
+    this.labelStyle = const TextStyle(
+      fontSize: 15, // ↑
+      color: Color(0xFF667084),
+      fontWeight: FontWeight.w600,
+      letterSpacing: .1,
+    ),
+    this.valueStyle = const TextStyle(
+      fontSize: 16, // ↑
+      color: Color(0xFF0F172A),
+      fontWeight: FontWeight.w800,
+      letterSpacing: .1,
+    ),
+    this.valueStrongStyle = const TextStyle(
+      fontSize: 16, // ↑
+      color: Color(0xFF0F172A),
+      fontWeight: FontWeight.w900,
+      letterSpacing: .1,
+    ),
+    this.valueClientStyle = const TextStyle(
+      fontSize: 23, // ↑
+      color: Color(0xFF0F172A),
+      fontWeight: FontWeight.w900,
+      letterSpacing: .2,
+    ),
 
     // Botones
     this.btnWhatsapp = const Color(0xFF22C55E),
@@ -260,13 +294,14 @@ class _ReciboScreenState extends State<ReciboScreen> {
 
   ReciboUIConfig get cfg => widget.config;
 
+  // Formato RD$ con coma de miles
   String _monedaRD(int v) {
     final s = v.toString();
     final b = StringBuffer();
     int c = 0;
     for (int i = s.length - 1; i >= 0; i--) {
       b.write(s[i]); c++;
-      if (c == 3 && i != 0) { b.write('.'); c = 0; }
+      if (c == 3 && i != 0) { b.write(','); c = 0; }
     }
     return 'RD\$${b.toString().split('').reversed.join()}';
   }
@@ -571,7 +606,7 @@ class _ReceiptContent extends StatelessWidget {
     Widget valueClient(String t) => Text(t, style: cfg.valueClientStyle);
 
     // Espacio fijo arriba (el logo es overlay independiente)
-    const double fixedTopSpacer = 56;
+    const double fixedTopSpacer = 80;
 
     return Stack(
       children: [
@@ -620,9 +655,9 @@ class _ReceiptContent extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Divider(height: 1, thickness: 1, color: cfg.line),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
 
             // Servidor — Recibo/Fecha
             Row(
@@ -631,7 +666,7 @@ class _ReceiptContent extends StatelessWidget {
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     label('Nombre del servidor:'),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     value(servidor),
                   ]),
                 ),
@@ -642,23 +677,23 @@ class _ReceiptContent extends StatelessWidget {
                       Text('Recibo: ', style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w600)),
                       Text(numeroRecibo, style: cfg.valueStrongStyle),
                     ]),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Text(fmtFecha(fecha), style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w700)),
                   ],
                 ),
               ],
             ),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Divider(height: 1, thickness: 1, color: cfg.line),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
 
             // Empresa
             label('Nombre de la empresa'),
-            const SizedBox(height: 3),
+            const SizedBox(height: 4),
             value(empresa),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
             // Bloque 1
             _mintBlock(children: [
@@ -667,7 +702,7 @@ class _ReceiptContent extends StatelessWidget {
               _row('Pago a capital', monedaRD(pagoCapital)),
             ]),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
             // Bloque 2
             _mintBlock(children: [
@@ -676,9 +711,9 @@ class _ReceiptContent extends StatelessWidget {
               _row('Próxima fecha', fmtFecha(proximaFecha)),
             ]),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Divider(height: 1, thickness: 1, color: cfg.line),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
 
             // Cliente
             Row(
@@ -690,7 +725,7 @@ class _ReceiptContent extends StatelessWidget {
             ),
 
             if (producto.trim().isNotEmpty) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Row(
                 children: [
                   label('Producto'),
@@ -706,7 +741,7 @@ class _ReceiptContent extends StatelessWidget {
         Positioned(
           top: cfg.brandLogoTop,
           left: 0,
-          right: 0,
+          right: 20,
           child: Transform.translate(
             offset: Offset(cfg.brandLogoDx, 0),
             child: Center(
@@ -729,12 +764,12 @@ class _ReceiptContent extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: cfg.mintBorder),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Column(
         children: [
           for (int i = 0; i < children.length; i++) ...[
             children[i],
-            if (i != children.length - 1) Divider(height: 12, thickness: 1, color: cfg.mintDivider),
+            if (i != children.length - 1) Divider(height: 14, thickness: 1, color: cfg.mintDivider),
           ],
         ],
       ),
@@ -743,12 +778,12 @@ class _ReceiptContent extends StatelessWidget {
 
   Widget _row(String t, String v) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Flexible(child: Text(t, style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w600))),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Text(v, style: cfg.valueStrongStyle),
         ],
       ),
