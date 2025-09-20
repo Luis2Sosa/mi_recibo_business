@@ -85,7 +85,7 @@ class ReciboUIConfig {
 
     // Capturable (recibo)
     this.cardHeight = 630,
-    this.designWidth = 400,
+    this.designWidth = 470,
     this.cardRadius = const BorderRadius.all(Radius.circular(20)),
     this.cardPadding = const EdgeInsets.fromLTRB(16, 16, 16, 16),
 
@@ -153,13 +153,13 @@ class ReciboUIConfig {
 
     // Textos
     this.labelStyle = const TextStyle(
-      fontSize: 15, // ↑
+      fontSize: 18, // ↑
       color: Color(0xFF667084),
       fontWeight: FontWeight.w600,
       letterSpacing: .1,
     ),
     this.valueStyle = const TextStyle(
-      fontSize: 16, // ↑
+      fontSize: 20, // ↑
       color: Color(0xFF0F172A),
       fontWeight: FontWeight.w800,
       letterSpacing: .1,
@@ -690,7 +690,8 @@ class _ReceiptContent extends StatelessWidget {
                 borderRadius: cfg.amountPanelRadius,
                 gradient: LinearGradient(
                   colors: cfg.amountPanelGradientColors,
-                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
                 border: Border.all(color: cfg.amountPanelBorder),
               ),
@@ -708,73 +709,103 @@ class _ReceiptContent extends StatelessWidget {
             ),
 
             const SizedBox(height: 10),
-            Divider(height: 1, thickness: 1, color: cfg.line),
-            const SizedBox(height: 8),
 
-            // Servidor — Recibo/Fecha
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    label('Nombre del servidor:'),
-                    const SizedBox(height: 4),
-                    value(servidor),
-                  ]),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      Text('Recibo: ', style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w600)),
-                      Text(numeroRecibo, style: cfg.valueStrongStyle),
-                    ]),
-                    const SizedBox(height: 4),
-                    Text(fmtFecha(fecha), style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w700)),
-                  ],
-                ),
-              ],
+// ================== PANEL ÚNICO (como la foto) ==================
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: cfg.line),
+              ),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Servidor — Recibo/Fecha
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            label('Nombre del servidor:'),
+                            const SizedBox(height: 4),
+                            value(servidor),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('Recibo: ',
+                                  style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w600)),
+                              Text(numeroRecibo, style: cfg.valueStrongStyle),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            fmtFecha(fecha),
+                            style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 10),
+                  Divider(height: 14, thickness: 1, color: cfg.line),
+
+                  // Empresa
+                  label('Nombre de la empresa'),
+                  const SizedBox(height: 4),
+                  value(empresa),
+
+                  const SizedBox(height: 10),
+
+                  // Banda mint con filas (capital, intereses, pagos, saldos, próxima fecha)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: cfg.mint,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: cfg.mintBorder),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Column(
+                      children: [
+                        _row('Capital Inicial', monedaRD(capitalInicial)),
+                        Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                        _row('Pago de interés', monedaRD(pagoInteres)),
+                        Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                        _row('Pago a capital', monedaRD(pagoCapital)),
+                        Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                        _row('Saldo anterior', monedaRD(saldoAnterior)),
+                        Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                        _row('Saldo actual', monedaRD(saldoActual)),
+                        Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                        _row('Próxima fecha', fmtFecha(proximaFecha)),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+                  Divider(height: 14, thickness: 1, color: cfg.line),
+
+                  // Cliente (queda dentro del mismo cuadro)
+                  Row(
+                    children: [
+                      label('Cliente'),
+                      const Spacer(),
+                      valueClient(cliente),
+                    ],
+                  ),
+                ],
+              ),
             ),
-
-            const SizedBox(height: 12),
-            Divider(height: 1, thickness: 1, color: cfg.line),
-            const SizedBox(height: 8),
-
-            // Empresa
-            label('Nombre de la empresa'),
-            const SizedBox(height: 4),
-            value(empresa),
-
-            const SizedBox(height: 12),
-
-            // Bloque 1
-            _mintBlock(children: [
-              _row('Capital Inicial', monedaRD(capitalInicial)),
-              _row('Pago de interés', monedaRD(pagoInteres)),
-              _row('Pago a capital', monedaRD(pagoCapital)),
-            ]),
-
-            const SizedBox(height: 10),
-
-            // Bloque 2
-            _mintBlock(children: [
-              _row('Saldo anterior', monedaRD(saldoAnterior)),
-              _row('Saldo actual', monedaRD(saldoActual)),
-              _row('Próxima fecha', fmtFecha(proximaFecha)),
-            ]),
-
-            const SizedBox(height: 10),
-            Divider(height: 1, thickness: 1, color: cfg.line),
-            const SizedBox(height: 8),
-
-            // Cliente
-            Row(
-              children: [
-                label('Cliente'),
-                const Spacer(),
-                valueClient(cliente),
-              ],
-            ),
+// ================== / PANEL ÚNICO ==================
 
             if (producto.trim().isNotEmpty) ...[
               const SizedBox(height: 6),
