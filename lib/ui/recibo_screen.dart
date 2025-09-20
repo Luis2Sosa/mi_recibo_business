@@ -629,8 +629,14 @@ class _ReceiptContent extends StatelessWidget {
 
             Padding(
               padding: cfg.titleMargin,
-              child: Center(child: Text('Pago recibido', style: cfg.recibidoTitleStyle)),
+              child: Center(
+                child: Text(
+                  saldoActual == 0 ? 'Pago finalizado' : 'Pago recibido',
+                  style: cfg.recibidoTitleStyle,
+                ),
+              ),
             ),
+
 
             // Panel del monto
             Container(
