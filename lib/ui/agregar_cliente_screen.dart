@@ -34,7 +34,7 @@ class AgregarClienteScreen extends StatefulWidget {
 }
 
 class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
-  static const double _logoTop = -40;
+  static const double _logoTop = -70;
   static const double _logoHeight = 300;
 
   final _formKey = GlobalKey<FormState>();
@@ -88,22 +88,26 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     return '${d.day} ${meses[d.month - 1]} ${d.year}';
   }
 
-  InputDecoration _deco(String label) => InputDecoration(
+  // 🔧 Solo estética: soporte opcional para ícono
+  InputDecoration _deco(String label, {IconData? icon}) => InputDecoration(
     labelText: label,
+    labelStyle: const TextStyle(color: Color(0xFF64748B)),
+    floatingLabelStyle: const TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.w600),
     filled: true,
     fillColor: Colors.white,
+    prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF94A3B8)) : null,
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(14),
       borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
     ),
     enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(14),
       borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
     ),
     focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: Color(0xFF2563EB)),
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
     ),
   );
 
@@ -123,15 +127,20 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
         child: SafeArea(
           child: Stack(
             children: [
-              // Logo
+              // Logo (ahora con desvanecido cuando el teclado está abierto)
               Positioned(
                 top: _logoTop, left: 0, right: 0,
                 child: IgnorePointer(
                   child: Center(
-                    child: Image.asset(
-                      'assets/images/logoB.png',
-                      height: _logoHeight,
-                      fit: BoxFit.contain,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      opacity: bottomInset > 0 ? 0.15 : 1.0, // 👈 cambio premium
+                      child: Image.asset(
+                        'assets/images/logoB.png',
+                        height: _logoHeight,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
                 ),
@@ -184,6 +193,13 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                                         fontStyle: FontStyle.italic,
                                         fontWeight: FontWeight.w600,
                                         letterSpacing: 0.5,
+                                        shadows: [
+                                          Shadow(
+                                            color: Colors.black26,
+                                            blurRadius: 6,
+                                            offset: Offset(0, 2),
+                                          )
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -215,7 +231,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                                               child: TextFormField(
                                                 controller: _nombreCtrl,
                                                 autofocus: true,
-                                                decoration: _deco('Nombre'),
+                                                decoration: _deco('Nombre', icon: Icons.person),
                                                 textInputAction: TextInputAction.next,
                                                 validator: (v) => (v == null || v.trim().isEmpty)
                                                     ? 'Obligatorio' : null,
@@ -225,7 +241,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                                             Expanded(
                                               child: TextFormField(
                                                 controller: _apellidoCtrl,
-                                                decoration: _deco('Apellido'),
+                                                decoration: _deco('Apellido', icon: Icons.badge),
                                                 textInputAction: TextInputAction.next,
                                                 validator: (v) => (v == null || v.trim().isEmpty)
                                                     ? 'Obligatorio' : null,
@@ -237,7 +253,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                                         TextFormField(
                                           controller: _telefonoCtrl,
                                           keyboardType: TextInputType.phone,
-                                          decoration: _deco('Teléfono'),
+                                          decoration: _deco('Teléfono', icon: Icons.call),
                                           textInputAction: TextInputAction.next,
                                           validator: (v) => (v == null || v.trim().isEmpty)
                                               ? 'Obligatorio' : null,
@@ -245,13 +261,13 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                                         const SizedBox(height: 12),
                                         TextFormField(
                                           controller: _direccionCtrl,
-                                          decoration: _deco('Dirección (opcional)'),
+                                          decoration: _deco('Dirección (opcional)', icon: Icons.home),
                                           textInputAction: TextInputAction.next,
                                         ),
                                         const SizedBox(height: 12),
                                         TextFormField(
                                           controller: _productoCtrl,
-                                          decoration: _deco('Producto (opcional)'),
+                                          decoration: _deco('Producto (opcional)', icon: Icons.local_offer),
                                           textInputAction: TextInputAction.next,
                                         ),
                                         const SizedBox(height: 12),
@@ -261,7 +277,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                                               child: TextFormField(
                                                 controller: _capitalCtrl,
                                                 keyboardType: TextInputType.number,
-                                                decoration: _deco('Saldo inicial (RD\$)'),
+                                                decoration: _deco('Saldo inicial (RD\$)', icon: Icons.payments),
                                                 textInputAction: TextInputAction.next,
                                                 validator: (v) => (v == null || v.isEmpty)
                                                     ? 'Obligatorio' : null,
@@ -272,7 +288,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                                               child: TextFormField(
                                                 controller: _tasaCtrl,
                                                 keyboardType: TextInputType.number,
-                                                decoration: _deco('% Interés'),
+                                                decoration: _deco('% Interés', icon: Icons.percent),
                                                 validator: (v) => (v == null || v.isEmpty)
                                                     ? 'Obligatorio' : null,
                                               ),
@@ -291,16 +307,38 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                                               label: const Text('Mensual'),
                                               selected: _periodo == 'Mensual',
                                               onSelected: (_) => setState(() => _periodo = 'Mensual'),
+                                              selectedColor: const Color(0xFF2563EB),
+                                              labelStyle: TextStyle(
+                                                color: _periodo == 'Mensual' ? Colors.white : const Color(0xFF1F2937),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                              side: BorderSide(
+                                                color: _periodo == 'Mensual'
+                                                    ? const Color(0xFF2563EB)
+                                                    : const Color(0xFFE5E7EB),
+                                              ),
                                             ),
                                             const SizedBox(width: 8),
                                             ChoiceChip(
                                               label: const Text('Quincenal'),
                                               selected: _periodo == 'Quincenal',
                                               onSelected: (_) => setState(() => _periodo = 'Quincenal'),
+                                              selectedColor: const Color(0xFF2563EB),
+                                              labelStyle: TextStyle(
+                                                color: _periodo == 'Quincenal' ? Colors.white : const Color(0xFF1F2937),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                              side: BorderSide(
+                                                color: _periodo == 'Quincenal'
+                                                    ? const Color(0xFF2563EB)
+                                                    : const Color(0xFFE5E7EB),
+                                              ),
                                             ),
                                           ],
                                         ),
-                                        const SizedBox(height: 12),
+                                        const SizedBox(height: 10),
+                                        const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                                        const SizedBox(height: 10),
 
                                         // Fecha
                                         Row(
@@ -336,7 +374,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                                         // Guardar
                                         SizedBox(
                                           width: double.infinity,
-                                          height: 52,
+                                          height: 56,
                                           child: ElevatedButton(
                                             style: ElevatedButton.styleFrom(
                                               backgroundColor: const Color(0xFF2563EB),
@@ -344,8 +382,8 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                                               shape: const StadiumBorder(),
                                               textStyle: const TextStyle(
                                                   fontSize: 16, fontWeight: FontWeight.w700),
-                                              elevation: 0,
-                                              shadowColor: Colors.transparent,
+                                              elevation: 4,
+                                              shadowColor: const Color(0xFF2563EB).withOpacity(0.35),
                                             ),
                                             onPressed: _guardando ? null : _guardar,
                                             child: Text(_guardando ? 'Guardando…' : 'Guardar'),
@@ -381,6 +419,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     );
   }
 
+  // ===== LÓGICA ORIGINAL – SIN CAMBIOS =====
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
     if (_guardando) return;
@@ -416,7 +455,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
       String? docId = widget.id;
 
       if (_isEdit && docId != null) {
-        // 🔧 EDITAR: si se pone un nuevo capital, el cliente vuelve a estar “al día”
+        // 🔧 EDITAR
         final Map<String, dynamic> update = {
           'nombre': _nombreCtrl.text.trim(),
           'apellido': _apellidoCtrl.text.trim(),
@@ -430,11 +469,10 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
           'updatedAt': FieldValue.serverTimestamp(),
         };
 
-        // 👇 Reseteo de estado/valores si el capital es > 0 (nuevo préstamo)
         update.addAll({
           'saldoAnterior': capital,
           'saldoActual'  : capital,
-          'saldado'      : capital == 0,               // si pones 0 queda saldado
+          'saldado'      : capital == 0,
           'estado'       : capital == 0 ? 'saldado' : 'al_dia',
         });
 
