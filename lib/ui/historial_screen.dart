@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 class HistorialScreen extends StatelessWidget {
   final String idCliente;
   final String nombreCliente;
-  final String? producto; // 👈 para mostrar el producto si existe
+  final String? producto; // opcional
 
   const HistorialScreen({
     super.key,
@@ -15,6 +15,7 @@ class HistorialScreen extends StatelessWidget {
     this.producto,
   });
 
+  // ===== Helpers =====
   String _fmtFecha(DateTime d) {
     const meses = [
       'ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.',
@@ -37,7 +38,7 @@ class HistorialScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Misma composición de las demás pantallas
+    // Misma composición (logo + marco + tarjeta con lista scrollable)
     const double _logoTop = -90;
     const double _logoHeight = 350;
     const double _contentTop = 135;
@@ -100,7 +101,7 @@ class HistorialScreen extends StatelessWidget {
         child: SafeArea(
           child: Stack(
             children: [
-              // ===== Logo decorativo (no toca el contenido) =====
+              // Logo decorativo
               const Positioned(
                 top: _logoTop,
                 left: 0,
@@ -116,7 +117,7 @@ class HistorialScreen extends StatelessWidget {
                 ),
               ),
 
-              // ===== Marco translúcido a altura completa =====
+              // Marco translúcido
               Positioned.fill(
                 top: _contentTop,
                 child: Center(
@@ -142,7 +143,7 @@ class HistorialScreen extends StatelessWidget {
                             padding: const EdgeInsets.all(16),
                             child: Column(
                               children: [
-                                // ===== Título (FIJO) =====
+                                // Título
                                 Center(
                                   child: Text(
                                     'Historial de Pagos',
@@ -158,7 +159,7 @@ class HistorialScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 12),
 
-                                // ===== Tarjeta blanca que contiene cabecera + LISTA con scroll =====
+                                // Tarjeta blanca con cabecera + lista
                                 Expanded(
                                   child: Container(
                                     decoration: BoxDecoration(
@@ -175,9 +176,9 @@ class HistorialScreen extends StatelessWidget {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        // Cabecera de la tarjeta (nombre + producto)
+                                        // Cabecera
                                         Padding(
-                                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
@@ -185,7 +186,7 @@ class HistorialScreen extends StatelessWidget {
                                                 nombreCliente,
                                                 style: const TextStyle(
                                                   fontSize: 18,
-                                                  fontWeight: FontWeight.bold,
+                                                  fontWeight: FontWeight.w800,
                                                 ),
                                               ),
                                               if ((producto ?? '').trim().isNotEmpty) ...[
@@ -213,7 +214,7 @@ class HistorialScreen extends StatelessWidget {
                                         ),
                                         const Divider(height: 1, color: Color(0xFFE5E7EB)),
 
-                                        // ===== LISTA con scroll (solo esta parte se desplaza) =====
+                                        // Lista (solo esta parte hace scroll)
                                         Expanded(
                                           child: StreamBuilder<QuerySnapshot>(
                                             stream: pagosQuery.snapshots(),
@@ -252,86 +253,26 @@ class HistorialScreen extends StatelessWidget {
                                               return ListView.separated(
                                                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                                                 itemCount: docs.length,
-                                                separatorBuilder: (_, __) =>
-                                                const Divider(height: 16),
+                                                separatorBuilder: (_, __) => const SizedBox(height: 12),
                                                 itemBuilder: (context, i) {
-                                                  final d = docs[i].data()
-                                                  as Map<String, dynamic>? ??
-                                                      {};
+                                                  final d = docs[i].data() as Map<String, dynamic>? ?? {};
                                                   final ts = d['fecha'];
-                                                  final fecha = ts is Timestamp
-                                                      ? ts.toDate()
-                                                      : DateTime.now();
+                                                  final fecha = ts is Timestamp ? ts.toDate() : DateTime.now();
 
-                                                  final pagoInteres =
-                                                      (d['pagoInteres'] as num?)?.toInt() ?? 0;
-                                                  final pagoCapital =
-                                                      (d['pagoCapital'] as num?)?.toInt() ?? 0;
-                                                  final totalPagado =
-                                                      (d['totalPagado'] as num?)?.toInt() ??
-                                                          (pagoInteres + pagoCapital);
-                                                  final saldoAnterior =
-                                                      (d['saldoAnterior'] as num?)?.toInt() ?? 0;
-                                                  final saldoNuevo =
-                                                      (d['saldoNuevo'] as num?)?.toInt() ??
-                                                          saldoAnterior;
+                                                  final pagoInteres = (d['pagoInteres'] as num?)?.toInt() ?? 0;
+                                                  final pagoCapital = (d['pagoCapital'] as num?)?.toInt() ?? 0;
+                                                  final totalPagado = (d['totalPagado'] as num?)?.toInt()
+                                                      ?? (pagoInteres + pagoCapital);
+                                                  final saldoAnterior = (d['saldoAnterior'] as num?)?.toInt() ?? 0;
+                                                  final saldoNuevo = (d['saldoNuevo'] as num?)?.toInt() ?? saldoAnterior;
 
-                                                  return Row(
-                                                    crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                    children: [
-                                                      Container(
-                                                        width: 36,
-                                                        height: 36,
-                                                        decoration: const BoxDecoration(
-                                                          color: Color(0xFFEFF6FF),
-                                                          shape: BoxShape.circle,
-                                                        ),
-                                                        alignment: Alignment.center,
-                                                        child: const Icon(
-                                                          Icons.event_note,
-                                                          color: Color(0xFF2563EB),
-                                                          size: 20,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 12),
-                                                      Expanded(
-                                                        child: Column(
-                                                          crossAxisAlignment:
-                                                          CrossAxisAlignment.start,
-                                                          children: [
-                                                            Row(
-                                                              children: [
-                                                                Text(
-                                                                  _fmtFecha(fecha),
-                                                                  style: const TextStyle(
-                                                                    fontWeight: FontWeight.w700,
-                                                                  ),
-                                                                ),
-                                                                const Text('   ·   '),
-                                                                Text(
-                                                                  'Total: ${_rd(totalPagado)}',
-                                                                  style: const TextStyle(
-                                                                    fontWeight: FontWeight.w700,
-                                                                  ),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                            const SizedBox(height: 4),
-                                                            Text(
-                                                              'Interés: ${_rd(pagoInteres)}   ·   Capital: ${_rd(pagoCapital)}',
-                                                              style: const TextStyle(
-                                                                  color: Colors.black87),
-                                                            ),
-                                                            Text(
-                                                              'Saldo: ${_rd(saldoAnterior)} → ${_rd(saldoNuevo)}',
-                                                              style: const TextStyle(
-                                                                  color: Colors.black87),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ],
+                                                  return _PagoCard(
+                                                    fecha: _fmtFecha(fecha),
+                                                    total: _rd(totalPagado),
+                                                    capital: _rd(pagoCapital),
+                                                    interes: _rd(pagoInteres),
+                                                    saldoAntes: _rd(saldoAnterior),
+                                                    saldoDespues: _rd(saldoNuevo),
                                                   );
                                                 },
                                               );
@@ -345,21 +286,23 @@ class HistorialScreen extends StatelessWidget {
 
                                 const SizedBox(height: 12),
 
-                                // ===== Botón fijo =====
-                            SizedBox(
-                              width: double.infinity,
-                              height: 52,
-                              child: OutlinedButton(
-                                style: OutlinedButton.styleFrom(
-                                  backgroundColor: Colors.white,                 // ✅ fondo blanco
-                                  foregroundColor: const Color(0xFF2563EB),      // ✅ texto azul
-                                  side: const BorderSide(color: Color(0xFF2563EB), width: 1.5), // ✅ borde azul
-                                  shape: const StadiumBorder(),
-                                  textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                                ),
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Volver'),
-
+                                // Botón Volver (fijo)
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 52,
+                                  child: OutlinedButton(
+                                    style: OutlinedButton.styleFrom(
+                                      backgroundColor: Colors.white,
+                                      foregroundColor: const Color(0xFF2563EB),
+                                      side: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                                      shape: const StadiumBorder(),
+                                      textStyle: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Volver'),
                                   ),
                                 ),
                               ],
@@ -374,6 +317,107 @@ class HistorialScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ===== Ítem de pago “premium” =====
+class _PagoCard extends StatelessWidget {
+  final String fecha;
+  final String total;
+  final String capital;
+  final String interes;
+  final String saldoAntes;
+  final String saldoDespues;
+
+  const _PagoCard({
+    required this.fecha,
+    required this.total,
+    required this.capital,
+    required this.interes,
+    required this.saldoAntes,
+    required this.saldoDespues,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFF),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Icono
+          Container(
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(
+              color: Color(0xFFEFF6FF),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: const Icon(Icons.event_note, color: Color(0xFF2563EB), size: 20),
+          ),
+          const SizedBox(width: 12),
+
+          // Contenido
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Fila principal: fecha + total
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        fecha,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    Text(
+                      total,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1D4ED8),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+
+                // Detalles secundarios
+                Text(
+                  'C: $capital · I: $interes',
+                  style: TextStyle(
+                    color: Colors.grey.shade800,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  'Saldo: $saldoAntes → $saldoDespues',
+                  style: TextStyle(
+                    color: Colors.grey.shade800,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

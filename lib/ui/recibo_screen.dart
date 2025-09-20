@@ -84,8 +84,8 @@ class ReciboUIConfig {
     this.gradientColors = const [Color(0xFF11A7A0), Color(0xFF1D60C9)],
 
     // Capturable (recibo)
-    this.cardHeight = 630,
-    this.designWidth = 460,
+    this.cardHeight = 600,
+    this.designWidth = 450,
     this.cardRadius = const BorderRadius.all(Radius.circular(20)),
     this.cardPadding = const EdgeInsets.fromLTRB(16, 16, 16, 16),
 
@@ -792,6 +792,12 @@ class _ReceiptContent extends StatelessWidget {
                           Divider(height: 14, thickness: 1, color: cfg.mintDivider),
                           _row('Próxima fecha', fmtFecha(proximaFecha)),
                         ],
+
+                        // 6) Producto (dentro de la banda) — solo si viene
+                        if (producto.trim().isNotEmpty) ...[
+                          Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                          _row('Producto', producto),
+                        ],
                       ],
                     ),
                   ),
@@ -811,17 +817,6 @@ class _ReceiptContent extends StatelessWidget {
               ),
             ),
             // ================== / PANEL ÚNICO ==================
-
-            if (producto.trim().isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  label('Producto'),
-                  const Spacer(),
-                  value(producto),
-                ],
-              ),
-            ],
           ],
         ),
 

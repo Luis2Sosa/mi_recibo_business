@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';   // 👈 Firestore
 import 'package:firebase_auth/firebase_auth.dart';      // 👈 UID
@@ -52,7 +53,7 @@ class ClienteDetalleScreen extends StatefulWidget {
 class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   static const double _logoHeight = 350;
   static const double _logoTop = -20;
-  static const double _contentTop = 310;
+  static const double _contentTop = 270;
 
   late int _saldoActual;
   late DateTime _proximaFecha;
@@ -63,9 +64,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     super.initState();
     _saldoActual = widget.saldoActual;
     _proximaFecha = widget.proximaFecha;
-
-    // 👇 Autofix: si quedó "saldado" pero ya tiene nuevo capital, lo ponemos al día.
-    // (Se hace en segundo plano y sin tocar el diseño)
     Future.microtask(_autoFixEstado);
   }
 
@@ -123,9 +121,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     return f;
   }
 
-  /// 🔧 **Autofix** de estado:
-  /// - Si tiene saldoActual > 0, nos aseguramos de que NO esté marcado como saldado.
-  /// - Si la próxima fecha está vencida o es hoy, la movemos al siguiente ciclo.
+  /// 🔧 **Autofix** de estado (no cambia UI ni flujo)
   Future<void> _autoFixEstado() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -136,7 +132,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         .collection('clientes')
         .doc(widget.id);
 
-    // Leemos lo mínimo para decidir
     final snap = await ref.get();
     final data = snap.data() ?? {};
     final bool saldado = (data['saldado'] == true);
@@ -145,14 +140,12 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     bool needsUpdate = false;
     final Map<String, dynamic> updates = {};
 
-    // Si tiene saldo > 0, debe estar "al_dia"
     if (_saldoActual > 0 && (saldado == true || (data['estado'] ?? '') == 'saldado')) {
       updates['saldado'] = false;
       updates['estado'] = 'al_dia';
       needsUpdate = true;
     }
 
-    // Si la próxima fecha está vencida o es hoy, la adelantamos
     final DateTime proxAlDia = _siguienteFechaAlDia(prox, widget.periodo);
     if (proxAlDia != prox) {
       updates['proximaFecha'] = Timestamp.fromDate(proxAlDia);
@@ -170,35 +163,20 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   }
   // ====== /Autofix ======
 
-  /// ✅ Forzar datos del prestamista si vienen vacíos
   Future<Map<String, String>> _prestamistaSeguro() async {
     String empresa = widget.empresa.trim();
     String servidor = widget.servidor.trim();
     String telefono = widget.telefonoServidor.trim();
 
     if (empresa.isNotEmpty && servidor.isNotEmpty && telefono.isNotEmpty) {
-      return {
-        'empresa': empresa,
-        'servidor': servidor,
-        'telefono': telefono,
-      };
+      return {'empresa': empresa, 'servidor': servidor, 'telefono': telefono};
     }
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      return {
-        'empresa': empresa,
-        'servidor': servidor,
-        'telefono': telefono,
-      };
-    }
+    if (uid == null) return {'empresa': empresa, 'servidor': servidor, 'telefono': telefono};
 
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('prestamistas')
-          .doc(uid)
-          .get();
-
+      final snap = await FirebaseFirestore.instance.collection('prestamistas').doc(uid).get();
       final data = snap.data() ?? {};
       final nombre = (data['nombre'] ?? '').toString().trim();
       final apellido = (data['apellido'] ?? '').toString().trim();
@@ -206,15 +184,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       empresa = empresa.isNotEmpty ? empresa : (data['empresa'] ?? '').toString().trim();
       servidor = servidor.isNotEmpty ? servidor : [nombre, apellido].where((s) => s.isNotEmpty).join(' ');
       telefono = telefono.isNotEmpty ? telefono : (data['telefono'] ?? '').toString().trim();
-    } catch (_) {
-      // si falla la lectura, devolvemos lo que tengamos
-    }
-
-    return {
-      'empresa': empresa,
-      'servidor': servidor,
-      'telefono': telefono,
-    };
+    } catch (_) {}
+    return {'empresa': empresa, 'servidor': servidor, 'telefono': telefono};
   }
 
   Future<void> _registrarPagoFlow(BuildContext context) async {
@@ -262,7 +233,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         'proximaFecha': Timestamp.fromDate(proxAlDia),
         'updatedAt': FieldValue.serverTimestamp(),
         'nextReciboCliente': FieldValue.increment(1),
-        // 👇 Si quedó en 0, marcamos saldado; si no, al día
         'saldado': saldoNuevo <= 0,
         'estado' : saldoNuevo <= 0 ? 'saldado' : 'al_dia',
       }, SetOptions(merge: true));
@@ -340,10 +310,26 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   Widget build(BuildContext context) {
     final interesPeriodo = (_saldoActual * (widget.tasaInteres / 100)).round();
 
+    // ===== Tipos premium (solo UI) =====
+    final labelStyle = GoogleFonts.inter(
+      fontSize: 15,
+      color: const Color(0xFF667084),
+      fontWeight: FontWeight.w600,
+      height: 1.2,
+    );
+    final valueStyle = GoogleFonts.inter(
+      fontSize: 16,
+      color: const Color(0xFF0F172A),
+      fontWeight: FontWeight.w800,
+      height: 1.2,
+      fontFeatures: const [FontFeature.tabularFigures()], // dígitos alineados
+    );
+
     return Scaffold(
       body: AppGradientBackground(
         child: Stack(
           children: [
+            // Logo al fondo
             Positioned(
               top: _logoTop,
               left: 0,
@@ -356,6 +342,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                 ),
               ),
             ),
+
+            // Contenido
             Positioned(
               top: _contentTop,
               left: 0,
@@ -390,71 +378,103 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(22),
-                      child: SingleChildScrollView(
+                      child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Nombre
                             Text(
                               widget.nombreCompleto,
-                              style: const TextStyle(
+                              style: GoogleFonts.inter(
                                 fontSize: 22,
                                 fontWeight: FontWeight.w800,
+                                color: const Color(0xFF0F172A),
                               ),
                             ),
                             const SizedBox(height: 6),
+
+                            // Tel / Dirección / Producto
                             Text('Tel: ${widget.telefono}',
-                                style: const TextStyle(fontSize: 14)),
-                            if (widget.direccion != null &&
-                                widget.direccion!.trim().isNotEmpty) ...[
+                                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF111827))),
+                            if (widget.direccion != null && widget.direccion!.trim().isNotEmpty) ...[
                               const SizedBox(height: 6),
                               Text('Dirección: ${widget.direccion}',
-                                  style: const TextStyle(fontSize: 14)),
+                                  style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF111827))),
                             ],
                             if (widget.producto.trim().isNotEmpty) ...[
                               const SizedBox(height: 6),
                               Text('Producto: ${widget.producto}',
-                                  style: const TextStyle(fontSize: 14)),
+                                  style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF111827))),
                             ],
-                            const Divider(height: 28),
-                            _row('Saldo actual', _rd(_saldoActual)),
-                            const SizedBox(height: 8),
-                            _row('Interés ${widget.periodo.toLowerCase()}',
-                                _rd(interesPeriodo)),
-                            const SizedBox(height: 8),
-                            _row('Próxima fecha', _fmtFecha(_proximaFecha)),
+
+                            const SizedBox(height: 16),
+                            Divider(height: 24, thickness: 1, color: const Color(0xFFE7E9EE)),
+
+                            // ==== Banda mint con las 3 filas ====
+                            Container(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF4FAF7),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: const Color(0xFFDDE7E1)),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              child: Column(
+                                children: [
+                                  _rowStyled('Saldo actual', _rd(_saldoActual), labelStyle, valueStyle),
+                                  Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
+                                  _rowStyled('Interés ${widget.periodo.toLowerCase()}', _rd(interesPeriodo), labelStyle, valueStyle),
+                                  Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
+                                  _rowStyled('Próxima fecha', _fmtFecha(_proximaFecha), labelStyle, valueStyle),
+                                ],
+                              ),
+                            ),
+
                             const SizedBox(height: 20),
+
+                            // Botón principal
                             SizedBox(
                               width: double.infinity,
                               height: 56,
                               child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
+                                  elevation: 2,
+                                  shadowColor: const Color(0xFF2563EB).withOpacity(0.35),
                                   backgroundColor: const Color(0xFF2563EB),
                                   foregroundColor: Colors.white,
                                   shape: const StadiumBorder(),
+                                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                                 ),
-                                onPressed: () => _registrarPagoFlow(context),
+                                onPressed: () {
+                                  HapticFeedback.lightImpact();
+                                  _registrarPagoFlow(context);
+                                },
                                 child: const Text('Registrar pago'),
                               ),
                             ),
                             const SizedBox(height: 14),
+
+                            // Botón secundario
                             SizedBox(
                               width: double.infinity,
                               height: 56,
                               child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
+                                  elevation: 0,
                                   backgroundColor: const Color(0xFF22C55E),
                                   foregroundColor: Colors.white,
                                   shape: const StadiumBorder(),
+                                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                                 ),
                                 onPressed: () {
+                                  HapticFeedback.lightImpact();
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) => HistorialScreen(
                                         idCliente: widget.id,
                                         nombreCliente: widget.nombreCompleto,
-                                        producto: widget.producto, // ✅ agregado aquí
+                                        producto: widget.producto,
                                       ),
                                     ),
                                   );
@@ -470,12 +490,21 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                 ),
               ),
             ),
+
+            // Atrás (área táctil amplia)
             Positioned(
               top: 8,
               left: 8,
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: _onBack,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: _onBack,
+                  child: const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                  ),
+                ),
               ),
             ),
           ],
@@ -484,6 +513,17 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     );
   }
 
+  // ===== Helpers UI (no cambian lógica) =====
+  Widget _rowStyled(String l, String v, TextStyle ls, TextStyle vs) {
+    return Row(
+      children: [
+        Expanded(child: Text(l, style: ls)),
+        Text(v, style: vs),
+      ],
+    );
+  }
+
+  // Mantengo tu helper original (por compatibilidad con otros usos)
   Widget _row(String label, String value) {
     return Row(
       children: [
