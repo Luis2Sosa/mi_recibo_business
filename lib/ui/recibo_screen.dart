@@ -85,7 +85,7 @@ class ReciboUIConfig {
 
     // Capturable (recibo)
     this.cardHeight = 630,
-    this.designWidth = 470,
+    this.designWidth = 460,
     this.cardRadius = const BorderRadius.all(Radius.circular(20)),
     this.cardPadding = const EdgeInsets.fromLTRB(16, 16, 16, 16),
 
@@ -126,14 +126,14 @@ class ReciboUIConfig {
     this.amountPanelPadding = const EdgeInsets.symmetric(horizontal: 14, vertical: 14), // ↑
     this.amountPanelBorder = const Color(0xFFDDE7E1),
     this.amountPrefixStyle = const TextStyle(
-      fontSize: 58, // ↑
+      fontSize: 60, // ↑
       fontWeight: FontWeight.w900,
       color: Color(0xFF10B981),
       height: 1.0,
       letterSpacing: 0.2,
     ),
     this.amountNumberStyle = const TextStyle(
-      fontSize: 64, // ↑
+      fontSize: 68, // ↑
       fontWeight: FontWeight.w900,
       letterSpacing: 0.6,
       color: Color(0xFF10B981),
@@ -153,19 +153,19 @@ class ReciboUIConfig {
 
     // Textos
     this.labelStyle = const TextStyle(
-      fontSize: 18, // ↑
+      fontSize: 20, // ↑
       color: Color(0xFF667084),
       fontWeight: FontWeight.w600,
       letterSpacing: .1,
     ),
     this.valueStyle = const TextStyle(
-      fontSize: 20, // ↑
+      fontSize: 22, // ↑
       color: Color(0xFF0F172A),
       fontWeight: FontWeight.w800,
       letterSpacing: .1,
     ),
     this.valueStrongStyle = const TextStyle(
-      fontSize: 16, // ↑
+      fontSize: 22, // ↑
       color: Color(0xFF0F172A),
       fontWeight: FontWeight.w900,
       letterSpacing: .1,
@@ -683,7 +683,6 @@ class _ReceiptContent extends StatelessWidget {
               ),
             ),
 
-
             // Panel del monto
             Container(
               decoration: BoxDecoration(
@@ -710,7 +709,7 @@ class _ReceiptContent extends StatelessWidget {
 
             const SizedBox(height: 10),
 
-// ================== PANEL ÚNICO (como la foto) ==================
+            // ================== PANEL ÚNICO (como la foto) ==================
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -741,8 +740,7 @@ class _ReceiptContent extends StatelessWidget {
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text('Recibo: ',
-                                  style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w600)),
+                              //Text('Recibo: ', style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w600)),
                               Text(numeroRecibo, style: cfg.valueStrongStyle),
                             ],
                           ),
@@ -766,7 +764,7 @@ class _ReceiptContent extends StatelessWidget {
 
                   const SizedBox(height: 10),
 
-                  // Banda mint con filas (capital, intereses, pagos, saldos, próxima fecha)
+                  // Banda mint con filas (profesional, sin duplicados)
                   Container(
                     decoration: BoxDecoration(
                       color: cfg.mint,
@@ -776,17 +774,24 @@ class _ReceiptContent extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     child: Column(
                       children: [
-                        _row('Capital Inicial', monedaRD(capitalInicial)),
+                        // 1) Monto adeudado (antes del pago) => saldoAnterior
+                        _row('Monto adeudado', monedaRD(saldoAnterior)),
                         Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+
+                        // 2) Pago de interés
                         _row('Pago de interés', monedaRD(pagoInteres)),
                         Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+
+                        // 3) Pago a capital
                         _row('Pago a capital', monedaRD(pagoCapital)),
-                        Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-                        _row('Saldo anterior', monedaRD(saldoAnterior)),
-                        Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-                        _row('Saldo actual', monedaRD(saldoActual)),
-                        Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-                        _row('Próxima fecha', fmtFecha(proximaFecha)),
+
+                        // 4-5) Solo si queda deuda
+                        if (saldoActual > 0) ...[
+                          Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                          _row('Saldo pendiente actual', monedaRD(saldoActual)),
+                          Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                          _row('Próxima fecha', fmtFecha(proximaFecha)),
+                        ],
                       ],
                     ),
                   ),
@@ -805,7 +810,7 @@ class _ReceiptContent extends StatelessWidget {
                 ],
               ),
             ),
-// ================== / PANEL ÚNICO ==================
+            // ================== / PANEL ÚNICO ==================
 
             if (producto.trim().isNotEmpty) ...[
               const SizedBox(height: 6),
