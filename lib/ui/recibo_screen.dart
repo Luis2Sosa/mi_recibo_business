@@ -398,9 +398,13 @@ class _ReciboScreenState extends State<ReciboScreen> {
       onWillPop: () async {
         final now = DateTime.now();
         if (_lastBackPress == null || now.difference(_lastBackPress!) > _backWindow) {
-          _lastBackPress = now; HapticFeedback.mediumImpact();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Pulsa atrás otra vez para guardar PDF y volver a Clientes')),
+          _lastBackPress = now;
+          HapticFeedback.mediumImpact();
+
+          _showModernSnackBar(
+            icon: Icons.keyboard_return_rounded,
+            text: 'Pulsa atrás otra vez para guardar PDF y volver a Clientes',
+            bg: const Color(0xFF11A7A0),
           );
           return false;
         } else {
@@ -525,6 +529,42 @@ class _ReciboScreenState extends State<ReciboScreen> {
       ),
     );
   }
+
+  void _showModernSnackBar({
+    required IconData icon,
+    required String text,
+    required Color bg,
+  }) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: bg,
+        elevation: 6,
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
 }
 
 /// Card plana SIN brillo/sombras
