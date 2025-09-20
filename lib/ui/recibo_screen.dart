@@ -392,7 +392,7 @@ class _ReciboScreenState extends State<ReciboScreen> {
   @override
   Widget build(BuildContext context) {
     final cfg = this.cfg;
-    final double captureHeight = cfg.cardHeight + 64;
+    final double captureHeight = cfg.cardHeight + 60;
 
     return WillPopScope(
       onWillPop: () async {
@@ -410,6 +410,7 @@ class _ReciboScreenState extends State<ReciboScreen> {
       },
       child: Scaffold(
         body: Container(
+          constraints: const BoxConstraints.expand(),
           decoration: BoxDecoration(
             gradient: LinearGradient(begin: cfg.gradientBegin, end: cfg.gradientEnd, colors: cfg.gradientColors),
           ),
@@ -431,9 +432,13 @@ class _ReciboScreenState extends State<ReciboScreen> {
                     child: Container(
                       height: captureHeight,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(begin: cfg.gradientBegin, end: cfg.gradientEnd, colors: cfg.gradientColors),
-                        borderRadius: BorderRadius.circular(28),
+                        gradient: LinearGradient(
+                          begin: cfg.gradientBegin,
+                          end: cfg.gradientEnd,
+                          colors: cfg.gradientColors,
+                        ),
                       ),
+
                       child: Center(
                         child: _PlainCardShell(
                           radius: cfg.cardRadius,
@@ -472,7 +477,8 @@ class _ReciboScreenState extends State<ReciboScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 8),
+
+                  const SizedBox(height: 8),
 
                 // Botones (no se incluyen en la captura)
                 Padding(
