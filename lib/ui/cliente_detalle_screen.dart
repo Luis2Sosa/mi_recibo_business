@@ -121,7 +121,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     return f;
   }
 
-  /// 🔧 **Autofix** de estado (no cambia UI ni flujo)
+  /// 🔧 **Autofix** mínimo: solo corrige flags "saldado" si hay saldo > 0.
+  /// ❌ No mueve proximaFecha aquí (la fecha solo cambia al registrar un pago).
   Future<void> _autoFixEstado() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -135,21 +136,14 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     final snap = await ref.get();
     final data = snap.data() ?? {};
     final bool saldado = (data['saldado'] == true);
-    DateTime prox = _proximaFecha;
 
     bool needsUpdate = false;
     final Map<String, dynamic> updates = {};
 
+    // Si tiene saldo > 0, no puede estar saldado.
     if (_saldoActual > 0 && (saldado == true || (data['estado'] ?? '') == 'saldado')) {
       updates['saldado'] = false;
       updates['estado'] = 'al_dia';
-      needsUpdate = true;
-    }
-
-    final DateTime proxAlDia = _siguienteFechaAlDia(prox, widget.periodo);
-    if (proxAlDia != prox) {
-      updates['proximaFecha'] = Timestamp.fromDate(proxAlDia);
-      prox = proxAlDia;
       needsUpdate = true;
     }
 
@@ -157,7 +151,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       await ref.set(updates, SetOptions(merge: true));
       if (!mounted) return;
       setState(() {
-        _proximaFecha = prox;
+        // No tocamos _proximaFecha aquí.
       });
     }
   }
