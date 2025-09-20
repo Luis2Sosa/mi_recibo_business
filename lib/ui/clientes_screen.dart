@@ -64,7 +64,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
   // ---- Banner bonito (2s) ----
   void _showBanner(String texto,
-      {Color color = const Color(0xFF16A34A),
+      {Color color = const Color(0xFF11A7A0),
         IconData icon = Icons.check_circle}) {
     final snack = SnackBar(
       behavior: SnackBarBehavior.floating,
@@ -82,9 +82,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
           ),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.12),
-                blurRadius: 12,
-                offset: const Offset(0, 6))
+              color: Colors.black.withOpacity(0.12),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            )
           ],
         ),
         child: Row(
@@ -92,9 +93,12 @@ class _ClientesScreenState extends State<ClientesScreen> {
             Icon(icon, color: Colors.white),
             const SizedBox(width: 10),
             Expanded(
-                child: Text(texto,
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w800))),
+              child: Text(
+                texto,
+                style:
+                const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+              ),
+            ),
           ],
         ),
       ),
@@ -293,6 +297,14 @@ class _ClientesScreenState extends State<ClientesScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 6, bottom: 4),
+                child: Text(
+                  'Acciones',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+              ),
+              const Divider(height: 0, color: Color(0xFFE5E7EB)),
               ListTile(
                 leading: const Icon(Icons.edit, color: Color(0xFF2563EB)),
                 title: const Text('Editar'),
@@ -301,7 +313,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                   _abrirEditarCliente(c);
                 },
               ),
-              const Divider(height: 0),
+              const Divider(height: 0, color: Color(0xFFE5E7EB)),
               ListTile(
                 leading: const Icon(Icons.delete, color: Colors.red),
                 title: const Text('Eliminar',
@@ -311,7 +323,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                   _confirmarEliminar(c);
                 },
               ),
-              const Divider(height: 0),
+              const Divider(height: 0, color: Color(0xFFE5E7EB)),
               ListTile(
                 leading: const Icon(Icons.close),
                 title: const Text('Cancelar'),
@@ -397,12 +409,13 @@ class _ClientesScreenState extends State<ClientesScreen> {
                           child: Container(
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(28),
+                              borderRadius: BorderRadius.circular(28), // ⬆️ sutil
                               boxShadow: [
                                 BoxShadow(
-                                    color: Colors.black.withOpacity(0.18),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 10))
+                                  color: Colors.black.withOpacity(0.18),
+                                  blurRadius: 20, // ⬆️ suave
+                                  offset: const Offset(0, 10),
+                                ),
                               ],
                             ),
                             child: ClipRRect(
@@ -412,19 +425,23 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                   // Título
                                   Padding(
                                     padding: const EdgeInsets.only(
-                                        top: 14,
-                                        left: 16,
-                                        right: 16,
-                                        bottom: 4),
-                                    child: Text('CLIENTES',
-                                        textAlign: TextAlign.center,
-                                        style: GoogleFonts.playfair(
-                                          color: Colors.white,
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.w600,
-                                          fontStyle: FontStyle.italic,
-                                        )),
+                                      top: 14,
+                                      left: 16,
+                                      right: 16,
+                                      bottom: 4,
+                                    ),
+                                    child: Text(
+                                      'CLIENTES',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.playfair(
+                                        color: Colors.white,
+                                        fontSize: 24, // ⬆️ +2pt
+                                        fontWeight: FontWeight.w600,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
                                   ),
+
                                   // Buscador + botón agregar
                                   Padding(
                                     padding: const EdgeInsets.fromLTRB(
@@ -432,24 +449,38 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                     child: Row(
                                       children: [
                                         Expanded(
-                                          child: SizedBox(
-                                            height: 46,
+                                          child: Container(
+                                            height: 48, // ⬆️
+                                            decoration: BoxDecoration(
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.08),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 4),
+                                                ),
+                                              ],
+                                            ),
                                             child: TextField(
                                               controller: _searchCtrl,
-                                              onChanged: (_) =>
-                                                  setState(() {}),
+                                              onChanged: (_) => setState(() {}),
                                               decoration: InputDecoration(
                                                 hintText: 'Buscar',
-                                                prefixIcon:
-                                                const Icon(Icons.search),
+                                                hintStyle: const TextStyle(
+                                                  color: Color(0xFF111827),
+                                                ),
+                                                prefixIcon: Icon(
+                                                  Icons.search,
+                                                  color: Colors.black
+                                                      .withOpacity(0.7),
+                                                ),
                                                 filled: true,
                                                 fillColor: Colors.white
-                                                    .withOpacity(0.85),
+                                                    .withOpacity(0.92),
                                                 contentPadding:
-                                                const EdgeInsets
-                                                    .symmetric(
+                                                const EdgeInsets.symmetric(
                                                     horizontal: 14,
-                                                    vertical: 10),
+                                                    vertical: 12),
                                                 border: OutlineInputBorder(
                                                   borderRadius:
                                                   BorderRadius.circular(18),
@@ -461,8 +492,8 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                         ),
                                         const SizedBox(width: 12),
                                         SizedBox(
-                                          width: 46,
-                                          height: 46,
+                                          width: 48, // ⬆️
+                                          height: 48, // ⬆️
                                           child: Material(
                                             color: const Color(0xFF22C55E),
                                             borderRadius:
@@ -490,11 +521,22 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                       children: [
                                         ChoiceChip(
                                           label: const Text('Todos'),
-                                          selected: _filtro ==
-                                              FiltroClientes.todos,
+                                          selected:
+                                          _filtro == FiltroClientes.todos,
                                           onSelected: (_) => setState(() =>
-                                          _filtro =
-                                              FiltroClientes.todos),
+                                          _filtro = FiltroClientes.todos),
+                                          backgroundColor: Colors.white
+                                              .withOpacity(0.85),
+                                          selectedColor: Colors.white,
+                                          side: const BorderSide(
+                                              color: Color(0xFFE5E7EB)),
+                                          labelStyle: TextStyle(
+                                            color: _filtro ==
+                                                FiltroClientes.todos
+                                                ? const Color(0xFF2563EB)
+                                                : const Color(0xFF0F172A),
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                         ChoiceChip(
                                           label: const Text('Pendientes'),
@@ -503,14 +545,37 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                           onSelected: (_) => setState(() =>
                                           _filtro =
                                               FiltroClientes.pendientes),
+                                          backgroundColor: Colors.white
+                                              .withOpacity(0.85),
+                                          selectedColor: Colors.white,
+                                          side: const BorderSide(
+                                              color: Color(0xFFE5E7EB)),
+                                          labelStyle: TextStyle(
+                                            color: _filtro ==
+                                                FiltroClientes.pendientes
+                                                ? const Color(0xFF2563EB)
+                                                : const Color(0xFF0F172A),
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                         ChoiceChip(
                                           label: const Text('Saldados'),
                                           selected: _filtro ==
                                               FiltroClientes.saldados,
                                           onSelected: (_) => setState(() =>
-                                          _filtro =
-                                              FiltroClientes.saldados),
+                                          _filtro = FiltroClientes.saldados),
+                                          backgroundColor: Colors.white
+                                              .withOpacity(0.85),
+                                          selectedColor: Colors.white,
+                                          side: const BorderSide(
+                                              color: Color(0xFFE5E7EB)),
+                                          labelStyle: TextStyle(
+                                            color: _filtro ==
+                                                FiltroClientes.saldados
+                                                ? const Color(0xFF2563EB)
+                                                : const Color(0xFF0F172A),
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -536,18 +601,19 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                         if (snap.connectionState ==
                                             ConnectionState.waiting) {
                                           return const Center(
-                                              child:
-                                              CircularProgressIndicator(
-                                                  color:
-                                                  Colors.white));
+                                            child:
+                                            CircularProgressIndicator(
+                                                color: Colors.white),
+                                          );
                                         }
                                         if (snap.hasError) {
                                           return Center(
-                                              child: Text(
-                                                  'Error: ${snap.error}',
-                                                  style: const TextStyle(
-                                                      color:
-                                                      Colors.white)));
+                                            child: Text(
+                                              'Error: ${snap.error}',
+                                              style: const TextStyle(
+                                                  color: Colors.white),
+                                            ),
+                                          );
                                         }
                                         final docs =
                                             snap.data?.docs ?? [];
@@ -569,8 +635,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                           return _Cliente(
                                             id: d.id,
                                             codigo: codigoVisible,
-                                            nombre:
-                                            (data['nombre'] ?? '')
+                                            nombre: (data['nombre'] ?? '')
                                             as String,
                                             apellido:
                                             (data['apellido'] ?? '')
@@ -578,7 +643,8 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                             telefono:
                                             (data['telefono'] ?? '')
                                             as String,
-                                            direccion: data['direccion']
+                                            direccion:
+                                            data['direccion']
                                             as String?,
                                             producto:
                                             (data['producto']
@@ -596,10 +662,11 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                                 .toDouble(),
                                             periodo: (data['periodo'] ??
                                                 'Mensual') as String,
-                                            proximaFecha: (data[
-                                            'proximaFecha']
+                                            proximaFecha:
+                                            (data['proximaFecha']
                                             is Timestamp)
-                                                ? (data['proximaFecha']
+                                                ? (data[
+                                            'proximaFecha']
                                             as Timestamp)
                                                 .toDate()
                                                 : DateTime.now(),
@@ -643,11 +710,14 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                             child: Text('No hay clientes',
                                                 style: TextStyle(
                                                     fontSize: 16,
-                                                    color: Colors.white)),
+                                                    color:
+                                                    Colors.white)),
                                           );
                                         }
 
                                         return ListView.builder(
+                                          physics:
+                                          const BouncingScrollPhysics(), // ⬅️ feel premium
                                           padding:
                                           const EdgeInsets.fromLTRB(
                                               12, 8, 12, 24),
@@ -697,16 +767,17 @@ class _ClientesScreenState extends State<ClientesScreen> {
                       GestureDetector(
                         onTap: () {
                           Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) =>
-                                  const PerfilPrestamistaScreen()));
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PerfilPrestamistaScreen(),
+                            ),
+                          );
                         },
                         child: const CircleAvatar(
                           radius: 18,
                           backgroundColor: Colors.white,
-                          child: Icon(Icons.person,
-                              color: Color(0xFF2458D6)),
+                          child:
+                          Icon(Icons.person, color: Color(0xFF2458D6)),
                         ),
                       ),
                       const Spacer(),
@@ -821,9 +892,9 @@ class _ClienteCard extends StatelessWidget {
     if (!resaltar) return Colors.transparent;
     switch (estado) {
       case _EstadoVenc.vencido:
-        return const Color(0xFFEF4444); // rojo
+        return const Color(0xFFDC2626); // rojo más elegante
       case _EstadoVenc.hoy:
-        return const Color(0xFFF97316); // naranja
+        return const Color(0xFFFB923C); // naranja cálido
       case _EstadoVenc.pronto:
         return const Color(0xFFFACC15); // amarillo
       case _EstadoVenc.alDia:
@@ -857,9 +928,10 @@ class _ClienteCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 6))
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          )
         ],
       ),
       child: ClipRRect(
@@ -873,15 +945,22 @@ class _ClienteCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  Text(codigoCorto ?? cliente.codigo,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700, color: Colors.black87)),
+                  Text(
+                    codigoCorto ?? cliente.codigo,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
                   const Spacer(),
                   if (resaltar || cliente.saldoActual <= 0)
-                    Text(_estadoTexto(),
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: Colors.black87)),
+                    Text(
+                      _estadoTexto(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700, // semibold/strong
+                        color: Colors.black87,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -895,26 +974,41 @@ class _ClienteCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(cliente.nombreCompleto,
-                            style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800)),
-                        const SizedBox(height: 4),
-                        Text('Tel: ${cliente.telefono}',
-                            style: const TextStyle(
-                                fontSize: 12, color: Colors.black87)),
+                        Text(
+                          cliente.nombreCompleto,
+                          style: const TextStyle(
+                            fontSize: 19, // ⬆️ +1pt
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                         const SizedBox(height: 4),
                         Text(
-                            'Interés ${cliente.periodo.toLowerCase()}: ${_monedaRD(interesPeriodo)}',
-                            style: const TextStyle(
-                                fontSize: 12, color: Colors.black87)),
+                          'Tel: ${cliente.telefono}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xDE000000), // 87% black
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Interés ${cliente.periodo.toLowerCase()}: ${_monedaRD(interesPeriodo)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xDE000000),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                   // Derecha
-                  Text('Saldo: ${_monedaRD(cliente.saldoActual)}',
-                      style: const TextStyle(
-                          fontSize: 14, color: Colors.black87)),
+                  Text(
+                    'Saldo: ${_monedaRD(cliente.saldoActual)}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
             ),
