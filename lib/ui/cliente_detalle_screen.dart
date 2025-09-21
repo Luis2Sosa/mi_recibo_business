@@ -140,7 +140,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     bool needsUpdate = false;
     final Map<String, dynamic> updates = {};
 
-    // Si tiene saldo > 0, no puede estar saldado.
     if (_saldoActual > 0 && (saldado == true || (data['estado'] ?? '') == 'saldado')) {
       updates['saldado'] = false;
       updates['estado'] = 'al_dia';
@@ -316,7 +315,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       color: const Color(0xFF0F172A),
       fontWeight: FontWeight.w800,
       height: 1.2,
-      fontFeatures: const [FontFeature.tabularFigures()], // dígitos alineados
+      fontFeatures: const [FontFeature.tabularFigures()],
     );
 
     return Scaffold(
@@ -357,23 +356,25 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                     ),
                   ),
                 ),
-                child: Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(22),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(22),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                // 👇 QUITAMOS Expanded y envolvemos el contenido con Scroll
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(22),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                      child: SingleChildScrollView(
+                        physics: const ClampingScrollPhysics(),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [

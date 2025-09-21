@@ -31,30 +31,32 @@ class AppFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(AppTheme.radiusFrame),
-              boxShadow: [AppTheme.shadowFrame],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppTheme.radiusFrame),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (header != null) ...[
-                      header!,
-                      const SizedBox(height: 12),
+    return SizedBox.expand( // ✅ da altura acotada para evitar overflow
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(AppTheme.radiusFrame),
+                boxShadow: [AppTheme.shadowFrame],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(AppTheme.radiusFrame),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.max, // ✅ columna ocupa alto disponible
+                    children: [
+                      if (header != null) ...[
+                        header!,
+                        const SizedBox(height: 12),
+                      ],
+                      Expanded(child: child), // ✅ contenido se adapta sin desbordar
                     ],
-                    child,
-                  ],
+                  ),
                 ),
               ),
             ),

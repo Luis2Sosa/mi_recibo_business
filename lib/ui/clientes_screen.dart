@@ -131,10 +131,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
   _EstadoVenc _estadoDe(_Cliente c) {
     final d = _diasHasta(c.proximaFecha);
-    if (d < 0) return _EstadoVenc.vencido;
-    if (d == 0) return _EstadoVenc.hoy;
-    if (d <= 2) return _EstadoVenc.pronto;
-    return _EstadoVenc.alDia;
+    if (d < 0) return _EstadoVenc.vencido; // vencido
+    if (d == 0) return _EstadoVenc.hoy;    // hoy
+    if (d <= 2) return _EstadoVenc.pronto; // faltan 1–2 días
+    return _EstadoVenc.alDia;              // más de 2 días
   }
 
   bool _esSaldado(_Cliente c) => c.saldoActual <= 0;
