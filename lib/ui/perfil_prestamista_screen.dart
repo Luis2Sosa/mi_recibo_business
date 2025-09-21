@@ -1,5 +1,8 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'home_screen.dart';
 
 class PerfilPrestamistaScreen extends StatefulWidget {
@@ -9,61 +12,81 @@ class PerfilPrestamistaScreen extends StatefulWidget {
 }
 
 class _Brand {
-  static const gradientTop = Color(0xFF2458D6);
-  static const gradientBottom = Color(0xFF0A9A76);
-  static const primary = Color(0xFF2563EB);
-  static const success = Color(0xFF22C55E);
+  // Base
+  static const gradTop = Color(0xFF2458D6);
+  static const gradBottom = Color(0xFF0A9A76);
+  static const primary = Color(0xFF2563EB); // azul
+  static const success = Color(0xFF22C55E); // verde recibo
+  static const successDark = Color(0xFF16A34A);
+  static const softRed = Color(0xFFE11D48); // rojo suave para recuperación < 50
   static const ink = Color(0xFF0F172A);
-  static const inkDim = Color(0xFF475569);
+  static const inkDim = Color(0xFF64748B);
   static const card = Color(0xFFFFFFFF);
-  static const cardSoft = Color(0xFFF8FAFC);
+  static const glassAlpha = 0.12;
+
+  // KPIs
+  static const kpiGray = Color(0xFFE5E7EB);   // total prestado (fondo suave)
+  static const kpiBlue = Color(0xFFDBEAFE);   // total pendiente
+  static const kpiGreen = Color(0xFFDCFCE7);  // total recuperado
+
+  // Divisor estilo recibo
+  static const divider = Color(0xFFD7E1EE);
 }
 
 class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
-  // Logo independiente
-  static const double _logoTop = -50;
-  static const double _logoHeight = 350;
-  static const double _gapBelowLogo = -60;
+  // Logo
+  static const double _logoTop = -48;
+  static const double _logoH = 340;
+  static const double _gapBelowLogo = -48;
 
-  // pestaña activa: 0 Perfil, 1 Estadísticas
-  int _tabIndex = 1; // si quieres abrir en Perfil, pon 0
+  // Tabs
+  int _tab = 1; // 0 Perfil | 1 Estadísticas
 
-  // Datos del perfil
+  // Firebase
+  final _db = FirebaseFirestore.instance;
+  User? get _user => FirebaseAuth.instance.currentUser;
+  DocumentReference<Map<String, dynamic>>? get _docPrest =>
+      _user == null ? null : _db.collection('prestamistas').doc(_user!.uid);
+
+  // Perfil
   final _nombreCtrl = TextEditingController();
-  final _telefonoCtrl = TextEditingController();
-  final _empresaCtrl = TextEditingController();
-  final _direccionCtrl = TextEditingController();
+  final _telCtrl = TextEditingController();
+  final _empCtrl = TextEditingController();
+  final _dirCtrl = TextEditingController();
+  bool _pin = false, _bio = false, _backup = false, _notif = true;
+  DateTime? _lastBackup;
 
-  // Seguridad
-  bool _pinEnabled = false;
-  bool _biometriaEnabled = false;
+  // Stats
+  bool _loadingProfile = true, _loadingStats = true;
+  int totalPrestado = 0, totalPendiente = 0, totalRecuperado = 0;
+  List<int> pagosMes = [];
+  List<String> pagosMesLabels = [];
+  int clientesAlDia = 0, clientesPagando = 0, clientesVencidos = 0;
+  String mayorNombre = '—';
+  int mayorSaldo = -1;
+  String promInteres = '—', proximoVenc = '—';
 
-  // Respaldo
-  bool _backupEnabled = false;
-  DateTime? _lastBackupAt;
-
-  // Notificaciones
-  bool _notifEnabled = true;
-  TimeOfDay _notifHour = const TimeOfDay(hour: 8, minute: 0);
-
-  // =================== DATOS ESTADÍSTICA ===================
-  int totalPrestado = 0;
-  int totalRecuperado = 0;
-  int totalPendiente = 0;
-  final List<int> pagosMes = [];
-  int clientesAlDia = 0;
-  int clientesPagando = 0;
-  int clientesVencidos = 0;
-
-  bool get _hasData {
-    return totalPrestado > 0 ||
-        totalRecuperado > 0 ||
-        totalPendiente > 0 ||
-        pagosMes.isNotEmpty ||
-        (clientesAlDia + clientesPagando + clientesVencidos) > 0;
+  @override
+  void initState() {
+    super.initState();
+    _cargarTodo();
   }
 
-  String _fmtRD(int v) {
+  Future<void> _cargarTodo() async {
+    await Future.wait([_loadProfile(), _loadStats()]);
+  }
+
+  @override
+  void dispose() {
+    _nombreCtrl.dispose();
+    _telCtrl.dispose();
+    _empCtrl.dispose();
+    _dirCtrl.dispose();
+    super.dispose();
+  }
+
+  // ===== Util =====
+  String _rd(int v) {
     if (v <= 0) return 'RD\$0';
     final s = v.toString();
     final b = StringBuffer();
@@ -79,118 +102,237 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     return 'RD\$${b.toString().split('').reversed.join()}';
   }
 
-  @override
-  void dispose() {
-    _nombreCtrl.dispose();
-    _telefonoCtrl.dispose();
-    _empresaCtrl.dispose();
-    _direccionCtrl.dispose();
-    super.dispose();
-  }
+  String _two(int n) => n.toString().padLeft(2, '0');
+  String _fmtFecha(DateTime d) => '${_two(d.day)} ${[
+    'ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'
+  ][d.month-1]} ${d.year}';
 
-  // ======= FALTANTE (ahora incluido): pedir PIN =======
-  Future<String?> _pedirPin({bool confirmar = false}) async {
-    final ctrl = TextField(
-      keyboardType: TextInputType.number,
-      obscureText: true,
-      maxLength: 4,
-      decoration: const InputDecoration(
-        labelText: 'PIN (4 dígitos)',
-        border: OutlineInputBorder(),
-        counterText: '',
-      ),
-    );
-    String value = '';
-    return showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(confirmar ? 'Confirma tu PIN' : 'Crea un PIN'),
-        content: StatefulBuilder(
-          builder: (context, setSt) {
-            return TextField(
-              onChanged: (t) => value = t.trim(),
-              keyboardType: TextInputType.number,
-              obscureText: true,
-              maxLength: 4,
-              decoration: const InputDecoration(
-                labelText: 'PIN (4 dígitos)',
-                border: OutlineInputBorder(),
-                counterText: '',
-              ),
-            );
-          },
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          TextButton(onPressed: () => Navigator.pop(context, value), child: const Text('OK')),
-        ],
-      ),
-    );
-  }
-
-  void _showBanner(String texto, {Color color = _Brand.success, IconData icon = Icons.check_circle}) {
+  void _toast(String msg, {Color color = _Brand.success, IconData icon = Icons.check_circle}) {
     final snack = SnackBar(
       behavior: SnackBarBehavior.floating,
       backgroundColor: color,
-      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      content: Row(
-        children: [
-          Icon(icon, color: Colors.white),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(texto, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
+      content: Row(children: [
+        Icon(icon, color: Colors.white),
+        const SizedBox(width: 10),
+        Expanded(child: Text(msg, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
+      ]),
       duration: const Duration(seconds: 2),
     );
     ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(snack);
   }
 
-  String _two(int n) => n.toString().padLeft(2, '0');
-  String _fmtDateTime(DateTime d) => '${_two(d.day)}/${_two(d.month)}/${d.year}  ${_two(d.hour)}:${_two(d.minute)}';
+  // ===== Perfil =====
+  Future<void> _loadProfile() async {
+    try {
+      final ref = _docPrest;
+      if (ref == null) return;
+      final snap = await ref.get();
+      final d = snap.data() ?? {};
 
+      _nombreCtrl.text = ([d['nombre'], d['apellido']]
+          .where((e) => (e ?? '').toString().trim().isNotEmpty)
+          .map((e) => e.toString().trim()))
+          .join(' ');
+      _telCtrl.text = (d['telefono'] ?? '').toString().trim();
+      _empCtrl.text = (d['empresa'] ?? '').toString().trim();
+      _dirCtrl.text = (d['direccion'] ?? '').toString().trim();
+
+      final s = (d['settings'] as Map?) ?? {};
+      _pin = s['pinEnabled'] == true;
+      _bio = s['biometria'] == true;
+      _backup = s['backupHabilitado'] == true;
+      _notif = (s['notifVenc'] ?? true) as bool;
+
+      final lb = d['lastBackupAt'];
+      if (lb is Timestamp) _lastBackup = lb.toDate();
+    } finally {
+      if (mounted) setState(() => _loadingProfile = false);
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    if (_docPrest == null) return;
+
+    final full = _nombreCtrl.text.trim();
+    String nombre = '', apellido = '';
+    if (full.isNotEmpty) {
+      final parts = full.split(RegExp(r'\s+'));
+      if (parts.length == 1) {
+        nombre = parts.first;
+      } else {
+        apellido = parts.removeLast();
+        nombre = parts.join(' ');
+      }
+    }
+
+    await _docPrest!.set({
+      'nombre': nombre,
+      'apellido': apellido,
+      'telefono': _telCtrl.text.trim(),
+      'empresa': _empCtrl.text.trim().isEmpty ? null : _empCtrl.text.trim(),
+      'direccion': _dirCtrl.text.trim().isEmpty ? null : _dirCtrl.text.trim(),
+      'settings': {
+        'pinEnabled': _pin,
+        'biometria': _bio,
+        'backupHabilitado': _backup,
+        'notifVenc': _notif,
+      },
+      'lastBackupAt': _lastBackup == null ? null : Timestamp.fromDate(_lastBackup!),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    _toast('Perfil actualizado ✅');
+  }
+
+  Future<void> _hacerBackup() async {
+    if (_docPrest == null) return;
+    final clientes = await _docPrest!.collection('clientes').get();
+    final List<Map<String, dynamic>> pack = [];
+    for (final c in clientes.docs) {
+      final data = c.data();
+      final pagos = await c.reference.collection('pagos').get();
+      data['pagos'] = pagos.docs.map((e) => e.data()).toList();
+      pack.add(data);
+    }
+    await _docPrest!.collection('backups').add({
+      'createdAt': FieldValue.serverTimestamp(),
+      'clientes': pack,
+      'version': 1,
+    });
+    _lastBackup = DateTime.now();
+    await _docPrest!.set({'lastBackupAt': Timestamp.fromDate(_lastBackup!)}, SetOptions(merge: true));
+    if (mounted) setState(() {});
+    _toast('Copia realizada ✅');
+  }
+
+  // ===== Stats =====
+  Future<void> _loadStats() async {
+    try {
+      if (_docPrest == null) return;
+      final cs = await _docPrest!.collection('clientes').get();
+
+      int prestado = 0, pendiente = 0;
+      int alDia = 0, pagando = 0, vencidos = 0;
+      String maxNombre = '';
+      int maxSaldo = -1;
+      DateTime? proxVenc;
+
+      final hoy = DateTime.now();
+      final hoyOnly = DateTime(hoy.year, hoy.month, hoy.day);
+
+      // últimos 6 meses
+      final now = DateTime.now();
+      final monthsList = List.generate(6, (i) => DateTime(now.year, now.month - (5 - i), 1));
+      final Map<String, int> porMes = {
+        for (final m in monthsList) '${m.year}-${m.month.toString().padLeft(2, '0')}': 0
+      };
+
+      double sumaRates = 0.0;
+      int nRates = 0;
+
+      for (final d in cs.docs) {
+        final m = d.data();
+        final cap = (m['capitalInicial'] ?? 0) as int;
+        final sal = (m['saldoActual'] ?? 0) as int;
+        prestado += cap;
+        pendiente += sal;
+
+        if (sal > 0 && sal > maxSaldo) {
+          maxSaldo = sal;
+          final nombre = '${(m['nombre'] ?? '').toString().trim()} ${(m['apellido'] ?? '').toString().trim()}'.trim();
+          maxNombre = nombre.isEmpty ? (m['telefono'] ?? 'Cliente') : nombre;
+        }
+
+        if (sal > 0) {
+          DateTime f = hoyOnly;
+          final ts = m['proximaFecha'];
+          if (ts is Timestamp) {
+            final td = ts.toDate();
+            f = DateTime(td.year, td.month, td.day);
+          }
+          final diff = f.difference(hoyOnly).inDays;
+          if (diff < 0) vencidos++;
+          else if (diff <= 2) pagando++;
+          else alDia++;
+
+          if (!f.isBefore(hoyOnly)) {
+            if (proxVenc == null || f.isBefore(proxVenc)) proxVenc = f;
+          }
+        }
+
+        final pagos = await d.reference.collection('pagos').get();
+        for (final p in pagos.docs) {
+          final mp = p.data();
+          final ts = mp['fecha'];
+          if (ts is Timestamp) {
+            final dt = ts.toDate();
+            final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
+            porMes[key] = (porMes[key] ?? 0) + ((mp['totalPagado'] ?? 0) as int);
+          }
+          final int pagoInteres = (mp['pagoInteres'] ?? 0) as int;
+          final int saldoAnterior = (mp['saldoAnterior'] ?? 0) as int;
+          if (pagoInteres > 0 && saldoAnterior > 0) {
+            sumaRates += (pagoInteres / saldoAnterior) * 100.0;
+            nRates++;
+          }
+        }
+      }
+
+      totalPrestado = prestado;
+      totalPendiente = pendiente;
+      totalRecuperado = prestado - pendiente;
+
+      pagosMes = [];
+      pagosMesLabels = [];
+      const mesesTxt = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+      for (final m in monthsList) {
+        final key = '${m.year}-${m.month.toString().padLeft(2, '0')}';
+        pagosMes.add(porMes[key] ?? 0);
+        pagosMesLabels.add(mesesTxt[m.month - 1]);
+      }
+
+      mayorNombre = maxSaldo >= 0 ? maxNombre : '—';
+      mayorSaldo = maxSaldo;
+      promInteres = (nRates > 0) ? '${(sumaRates / nRates).toStringAsFixed(0)}%' : '—';
+      proximoVenc = proxVenc == null ? '—' : _fmtFecha(proxVenc!);
+
+      clientesAlDia = alDia;
+      clientesPagando = pagando;
+      clientesVencidos = vencidos;
+    } finally {
+      if (mounted) setState(() => _loadingStats = false);
+    }
+  }
+
+  // ===== UI =====
   @override
   Widget build(BuildContext context) {
-    final contentTop = _logoTop + _logoHeight + _gapBelowLogo;
+    final contentTop = _logoTop + _logoH + _gapBelowLogo;
 
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [_Brand.gradientTop, _Brand.gradientBottom],
-          ),
+          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [_Brand.gradTop, _Brand.gradBottom]),
         ),
         child: SafeArea(
           child: Stack(
             children: [
-              // Logo
               Positioned(
-                top: _logoTop, left: 0, right: 0,
-                child: Center(
-                  child: Image.asset('assets/images/logoB.png', height: _logoHeight, fit: BoxFit.contain),
-                ),
+                top: _logoTop,
+                left: 0,
+                right: 0,
+                child: Center(child: Image.asset('assets/images/logoB.png', height: _logoH, fit: BoxFit.contain)),
               ),
-
-              // Tarjeta grande
               Padding(
                 padding: EdgeInsets.only(top: contentTop),
                 child: Center(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.18),
-                          blurRadius: 20, offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
+                  child: Material( // ← evita que el contenido se salga del marco
+                    color: Colors.white.withOpacity(_Brand.glassAlpha),
+                    borderRadius: BorderRadius.circular(28),
+                    clipBehavior: Clip.antiAlias,
+                    elevation: 0,
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(28),
                       child: SingleChildScrollView(
@@ -198,42 +340,14 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Tabs 50/50
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 6),
-                              child: Row(
-                                children: [
-                                  Expanded(child: _tabChip(label: 'Perfil', selected: _tabIndex == 0, onTap: () => setState(() => _tabIndex = 0))),
-                                  const SizedBox(width: 10),
-                                  Expanded(child: _tabChip(label: 'Estadísticas', selected: _tabIndex == 1, onTap: () => setState(() => _tabIndex = 1))),
-                                ],
-                              ),
-                            ),
+                            _tabs(),
                             const SizedBox(height: 12),
-
-                            if (_tabIndex == 0) _perfilContent() else _statsContent(),
-
+                            if (_tab == 0)
+                              (_loadingProfile ? _skeleton() : _perfilContent())
+                            else
+                              (_loadingStats ? _skeleton() : _statsContent()),
                             const SizedBox(height: 16),
-
-                            // Salir
-                            SizedBox(
-                              width: double.infinity, height: 52,
-                              child: OutlinedButton(
-                                style: OutlinedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  side: const BorderSide(color: Colors.red, width: 1.5),
-                                  shape: const StadiumBorder(),
-                                ),
-                                onPressed: () {
-                                  Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => const HomeScreen()),
-                                        (route) => false,
-                                  );
-                                },
-                                child: const Text('Salir', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)),
-                              ),
-                            ),
+                            if (_tab == 0) _salirBtn(), // ← solo en PERFIL
                           ],
                         ),
                       ),
@@ -248,36 +362,98 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     );
   }
 
-  // ------------------ PERFIL ------------------
+  Widget _tabs() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(
+        children: [
+          Expanded(child: _tabChip('Perfil', _tab == 0, () => setState(() => _tab = 0))),
+          const SizedBox(width: 10),
+          Expanded(child: _tabChip('Estadísticas', _tab == 1, () => setState(() => _tab = 1))),
+        ],
+      ),
+    );
+  }
+
+  Widget _tabChip(String label, bool selected, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.white.withOpacity(0.10),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: selected ? [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10, offset: const Offset(0, 4))] : null,
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: GoogleFonts.inter(
+              textStyle: TextStyle(
+                color: selected ? _Brand.ink : Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _salirBtn() {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          backgroundColor: Colors.white,
+          side: const BorderSide(color: _Brand.softRed, width: 1.6),
+          shape: const StadiumBorder(),
+        ),
+        onPressed: () {
+          Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (r) => false);
+        },
+        child: const Text('Salir', style: TextStyle(color: _Brand.softRed, fontWeight: FontWeight.w900, fontSize: 16)),
+      ),
+    );
+  }
+
+  // ===== PERFIL =====
   Widget _perfilContent() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _card(
           child: Column(
             children: [
               _input('Nombre completo (Nombre y Apellido)', _nombreCtrl),
               const SizedBox(height: 12),
-              _input('Teléfono (obligatorio)', _telefonoCtrl, keyboard: TextInputType.phone),
+              _input('Teléfono (obligatorio)', _telCtrl, keyboard: TextInputType.phone),
               const SizedBox(height: 12),
-              _input('Empresa (opcional)', _empresaCtrl),
+              _input('Empresa (opcional)', _empCtrl),
               const SizedBox(height: 12),
-              _input('Dirección (opcional)', _direccionCtrl),
+              _input('Dirección (opcional)', _dirCtrl),
               const SizedBox(height: 18),
               SizedBox(
-                width: double.infinity, height: 52,
+                width: double.infinity,
+                height: 52,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _Brand.primary, foregroundColor: Colors.white,
+                    backgroundColor: _Brand.primary,
+                    foregroundColor: Colors.white,
                     shape: const StadiumBorder(),
-                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    elevation: 3,
+                    shadowColor: _Brand.primary.withOpacity(.35),
                   ),
-                  onPressed: () {
-                    if (_nombreCtrl.text.trim().isEmpty || _telefonoCtrl.text.trim().isEmpty) {
-                      _showBanner('Completa nombre completo y teléfono', color: const Color(0xFFE11D48), icon: Icons.error_outline);
+                  onPressed: () async {
+                    if (_nombreCtrl.text.trim().isEmpty || _telCtrl.text.trim().isEmpty) {
+                      _toast('Completa nombre y teléfono', color: _Brand.softRed, icon: Icons.error_outline);
                       return;
                     }
-                    _showBanner('Perfil actualizado ✅');
+                    await _saveProfile();
                   },
                   child: const Text('Guardar cambios'),
                 ),
@@ -285,62 +461,47 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             ],
           ),
         ),
-
         const SizedBox(height: 14),
         _card(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _sectionTitle('Seguridad'),
+              _title('Seguridad'),
               const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Bloquear con PIN'),
-                value: _pinEnabled,
+              _switchRow(
+                title: 'Bloquear con PIN',
+                value: _pin,
                 onChanged: (v) async {
-                  if (v) {
-                    final pin = await _pedirPin();
-                    if (pin != null && pin.length == 4) {
-                      setState(() => _pinEnabled = true);
-                      _showBanner('PIN activado ✅');
-                    } else {
-                      _showBanner('PIN no establecido', color: const Color(0xFFE11D48), icon: Icons.error_outline);
-                    }
-                  } else {
-                    final pin = await _pedirPin(confirmar: true);
-                    if (pin != null && pin.length == 4) {
-                      setState(() => _pinEnabled = false);
-                      _showBanner('PIN desactivado');
-                    } else {
-                      _showBanner('Acción cancelada', color: const Color(0xFFE11D48), icon: Icons.error_outline);
-                    }
-                  }
+                  _pin = v;
+                  await _docPrest?.set({'settings': {'pinEnabled': v}}, SetOptions(merge: true));
+                  if (mounted) setState(() {});
+                  _toast(v ? 'PIN activado ✅' : 'PIN desactivado');
                 },
               ),
-              const SizedBox(height: 6),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Usar huella / biometría'),
-                value: _biometriaEnabled,
-                onChanged: (v) {
-                  setState(() => _biometriaEnabled = v);
-                  _showBanner(v ? 'Biometría activada ✅' : 'Biometría desactivada');
+              _divider(),
+              _switchRow(
+                title: 'Usar huella / biometría',
+                value: _bio,
+                onChanged: (v) async {
+                  _bio = v;
+                  await _docPrest?.set({'settings': {'biometria': v}}, SetOptions(merge: true));
+                  if (mounted) setState(() {});
+                  _toast(v ? 'Biometría activada ✅' : 'Biometría desactivada');
                 },
               ),
             ],
           ),
         ),
-
         const SizedBox(height: 14),
         _card(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _sectionTitle('Respaldo en la nube'),
+              _title('Respaldo en la nube'),
               const SizedBox(height: 6),
               Text(
-                _backupEnabled
-                    ? 'Respaldo: Activado · Última copia: ${_lastBackupAt == null ? '—' : _fmtDateTime(_lastBackupAt!)}'
+                _backup
+                    ? 'Respaldo: Activado · Última copia: ${_lastBackup == null ? '—' : _fmtFecha(_lastBackup!)} ${_two(_lastBackup?.hour ?? 0)}:${_two(_lastBackup?.minute ?? 0)}'
                     : 'Respaldo: Desactivado',
                 style: const TextStyle(color: Colors.black87),
               ),
@@ -349,16 +510,15 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () {
-                        if (_backupEnabled) {
-                          _showBanner('El respaldo ya está activado');
-                        } else {
-                          setState(() {
-                            _backupEnabled = true;
-                            _lastBackupAt = DateTime.now();
-                          });
-                          _showBanner('Respaldo activado ✅');
+                      onPressed: () async {
+                        if (_backup) {
+                          _toast('El respaldo ya está activado');
+                          return;
                         }
+                        _backup = true;
+                        await _docPrest?.set({'settings': {'backupHabilitado': true}}, SetOptions(merge: true));
+                        if (mounted) setState(() {});
+                        _toast('Respaldo activado ✅');
                       },
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: _Brand.primary),
@@ -371,15 +531,10 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: _backupEnabled
-                          ? () {
-                        setState(() => _lastBackupAt = DateTime.now());
-                        _showBanner('Copia realizada ✅');
-                      }
-                          : null,
+                      onPressed: _backup ? () async => _hacerBackup() : null,
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: _backupEnabled ? _Brand.primary : Colors.grey.shade300),
-                        foregroundColor: _backupEnabled ? _Brand.primary : Colors.grey,
+                        side: BorderSide(color: _backup ? _Brand.primary : Colors.grey.shade300),
+                        foregroundColor: _backup ? _Brand.primary : Colors.grey,
                         shape: const StadiumBorder(),
                       ),
                       child: const Text('Hacer copia ahora'),
@@ -387,63 +542,38 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: _backupEnabled
-                      ? () {
-                    setState(() {
-                      _backupEnabled = false;
-                      _lastBackupAt = null;
-                    });
-                    _showBanner('Respaldo desactivado');
-                  }
-                      : null,
-                  child: const Text('Desactivar respaldo'),
-                ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: _backup
+                    ? () async {
+                  _backup = false;
+                  _lastBackup = null;
+                  await _docPrest?.set({'settings': {'backupHabilitado': false}, 'lastBackupAt': null}, SetOptions(merge: true));
+                  if (mounted) setState(() {});
+                  _toast('Respaldo desactivado');
+                }
+                    : null,
+                child: const Text('Desactivar respaldo'),
               ),
             ],
           ),
         ),
-
         const SizedBox(height: 14),
         _card(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _sectionTitle('Notificaciones'),
-              const SizedBox(height: 6),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Recordatorios de vencimientos'),
-                value: _notifEnabled,
-                onChanged: (v) {
-                  setState(() => _notifEnabled = v);
-                  _showBanner(v ? 'Recordatorios activados ✅' : 'Recordatorios desactivados');
-                },
-              ),
+              _title('Notificaciones'),
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text('Resumen diario: ${_two(_notifHour.hour)}:${_two(_notifHour.minute)}',
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final p = await showTimePicker(context: context, initialTime: _notifHour);
-                      if (p != null) setState(() => _notifHour = p);
-                    },
-                    icon: const Icon(Icons.schedule),
-                    label: const Text('Cambiar hora'),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: _Brand.primary),
-                      foregroundColor: _Brand.primary,
-                      shape: const StadiumBorder(),
-                    ),
-                  ),
-                ],
+              _switchRow(
+                title: 'Recordatorios de vencimientos',
+                value: _notif,
+                onChanged: (v) async {
+                  _notif = v;
+                  await _docPrest?.set({'settings': {'notifVenc': v}}, SetOptions(merge: true));
+                  if (mounted) setState(() {});
+                  _toast(v ? 'Recordatorios activados ✅' : 'Recordatorios desactivados');
+                },
               ),
             ],
           ),
@@ -452,263 +582,430 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     );
   }
 
-  // ------------------ ESTADÍSTICAS ------------------
+  // ===== ESTADÍSTICAS =====
   Widget _statsContent() {
-    final prestado = _fmtRD(totalPrestado);
-    final recuperado = _fmtRD(totalRecuperado);
-    final pendiente = _fmtRD(totalPendiente);
-    final recRate = (_hasData && totalPrestado > 0)
-        ? '${(totalRecuperado * 100 / totalPrestado).toStringAsFixed(0)}%'
-        : '—';
+    final recRate = totalPrestado > 0 ? (totalRecuperado * 100 / totalPrestado) : 0.0;
+    final recColor = recRate >= 50 ? _Brand.successDark : _Brand.softRed;
+
+    final kpis = GridView.count(
+      shrinkWrap: true,
+      crossAxisCount: 2,
+      childAspectRatio: 1.7,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      children: [
+        _kpi('Total prestado', _rd(totalPrestado),
+            bg: _Brand.kpiGray, accent: _Brand.ink),
+        _kpi('Total recuperado', _rd(totalRecuperado),
+            bg: _Brand.kpiGreen, accent: _Brand.successDark),
+        _kpi('Total pendiente', _rd(totalPendiente),
+            bg: _Brand.kpiBlue, accent: _Brand.primary),
+        _kpi('Recuperación', totalPrestado > 0 ? '${recRate.toStringAsFixed(0)}%' : '—',
+            bg: const Color(0xFFF2F6FD), accent: recColor),
+      ],
+    );
+
+    final chartsCard = _card(
+      child: LayoutBuilder(builder: (c, cs) {
+        final isWide = cs.maxWidth > 560;
+        final left = _chartBlock('Pagos recibidos por mes', _barChart(values: pagosMes, labels: pagosMesLabels));
+        final right = _chartBlock('Distribución de clientes', _donutSection());
+        return isWide
+            ? Row(children: [Expanded(child: left), const SizedBox(width: 12), Expanded(child: right)])
+            : Column(children: [left, const SizedBox(height: 12), right]);
+      }),
+    );
+
+    final bottomCard = _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Cliente con más deuda (estilo recibo)
+          Row(
+            children: [
+              const Icon(Icons.person_outline, color: _Brand.inkDim),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  mayorNombre,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800, color: _Brand.ink),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(mayorSaldo >= 0 ? _rd(mayorSaldo) : '—',
+                  style: const TextStyle(fontWeight: FontWeight.w900, color: _Brand.ink)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text('Cliente con más deuda', style: TextStyle(color: _Brand.inkDim, fontSize: 12.5, fontWeight: FontWeight.w600)),
+          _divider(),
+          _kv('Promedio de interés cobrado', promInteres),
+          _divider(),
+          _kv('Próximo vencimiento', proximoVenc),
+        ],
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(
-          spacing: 12, runSpacing: 12,
-          children: [
-            _kpi('Total prestado', prestado),
-            _kpi('Total recuperado', recuperado),
-            _kpi('Total pendiente', pendiente),
-            _kpi('Recuperación', recRate),
-          ],
-        ),
+        kpis,
         const SizedBox(height: 12),
-        _card(
-          child: Row(
-            children: [
-              Expanded(
-                child: _chartBlock(
-                  title: 'Pagos recibidos por mes',
-                  child: pagosMes.isEmpty ? _emptyChart()
-                      : _barChart(values: pagosMes, labels: const ['Ene','Feb','Mar']),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _chartBlock(
-                  title: 'Distribución de clientes',
-                  child: (clientesAlDia + clientesPagando + clientesVencidos == 0)
-                      ? _emptyChart()
-                      : Column(
-                    children: [
-                      _donutChart(segments: [
-                        _Segment(color: Colors.green, value: clientesAlDia),
-                        _Segment(color: _Brand.primary, value: clientesPagando),
-                        _Segment(color: Colors.red, value: clientesVencidos),
-                      ]),
-                      const SizedBox(height: 8),
-                      _legend(const [
-                        _Legend('Al día', Colors.green),
-                        _Legend('Vencidos', Colors.red),
-                        _Legend('Pagando', _Brand.primary),
-                      ]),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+        chartsCard,
         const SizedBox(height: 12),
-        _card(
-          child: Column(
-            children: const [
-              _kvRow('Cliente con más deuda', '—'),
-              SizedBox(height: 10),
-              _kvRow('Promedio de interés cobrado', '—'),
-              SizedBox(height: 10),
-              _kvRow('Próximo vencimiento', '—'),
-            ],
-          ),
-        ),
+        bottomCard,
       ],
     );
   }
 
-  // ---------- Helpers UI ----------
-  Widget _tabChip({required String label, required bool selected, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap, borderRadius: BorderRadius.circular(22),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? Colors.white : Colors.white.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: selected ? [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 10, offset: const Offset(0, 4))] : null,
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: GoogleFonts.inter(
-              textStyle: TextStyle(
-                color: selected ? _Brand.ink : Colors.white,
-                fontWeight: FontWeight.w700, fontSize: 15.5,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
+  // ===== bloques comunes / estilo =====
   Widget _card({required Widget child}) {
     return Container(
-      width: double.infinity, padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _Brand.card.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 20, offset: const Offset(0, 10))],
+        color: _Brand.card.withOpacity(.96),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.10), blurRadius: 14, offset: const Offset(0, 6))],
       ),
       child: child,
     );
   }
 
-  Widget _input(String label, TextEditingController ctrl, {TextInputType keyboard = TextInputType.text}) {
+  Widget _divider() => Container(height: 1.2, color: _Brand.divider, margin: const EdgeInsets.symmetric(vertical: 12));
+
+  Widget _title(String t) => Text(
+    t,
+    style: GoogleFonts.inter(textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _Brand.ink)),
+  );
+
+  Widget _input(String label, TextEditingController c, {TextInputType keyboard = TextInputType.text}) {
     return TextField(
-      controller: ctrl, keyboardType: keyboard,
+      controller: c,
+      keyboardType: keyboard,
       decoration: InputDecoration(
-        labelText: label, filled: true, fillColor: Colors.white,
+        labelText: label,
+        filled: true,
+        fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
       ),
     );
   }
 
-  Widget _sectionTitle(String t) => Text(t, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: _Brand.ink));
-
-  Widget _kpi(String title, String value) {
-    return SizedBox(
-      width: 380,
-      child: _card(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(color: _Brand.inkDim)),
-            const SizedBox(height: 6),
-            Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: _Brand.ink)),
-          ],
-        ),
+  Widget _kpi(String title, String value, {required Color bg, required Color accent}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8EEF8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(textStyle: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w700, fontSize: 14))),
+          const Spacer(),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: GoogleFonts.inter(
+                textStyle: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: accent),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _chartBlock({required String title, required Widget child}) {
+  Widget _chartBlock(String title, Widget child) {
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: _Brand.cardSoft, borderRadius: BorderRadius.circular(18)),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F8FB),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE9EEF5)),
+      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-        const SizedBox(height: 10),
+        Text(title, style: GoogleFonts.inter(textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16))),
+        const SizedBox(height: 8),
         child,
       ]),
     );
   }
 
-  Widget _emptyChart() {
+  Widget _emptyChart(String t) {
     return Container(
-      height: 160, alignment: Alignment.center,
+      height: 160,
+      alignment: Alignment.center,
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFE5E7EB))),
-      child: const Text('Sin datos aún', style: TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
+      child: Text(t, style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w700)),
     );
   }
 
+  // ===== Bar chart con eje Y y guías =====
   Widget _barChart({required List<int> values, required List<String> labels}) {
-    if (values.isEmpty) return _emptyChart();
+    if (values.isEmpty) return _emptyChart('Sin datos aún');
+
+    const double chartH = 185;
+    const double axisLeftW = 60;
+    const double bottomLabelH = 24;
+    const double topPad = 8;
+
     final maxV = values.reduce((a, b) => a > b ? a : b).toDouble().clamp(1.0, 999999.0);
+
+    double niceMax;
+    if (maxV <= 20000) {
+      niceMax = 20000;
+    } else if (maxV <= 40000) {
+      niceMax = 40000;
+    } else if (maxV <= 60000) {
+      niceMax = 60000;
+    } else if (maxV <= 100000) {
+      niceMax = 100000;
+    } else {
+      niceMax = (maxV / 10000.0).ceil() * 10000;
+    }
+    final ticks = [0.2, 0.4, 0.6, 1.0];
+    final tickLabels = ticks.map((t) => _rd((niceMax * t).round())).toList();
+
     return SizedBox(
-      height: 160,
+      height: chartH,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: List.generate(values.length, (i) {
-          final h = (values[i] / maxV) * 120;
-          return Expanded(
+        children: [
+          // eje Y
+          SizedBox(
+            width: axisLeftW,
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Container(height: h, width: 28, decoration: BoxDecoration(color: _Brand.primary, borderRadius: BorderRadius.circular(8))),
-                const SizedBox(height: 8),
-                Text(labels[i], style: const TextStyle(color: _Brand.inkDim)),
+                Expanded(
+                  child: LayoutBuilder(builder: (c, cs) {
+                    return Stack(
+                      children: List.generate(ticks.length, (i) {
+                        final y = (1 - ticks[i]) * (cs.maxHeight - bottomLabelH - topPad) + topPad;
+                        return Positioned(
+                          left: 0,
+                          right: 6,
+                          top: y - 8,
+                          child: Text(
+                            tickLabels[i],
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(fontSize: 11, color: _Brand.inkDim, height: 1),
+                          ),
+                        );
+                      }),
+                    );
+                  }),
+                ),
+                const SizedBox(height: bottomLabelH),
               ],
             ),
-          );
-        }),
+          ),
+          const SizedBox(width: 6),
+
+          // área barras
+          Expanded(
+            child: LayoutBuilder(builder: (c, cs) {
+              final barAreaH = cs.maxHeight - bottomLabelH - topPad;
+              final barW = math.max(18.0, cs.maxWidth / (values.length * 1.8));
+
+              return Column(
+                children: [
+                  SizedBox(
+                    height: barAreaH,
+                    child: Stack(
+                      children: [
+                        ...List.generate(ticks.length, (i) {
+                          final y = (1 - ticks[i]) * barAreaH;
+                          return Positioned(
+                            left: 0, right: 0, top: y,
+                            child: Container(height: 1, color: const Color(0xFFE6ECF5)),
+                          );
+                        }),
+                        Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: List.generate(values.length, (i) {
+                              final h = (values[i] / niceMax) * barAreaH;
+                              return Container(
+                                height: h.clamp(0, barAreaH),
+                                width: barW,
+                                decoration: BoxDecoration(
+                                  color: _Brand.primary,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: [BoxShadow(color: _Brand.primary.withOpacity(.18), blurRadius: 10, offset: const Offset(0, 4))],
+                                ),
+                              );
+                            }),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    height: bottomLabelH,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: List.generate(labels.length, (i) {
+                        return SizedBox(
+                          width: barW + 8,
+                          child: Text(labels[i], textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: _Brand.inkDim)),
+                        );
+                      }),
+                    ),
+                  ),
+                ],
+              );
+            }),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _donutChart({required List<_Segment> segments}) {
-    final total = segments.fold<int>(0, (p, s) => p + s.value);
-    if (total == 0) return _emptyChart();
-    return SizedBox(height: 170, child: CustomPaint(painter: _DonutPainter(segments)));
+  // ===== Dona =====
+  Widget _donutSection() {
+    final total = clientesAlDia + clientesPagando + clientesVencidos;
+    if (total == 0) return _emptyChart('Sin datos aún');
+    return Column(
+      children: [
+        SizedBox(
+          height: 170,
+          child: CustomPaint(
+            painter: _DonutPainter([
+              _Slice(color: _Brand.success, value: clientesAlDia),
+              _Slice(color: _Brand.softRed, value: clientesVencidos),
+              _Slice(color: _Brand.primary, value: clientesPagando),
+            ]),
+            child: Center(
+              child: Text(
+                '$total',
+                style: GoogleFonts.inter(textStyle: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: _Brand.ink)),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 16,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          children: const [
+            _LegendDot('Al día', _Brand.success),
+            _LegendDot('Vencidos', _Brand.softRed),
+            _LegendDot('Pagando', _Brand.primary),
+          ],
+        )
+      ],
+    );
+  }
+
+  // ===== key/value + switches =====
+  Widget _kv(String k, String v) {
+    return Row(
+      children: [
+        Expanded(child: Text(k, style: const TextStyle(color: _Brand.inkDim))),
+        Flexible(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Text(v, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w900, color: _Brand.ink)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _switchRow({required String title, required bool value, required ValueChanged<bool> onChanged}) {
+    return Row(
+      children: [
+        Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w600))),
+        Switch(
+          value: value,
+          onChanged: onChanged,
+          activeColor: Colors.white,
+          activeTrackColor: _Brand.primary,
+          inactiveThumbColor: Colors.white,
+          inactiveTrackColor: const Color(0xFFE5E7EB),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ],
+    );
+  }
+
+  Widget _skeleton() => _card(
+    child: SizedBox(
+      height: 140,
+      child: Center(
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: const [
+          SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5)),
+          SizedBox(width: 10),
+          Text('Cargando…', style: TextStyle(fontWeight: FontWeight.w800)),
+        ]),
+      ),
+    ),
+  );
+}
+
+class _LegendDot extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _LegendDot(this.label, this.color, {super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      const SizedBox(width: 6),
+      Text(label, style: const TextStyle(color: _Brand.inkDim)),
+    ]);
   }
 }
 
-// Donut helpers
-class _Segment {
-  final Color color; final int value;
-  const _Segment({required this.color, required this.value});
+class _Slice {
+  final Color color;
+  final int value;
+  const _Slice({required this.color, required this.value});
 }
 
 class _DonutPainter extends CustomPainter {
-  final List<_Segment> segments;
-  _DonutPainter(this.segments);
+  final List<_Slice> slices;
+  _DonutPainter(this.slices);
 
   @override
   void paint(Canvas canvas, Size size) {
+    final total = slices.fold<int>(0, (p, s) => p + s.value);
+    if (total == 0) return;
     final center = (Offset.zero & size).center;
     final radius = size.shortestSide * 0.42;
-    final total = segments.fold<int>(0, (p, s) => p + s.value);
-    if (total == 0) return;
 
-    final stroke = Paint()
+    final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 28
       ..strokeCap = StrokeCap.round;
 
-    double startDeg = -90;
-    for (final s in segments) {
-      final sweepDeg = 360 * (s.value / total);
-      stroke.color = s.color;
-      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), _r(startDeg), _r(sweepDeg), false, stroke);
-      startDeg += sweepDeg;
+    double start = -math.pi / 2;
+    for (final s in slices) {
+      final sweep = (s.value / total) * 2 * math.pi;
+      paint.color = s.color;
+      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), start, sweep, false, paint);
+      start += sweep;
     }
     final inner = Paint()..color = Colors.white;
     canvas.drawCircle(center, radius - 18, inner);
   }
 
-  double _r(double deg) => deg * 3.1415926535 / 180.0;
   @override
-  bool shouldRepaint(covariant _DonutPainter old) => old.segments != segments;
-}
-
-class _Legend {
-  final String label; final Color color;
-  const _Legend(this.label, this.color);
-}
-
-Widget _legend(List<_Legend> items) {
-  return Wrap(
-    spacing: 16, runSpacing: 8, alignment: WrapAlignment.center,
-    children: items.map((e) => Row(mainAxisSize: MainAxisSize.min, children: [
-      Container(width: 12, height: 12, decoration: BoxDecoration(color: e.color, shape: BoxShape.circle)),
-      const SizedBox(width: 6),
-      Text(e.label, style: const TextStyle(color: _Brand.inkDim)),
-    ])).toList(),
-  );
-}
-
-class _kvRow extends StatelessWidget {
-  final String k; final String v;
-  const _kvRow(this.k, this.v);
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: Text(k, style: const TextStyle(color: _Brand.inkDim))),
-        Text(v, style: const TextStyle(fontWeight: FontWeight.w800, color: _Brand.ink)),
-      ],
-    );
-  }
+  bool shouldRepaint(covariant _DonutPainter old) => old.slices != slices;
 }
