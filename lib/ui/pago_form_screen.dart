@@ -7,7 +7,7 @@ class PagoFormScreen extends StatefulWidget {
   final int saldoAnterior;      // RD$
   final double tasaInteres;     // %
   final String periodo;         // Mensual | Quincenal
-  final DateTime proximaFecha;  // sugerida
+  final DateTime proximaFecha;  // sugerida (solo referencia visual, no se usa automática)
 
   const PagoFormScreen({
     super.key,
@@ -28,6 +28,8 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
 
   final _interesCtrl = TextEditingController();
   final _capitalCtrl = TextEditingController();
+
+  // ⬇️ Fecha SIEMPRE manual: arranca null
   DateTime? _proxima;
 
   int _pagoInteres = 0;
@@ -45,7 +47,8 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   @override
   void initState() {
     super.initState();
-    _proxima = widget.proximaFecha;
+    // _proxima = widget.proximaFecha;  // ❌ ya no: fecha debe elegirse manual
+    _proxima = null;
 
     // Interés sugerido
     _interesCtrl.text = _interesMax.toString();
@@ -114,6 +117,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
     return '${d.day} ${meses[d.month - 1]} ${d.year}';
   }
 
+  // (Se deja por compatibilidad aunque ya no se usa para continuar)
   DateTime _autoNext(String periodo, DateTime base) {
     return base.add(Duration(days: periodo == 'Quincenal' ? 15 : 30));
   }
@@ -162,7 +166,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                       'assets/images/logoB.png',
                       height: _logoHeight,
                       fit: BoxFit.contain,
-                      color: Colors.white.withOpacity(0.08),
+                      color: Colors.white.withOpacity(0.0),
                       colorBlendMode: BlendMode.srcATop,
                     ),
                   ),
@@ -279,46 +283,76 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                           _resumen('Saldo nuevo', _rd(_saldoNuevo)),
                                           const SizedBox(height: 12),
 
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  _proxima == null
-                                                      ? 'Próxima fecha: (automática)'
-                                                      : 'Próxima fecha: ${_fmtFecha(_proxima!)}',
-                                                  style: const TextStyle(
-                                                    fontSize: 15,
-                                                    color: Color(0xFF374151),
+                                          // ====== FECHA (manual obligatoria) ======
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF7F8FA),
+                                              borderRadius: BorderRadius.circular(14),
+                                              border: Border.all(
+                                                color: _proxima == null
+                                                    ? const Color(0xFFEF4444)
+                                                    : const Color(0xFFE5E7EB),
+                                                width: 1.2,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        _proxima == null
+                                                            ? 'Próxima fecha: (selecciona)'
+                                                            : 'Próxima fecha: ${_fmtFecha(_proxima!)}',
+                                                        style: TextStyle(
+                                                          fontSize: 15,
+                                                          color: _proxima == null
+                                                              ? const Color(0xFFEF4444)
+                                                              : const Color(0xFF374151),
+                                                          fontWeight: _proxima == null
+                                                              ? FontWeight.w700
+                                                              : FontWeight.w400,
+                                                        ),
+                                                      ),
+                                                      if (_proxima == null)
+                                                        const SizedBox(height: 4),
+                                                      if (_proxima == null)
+                                                        const Text(
+                                                          'Debes elegir una fecha de pago',
+                                                          style: TextStyle(
+                                                            fontSize: 12.5,
+                                                            color: Color(0xFFEF4444),
+                                                            fontWeight: FontWeight.w600,
+                                                          ),
+                                                        ),
+                                                    ],
                                                   ),
                                                 ),
-                                              ),
-                                              TextButton.icon(
-                                                icon: const Icon(Icons.date_range),
-                                                label: const Text('Elegir fecha'),
-                                                onPressed: _saldoNuevo > 0
-                                                    ? () async {
-                                                  final hoy = DateTime.now();
-                                                  final sel =
-                                                  await showDatePicker(
-                                                    context: context,
-                                                    initialDate:
-                                                    _proxima ?? hoy,
-                                                    firstDate: DateTime(
-                                                        hoy.year - 1),
-                                                    lastDate: DateTime(
-                                                        hoy.year + 5),
-                                                  );
-                                                  if (sel != null) {
-                                                    setState(() =>
-                                                    _proxima = sel);
+                                                TextButton.icon(
+                                                  icon: const Icon(Icons.date_range),
+                                                  label: const Text('Elegir fecha'),
+                                                  onPressed: (_pagoCapital <= widget.saldoAnterior)
+                                                      ? () async {
+                                                    final hoy = DateTime.now();
+                                                    final sel = await showDatePicker(
+                                                      context: context,
+                                                      initialDate: hoy,
+                                                      firstDate: DateTime(hoy.year - 1),
+                                                      lastDate: DateTime(hoy.year + 5),
+                                                    );
+                                                    if (sel != null) {
+                                                      setState(() => _proxima = sel);
+                                                    }
                                                   }
-                                                }
-                                                    : null,
-                                                style: TextButton.styleFrom(
-                                                  foregroundColor: brandBlue,
+                                                      : null,
+                                                  style: TextButton.styleFrom(
+                                                    foregroundColor: const Color(0xFF2563EB),
+                                                  ),
                                                 ),
-                                              ),
-                                            ],
+                                              ],
+                                            ),
                                           ),
                                           const SizedBox(height: 16),
 
@@ -328,7 +362,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                             height: 54,
                                             child: ElevatedButton(
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: brandBlue,
+                                                backgroundColor: const Color(0xFF2563EB),
                                                 foregroundColor: Colors.white,
                                                 elevation: 0,
                                                 shape: const StadiumBorder(),
@@ -337,23 +371,19 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                   fontWeight: FontWeight.w800,
                                                 ),
                                               ),
-                                              onPressed: _formOk
+                                              onPressed: (_formOk && _proxima != null)
                                                   ? () {
                                                 Navigator.pop(context, {
                                                   'pagoInteres': _pagoInteres,
                                                   'pagoCapital': _pagoCapital,
                                                   'totalPagado': _totalPagado,
-                                                  'saldoAnterior':
-                                                  widget.saldoAnterior,
+                                                  'saldoAnterior': widget.saldoAnterior,
                                                   'saldoNuevo': _saldoNuevo,
-                                                  'proximaFecha': _proxima ??
-                                                      _autoNext(
-                                                          widget.periodo,
-                                                          widget
-                                                              .proximaFecha),
+                                                  // 👇 siempre manual
+                                                  'proximaFecha': _proxima,
                                                 });
                                               }
-                                                  : null,
+                                                  : null, // 🔒 bloqueado si no hay fecha
                                               child: const Text('Continuar'),
                                             ),
                                           ),
@@ -365,11 +395,10 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                             width: double.infinity,
                                             height: 54,
                                             child: OutlinedButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(context),
+                                              onPressed: () => Navigator.pop(context),
                                               style: OutlinedButton.styleFrom(
-                                                side: BorderSide(color: brandBlue),
-                                                foregroundColor: brandBlue,
+                                                side: const BorderSide(color: Color(0xFF2563EB)),
+                                                foregroundColor: const Color(0xFF2563EB),
                                                 shape: const StadiumBorder(),
                                                 textStyle: const TextStyle(
                                                   fontSize: 16,
@@ -435,8 +464,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide:
-          const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+          borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -444,12 +472,10 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide:
-          const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+          borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
         ),
         errorText: errorText,
-        errorStyle:
-        const TextStyle(fontSize: 12, color: Color(0xFFEF4444)),
+        errorStyle: const TextStyle(fontSize: 12, color: Color(0xFFEF4444)),
       ),
     );
   }

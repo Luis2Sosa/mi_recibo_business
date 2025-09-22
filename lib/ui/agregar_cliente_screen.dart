@@ -114,6 +114,8 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final bool tecladoAbierto = bottomInset > 0;
+    final double h = MediaQuery.of(context).size.height;
 
     return Scaffold(
       resizeToAvoidBottomInset: false, // 👈 No empujar todo el Scaffold
@@ -135,7 +137,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                     child: AnimatedOpacity(
                       duration: const Duration(milliseconds: 220),
                       curve: Curves.easeOut,
-                      opacity: bottomInset > 0 ? 0.15 : 1.0, // 👈 cambio premium
+                      opacity: tecladoAbierto ? 0.15 : 1.0,
                       child: Image.asset(
                         'assets/images/logoB.png',
                         height: _logoHeight,
@@ -153,13 +155,14 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeOut,
                   padding: EdgeInsets.only(
-                    bottom: bottomInset > 0 ? bottomInset + 12 : 50,
+                    bottom: tecladoAbierto ? bottomInset + 12 : 10,
                     left: 16,
                     right: 16,
                   ),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
-                      maxHeight: MediaQuery.of(context).size.height * 0.75,
+                      // 👇 Más alto cuando NO hay teclado; 75% cuando hay teclado
+                      maxHeight: tecladoAbierto ? h * 0.75 : h * 0.90,
                     ),
                     child: Container(
                       decoration: BoxDecoration(
@@ -177,225 +180,13 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                         borderRadius: BorderRadius.circular(28),
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-                          child: SingleChildScrollView(
+                          // 👇 SOLO hay scroll cuando el teclado está abierto
+                          child: tecladoAbierto
+                              ? SingleChildScrollView(
                             physics: const ClampingScrollPhysics(),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Center(
-                                  child: Text(
-                                    _isEdit ? 'Editar Cliente' : 'Agregar Cliente',
-                                    style: GoogleFonts.playfair(
-                                      textStyle: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 26,
-                                        fontStyle: FontStyle.italic,
-                                        fontWeight: FontWeight.w600,
-                                        letterSpacing: 0.5,
-                                        shadows: [
-                                          Shadow(
-                                            color: Colors.black26,
-                                            blurRadius: 6,
-                                            offset: Offset(0, 2),
-                                          )
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-
-                                // Formulario
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(22),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.12),
-                                        blurRadius: 18,
-                                        offset: const Offset(0, 10),
-                                      ),
-                                    ],
-                                  ),
-                                  padding: const EdgeInsets.all(16),
-                                  child: Form(
-                                    key: _formKey,
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: TextFormField(
-                                                controller: _nombreCtrl,
-                                                autofocus: true,
-                                                decoration: _deco('Nombre', icon: Icons.person),
-                                                textInputAction: TextInputAction.next,
-                                                validator: (v) => (v == null || v.trim().isEmpty)
-                                                    ? 'Obligatorio' : null,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: TextFormField(
-                                                controller: _apellidoCtrl,
-                                                decoration: _deco('Apellido', icon: Icons.badge),
-                                                textInputAction: TextInputAction.next,
-                                                validator: (v) => (v == null || v.trim().isEmpty)
-                                                    ? 'Obligatorio' : null,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 12),
-                                        TextFormField(
-                                          controller: _telefonoCtrl,
-                                          keyboardType: TextInputType.phone,
-                                          decoration: _deco('Teléfono', icon: Icons.call),
-                                          textInputAction: TextInputAction.next,
-                                          validator: (v) => (v == null || v.trim().isEmpty)
-                                              ? 'Obligatorio' : null,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        TextFormField(
-                                          controller: _direccionCtrl,
-                                          decoration: _deco('Dirección (opcional)', icon: Icons.home),
-                                          textInputAction: TextInputAction.next,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        TextFormField(
-                                          controller: _productoCtrl,
-                                          decoration: _deco('Producto (opcional)', icon: Icons.local_offer),
-                                          textInputAction: TextInputAction.next,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: TextFormField(
-                                                controller: _capitalCtrl,
-                                                keyboardType: TextInputType.number,
-                                                decoration: _deco('Saldo inicial (RD\$)', icon: Icons.payments),
-                                                textInputAction: TextInputAction.next,
-                                                validator: (v) => (v == null || v.isEmpty)
-                                                    ? 'Obligatorio' : null,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: TextFormField(
-                                                controller: _tasaCtrl,
-                                                keyboardType: TextInputType.number,
-                                                decoration: _deco('% Interés', icon: Icons.percent),
-                                                validator: (v) => (v == null || v.isEmpty)
-                                                    ? 'Obligatorio' : null,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 14),
-
-                                        // Período
-                                        Row(
-                                          children: [
-                                            const Text('Período:',
-                                                style: TextStyle(fontWeight: FontWeight.w600)),
-                                            const SizedBox(width: 12),
-                                            ChoiceChip(
-                                              label: const Text('Mensual'),
-                                              selected: _periodo == 'Mensual',
-                                              onSelected: (_) => setState(() => _periodo = 'Mensual'),
-                                              selectedColor: const Color(0xFF2563EB),
-                                              labelStyle: TextStyle(
-                                                color: _periodo == 'Mensual' ? Colors.white : const Color(0xFF1F2937),
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                              side: BorderSide(
-                                                color: _periodo == 'Mensual'
-                                                    ? const Color(0xFF2563EB)
-                                                    : const Color(0xFFE5E7EB),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            ChoiceChip(
-                                              label: const Text('Quincenal'),
-                                              selected: _periodo == 'Quincenal',
-                                              onSelected: (_) => setState(() => _periodo = 'Quincenal'),
-                                              selectedColor: const Color(0xFF2563EB),
-                                              labelStyle: TextStyle(
-                                                color: _periodo == 'Quincenal' ? Colors.white : const Color(0xFF1F2937),
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                              side: BorderSide(
-                                                color: _periodo == 'Quincenal'
-                                                    ? const Color(0xFF2563EB)
-                                                    : const Color(0xFFE5E7EB),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 10),
-                                        const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                                        const SizedBox(height: 10),
-
-                                        // Fecha
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                _proximaFecha == null
-                                                    ? 'Próxima fecha: (automática)'
-                                                    : 'Próxima fecha: ${_fmtFecha(_proximaFecha!)}',
-                                                style: const TextStyle(color: Colors.black87),
-                                              ),
-                                            ),
-                                            TextButton.icon(
-                                              icon: const Icon(Icons.date_range),
-                                              label: const Text('Elegir fecha'),
-                                              onPressed: () async {
-                                                final hoy = DateTime.now();
-                                                final sel = await showDatePicker(
-                                                  context: context,
-                                                  initialDate: _proximaFecha ?? hoy,
-                                                  firstDate: DateTime(hoy.year - 1),
-                                                  lastDate: DateTime(hoy.year + 5),
-                                                );
-                                                if (sel != null) {
-                                                  setState(() => _proximaFecha = sel);
-                                                }
-                                              },
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 16),
-
-                                        // Guardar
-                                        SizedBox(
-                                          width: double.infinity,
-                                          height: 56,
-                                          child: ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(0xFF2563EB),
-                                              foregroundColor: Colors.white,
-                                              shape: const StadiumBorder(),
-                                              textStyle: const TextStyle(
-                                                  fontSize: 16, fontWeight: FontWeight.w700),
-                                              elevation: 4,
-                                              shadowColor: const Color(0xFF2563EB).withOpacity(0.35),
-                                            ),
-                                            onPressed: _guardando ? null : _guardar,
-                                            child: Text(_guardando ? 'Guardando…' : 'Guardar'),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                            child: _formBody(),
+                          )
+                              : _formBody(),
                         ),
                       ),
                     ),
@@ -419,10 +210,280 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     );
   }
 
-  // ===== LÓGICA ORIGINAL – SIN CAMBIOS =====
+  /// ======= Contenido del formulario (sin cambios de lógica) =======
+  Widget _formBody() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Text(
+            _isEdit ? 'Editar Cliente' : 'Agregar Cliente',
+            style: GoogleFonts.playfair(
+              textStyle: const TextStyle(
+                color: Colors.white,
+                fontSize: 26,
+                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+                shadows: [
+                  Shadow(
+                    color: Colors.black26,
+                    blurRadius: 6,
+                    offset: Offset(0, 2),
+                  )
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Formulario
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _nombreCtrl,
+                        autofocus: true,
+                        decoration: _deco('Nombre', icon: Icons.person),
+                        textInputAction: TextInputAction.next,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Obligatorio' : null,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _apellidoCtrl,
+                        decoration: _deco('Apellido', icon: Icons.badge),
+                        textInputAction: TextInputAction.next,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Obligatorio' : null,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _telefonoCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: _deco('Teléfono', icon: Icons.call),
+                  textInputAction: TextInputAction.next,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Obligatorio' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _direccionCtrl,
+                  decoration: _deco('Dirección (opcional)', icon: Icons.home),
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _productoCtrl,
+                  decoration: _deco('Producto (opcional)', icon: Icons.local_offer),
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _capitalCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: _deco('Saldo inicial (RD\$)', icon: Icons.payments),
+                        textInputAction: TextInputAction.next,
+                        validator: (v) => (v == null || v.isEmpty)
+                            ? 'Obligatorio' : null,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _tasaCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: _deco('% Interés', icon: Icons.percent),
+                        validator: (v) => (v == null || v.isEmpty)
+                            ? 'Obligatorio' : null,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // Período
+                Row(
+                  children: [
+                    const Text('Período:',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(width: 12),
+                    ChoiceChip(
+                      label: const Text('Mensual'),
+                      selected: _periodo == 'Mensual',
+                      onSelected: (_) => setState(() => _periodo = 'Mensual'),
+                      selectedColor: const Color(0xFF2563EB),
+                      labelStyle: TextStyle(
+                        color: _periodo == 'Mensual' ? Colors.white : const Color(0xFF1F2937),
+                        fontWeight: FontWeight.w600,
+                      ),
+                      side: BorderSide(
+                        color: _periodo == 'Mensual'
+                            ? const Color(0xFF2563EB)
+                            : const Color(0xFFE5E7EB),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: const Text('Quincenal'),
+                      selected: _periodo == 'Quincenal',
+                      onSelected: (_) => setState(() => _periodo = 'Quincenal'),
+                      selectedColor: const Color(0xFF2563EB),
+                      labelStyle: TextStyle(
+                        color: _periodo == 'Quincenal' ? Colors.white : const Color(0xFF1F2937),
+                        fontWeight: FontWeight.w600,
+                      ),
+                      side: BorderSide(
+                        color: _periodo == 'Quincenal'
+                            ? const Color(0xFF2563EB)
+                            : const Color(0xFFE5E7EB),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                const SizedBox(height: 10),
+
+                // ===== Próxima fecha (OBLIGATORIA) =====
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F8FA),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _proximaFecha == null
+                          ? const Color(0xFFEF4444)
+                          : const Color(0xFFE5E7EB),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _proximaFecha == null
+                                  ? 'Próxima fecha: (selecciona)'
+                                  : 'Próxima fecha: ${_fmtFecha(_proximaFecha!)}',
+                              style: TextStyle(
+                                color: _proximaFecha == null
+                                    ? const Color(0xFFEF4444)
+                                    : const Color(0xFF374151),
+                                fontWeight: _proximaFecha == null
+                                    ? FontWeight.w700
+                                    : FontWeight.w400,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                          TextButton.icon(
+                            icon: const Icon(Icons.date_range),
+                            label: const Text('Elegir fecha'),
+                            onPressed: () async {
+                              final hoy = DateTime.now();
+                              final sel = await showDatePicker(
+                                context: context,
+                                initialDate: _proximaFecha ?? hoy,
+                                firstDate: DateTime(hoy.year - 1),
+                                lastDate: DateTime(hoy.year + 5),
+                              );
+                              if (sel != null) {
+                                setState(() => _proximaFecha = sel);
+                              }
+                            },
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF2563EB),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_proximaFecha == null)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: Text(
+                            'Debes elegir una próxima fecha de pago',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: Color(0xFFEF4444),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Guardar
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      shape: const StadiumBorder(),
+                      textStyle: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w700),
+                      elevation: 4,
+                      shadowColor: const Color(0xFF2563EB).withOpacity(0.35),
+                    ),
+                    onPressed: (_guardando || _proximaFecha == null)
+                        ? null
+                        : _guardar,
+                    child: Text(_guardando ? 'Guardando…' : 'Guardar'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ===== LÓGICA ORIGINAL – con validación de fecha obligatoria =====
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
     if (_guardando) return;
+    if (_proximaFecha == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecciona la próxima fecha de pago.')),
+      );
+      return;
+    }
+
     setState(() => _guardando = true);
 
     final capital = int.tryParse(
@@ -432,10 +493,6 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     final tasa = double.tryParse(
       _tasaCtrl.text.replaceAll(',', '.'),
     ) ?? 0.0;
-
-    _proximaFecha ??= DateTime.now().add(
-      Duration(days: _periodo == 'Quincenal' ? 15 : 30),
-    );
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
@@ -455,7 +512,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
       String? docId = widget.id;
 
       if (_isEdit && docId != null) {
-        // 🔧 EDITAR
+        // 🔧 EDITAR (no cambia históricos)
         final Map<String, dynamic> update = {
           'nombre': _nombreCtrl.text.trim(),
           'apellido': _apellidoCtrl.text.trim(),
@@ -478,6 +535,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
 
         await col.doc(docId).set(update, SetOptions(merge: true));
       } else {
+        // 👇 NUEVO: alta de cliente incrementa el histórico lifetimePrestado
         final tel = _telefonoCtrl.text.trim();
         final dup = await col.where('telefono', isEqualTo: tel).limit(1).get();
         if (dup.docs.isNotEmpty) {
@@ -507,6 +565,18 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
+
+        // === ACUMULAR HISTÓRICO: total prestado ===
+        final metricsRef = FirebaseFirestore.instance
+            .collection('prestamistas')
+            .doc(uid)
+            .collection('metrics')
+            .doc('summary');
+
+        await metricsRef.set({
+          'lifetimePrestado': FieldValue.increment(capital),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
       }
 
       if (!mounted) return;

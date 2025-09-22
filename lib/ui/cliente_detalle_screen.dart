@@ -244,6 +244,23 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         'tasaInteres': widget.tasaInteres,
         'producto': widget.producto,
       });
+
+      // === ACUMULAR HISTÓRICO: pagos/ganancias que NO se borran al eliminar clientes ===
+      final metricsRef = FirebaseFirestore.instance
+          .collection('prestamistas')
+          .doc(uid)
+          .collection('metrics')
+          .doc('summary');
+
+      await metricsRef.set({
+        'lifetimeRecuperado': FieldValue.increment(pagoCapital),   // capital devuelto
+        'lifetimeGanancia'  : FieldValue.increment(pagoInteres),   // intereses cobrados
+        'lifetimePagosSum'  : FieldValue.increment(totalPagado),   // suma de pagos
+        'lifetimePagosCount': FieldValue.increment(1),             // cantidad de pagos
+        'updatedAt'         : FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

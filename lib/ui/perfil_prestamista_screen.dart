@@ -18,7 +18,7 @@ class _Brand {
   static const primary = Color(0xFF2563EB); // azul
   static const success = Color(0xFF22C55E); // verde recibo
   static const successDark = Color(0xFF16A34A);
-  static const softRed = Color(0xFFE11D48); // rojo suave para recuperación < 50
+  static const softRed = Color(0xFFE11D48); // rojo suave
   static const ink = Color(0xFF0F172A);
   static const inkDim = Color(0xFF64748B);
   static const card = Color(0xFFFFFFFF);
@@ -28,6 +28,10 @@ class _Brand {
   static const kpiGray = Color(0xFFE5E7EB);   // total prestado (fondo suave)
   static const kpiBlue = Color(0xFFDBEAFE);   // total pendiente
   static const kpiGreen = Color(0xFFDCFCE7);  // total recuperado
+
+  // Extra acentos históricos
+  static const kpiPurple = Color(0xFFEDE9FE);
+  static const purple = Color(0xFF6D28D9);
 
   // Divisor estilo recibo
   static const divider = Color(0xFFD7E1EE);
@@ -56,7 +60,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   bool _pin = false, _bio = false, _backup = false, _notif = true;
   DateTime? _lastBackup;
 
-  // Stats
+  // Stats (actual)
   bool _loadingProfile = true, _loadingStats = true;
   int totalPrestado = 0, totalPendiente = 0, totalRecuperado = 0;
   List<int> pagosMes = [];
@@ -65,6 +69,19 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   String mayorNombre = '—';
   int mayorSaldo = -1;
   String promInteres = '—', proximoVenc = '—';
+
+  // Histórico (lifetime)
+  int lifetimePrestado = 0;
+  int lifetimeRecuperado = 0;
+
+  // NUEVO: métricas históricas solicitadas
+  int lifetimeGanancia = 0;     // suma de pagoInteres
+  int lifetimePagosProm = 0;    // promedio de totalPagado
+
+  String histPrimerPago = '—';
+  String histUltimoPago = '—';
+  String histMesTop = '—';
+  bool _historico = false; // conmutador Actual/Histórico
 
   @override
   void initState() {
@@ -229,6 +246,14 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         for (final m in monthsList) '${m.year}-${m.month.toString().padLeft(2, '0')}': 0
       };
 
+      // acumulados históricos
+      int sumPagos = 0;       // totalPagado sum
+      int sumIntereses = 0;   // GANANCIA (pagoInteres)
+      int countPagos = 0;
+      DateTime? firstPay, lastPay;
+      String topMesKey = '';
+      int topMesVal = -1;
+
       double sumaRates = 0.0;
       int nRates = 0;
 
@@ -266,13 +291,23 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         for (final p in pagos.docs) {
           final mp = p.data();
           final ts = mp['fecha'];
+          final int totalPagado = (mp['totalPagado'] ?? 0) as int;
+          final int pagoInteres = (mp['pagoInteres'] ?? 0) as int;
+          final int saldoAnterior = (mp['saldoAnterior'] ?? 0) as int;
+
           if (ts is Timestamp) {
             final dt = ts.toDate();
             final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
-            porMes[key] = (porMes[key] ?? 0) + ((mp['totalPagado'] ?? 0) as int);
+            porMes[key] = (porMes[key] ?? 0) + totalPagado;
+
+            if (firstPay == null || dt.isBefore(firstPay!)) firstPay = dt;
+            if (lastPay == null || dt.isAfter(lastPay!)) lastPay = dt;
           }
-          final int pagoInteres = (mp['pagoInteres'] ?? 0) as int;
-          final int saldoAnterior = (mp['saldoAnterior'] ?? 0) as int;
+
+          sumPagos += totalPagado;
+          sumIntereses += pagoInteres; // acumulamos ganancia
+          countPagos++;
+
           if (pagoInteres > 0 && saldoAnterior > 0) {
             sumaRates += (pagoInteres / saldoAnterior) * 100.0;
             nRates++;
@@ -284,13 +319,19 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       totalPendiente = pendiente;
       totalRecuperado = prestado - pendiente;
 
+      // preparar series por mes y mes top
       pagosMes = [];
       pagosMesLabels = [];
       const mesesTxt = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
       for (final m in monthsList) {
         final key = '${m.year}-${m.month.toString().padLeft(2, '0')}';
-        pagosMes.add(porMes[key] ?? 0);
+        final val = porMes[key] ?? 0;
+        pagosMes.add(val);
         pagosMesLabels.add(mesesTxt[m.month - 1]);
+        if (val > topMesVal) {
+          topMesVal = val;
+          topMesKey = '${mesesTxt[m.month - 1]} ${m.year}';
+        }
       }
 
       mayorNombre = maxSaldo >= 0 ? maxNombre : '—';
@@ -301,6 +342,40 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       clientesAlDia = alDia;
       clientesPagando = pagando;
       clientesVencidos = vencidos;
+
+      // === Leer resumen lifetime si existe (incluye ganancia/promedio)
+      try {
+        final doc = await _docPrest!.collection('metrics').doc('summary').get();
+        final data = doc.data();
+
+        // Bases por si no existe el doc
+        final int baseGanancia = sumIntereses; // suma de pagoInteres
+        final int basePromedio = countPagos == 0 ? 0 : (sumPagos / countPagos).round();
+
+        if (data != null) {
+          lifetimePrestado   = (data['lifetimePrestado']   ?? totalPrestado) as int;
+          lifetimeRecuperado = (data['lifetimeRecuperado'] ?? totalRecuperado) as int;
+          lifetimeGanancia   = (data['lifetimeGanancia']   ?? baseGanancia) as int; // NUEVO
+          lifetimePagosProm  = (data['lifetimePagosProm']  ?? basePromedio) as int; // NUEVO
+        } else {
+          lifetimePrestado   = totalPrestado;
+          lifetimeRecuperado = totalRecuperado;
+          lifetimeGanancia   = baseGanancia;
+          lifetimePagosProm  = basePromedio;
+        }
+      } catch (_) {
+        lifetimePrestado   = totalPrestado;
+        lifetimeRecuperado = totalRecuperado;
+        lifetimeGanancia   = sumIntereses;
+        lifetimePagosProm  = countPagos == 0 ? 0 : (sumPagos / countPagos).round();
+      }
+
+      // completar históricos calculados en runtime (según tu app actual)
+      lifetimeGanancia = sumIntereses; // GANANCIA = intereses cobrados
+      lifetimePagosProm = countPagos == 0 ? 0 : (sumPagos / countPagos).round();
+      histPrimerPago = firstPay == null ? '—' : _fmtFecha(firstPay!);
+      histUltimoPago = lastPay == null ? '—' : _fmtFecha(lastPay!);
+      histMesTop = topMesVal <= 0 ? '—' : '$topMesKey (${_rd(topMesVal)})';
     } finally {
       if (mounted) setState(() => _loadingStats = false);
     }
@@ -328,7 +403,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
               Padding(
                 padding: EdgeInsets.only(top: contentTop),
                 child: Center(
-                  child: Material( // ← evita que el contenido se salga del marco
+                  child: Material(
                     color: Colors.white.withOpacity(_Brand.glassAlpha),
                     borderRadius: BorderRadius.circular(28),
                     clipBehavior: Clip.antiAlias,
@@ -347,7 +422,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                             else
                               (_loadingStats ? _skeleton() : _statsContent()),
                             const SizedBox(height: 16),
-                            if (_tab == 0) _salirBtn(), // ← solo en PERFIL
+                            if (_tab == 0) _accountActions(),
                           ],
                         ),
                       ),
@@ -385,7 +460,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         decoration: BoxDecoration(
           color: selected ? Colors.white : Colors.white.withOpacity(0.10),
           borderRadius: BorderRadius.circular(24),
-          boxShadow: selected ? [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10, offset: const Offset(0, 4))] : null,
+          boxShadow: selected ? [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10, offset: Offset(0, 4))] : null,
         ),
         child: Center(
           child: Text(
@@ -403,22 +478,103 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     );
   }
 
-  Widget _salirBtn() {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          backgroundColor: Colors.white,
-          side: const BorderSide(color: _Brand.softRed, width: 1.6),
-          shape: const StadiumBorder(),
+  // ==== Acciones de cuenta: SALIR + ELIMINAR
+  Widget _accountActions() {
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _Brand.primary,
+              foregroundColor: Colors.white,
+              shape: const StadiumBorder(),
+              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+              elevation: 3,
+            ),
+            onPressed: () {
+              Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (r) => false);
+            },
+            child: const Text('Salir'),
+          ),
         ),
-        onPressed: () {
-          Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (r) => false);
-        },
-        child: const Text('Salir', style: TextStyle(color: _Brand.softRed, fontWeight: FontWeight.w900, fontSize: 16)),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton(  // 👈 cámbialo de OutlinedButton a ElevatedButton
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,          // 👈 fondo blanco
+              foregroundColor: _Brand.softRed,        // 👈 texto rojo
+              shape: const StadiumBorder(),
+              textStyle: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+              ),
+              elevation: 0, // 👈 sin sombra para que parezca plano
+            ),
+            onPressed: _confirmDeleteAccount,
+            child: const Text('Eliminar cuenta'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Eliminar cuenta'),
+        content: const Text('Esto borrará tus datos y tu usuario. Esta acción no se puede deshacer. ¿Deseas continuar?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Eliminar', style: TextStyle(color: _Brand.softRed))),
+        ],
       ),
     );
+    if (ok != true) return;
+    await _deleteAccount();
+  }
+
+  Future<void> _deleteAccount() async {
+    if (_docPrest == null || _user == null) return;
+    try {
+      Future<void> _wipeCollection(CollectionReference col) async {
+        final batchSize = 300;
+        while (true) {
+          final snap = await col.limit(batchSize).get();
+          if (snap.docs.isEmpty) break;
+          final batch = _db.batch();
+          for (final d in snap.docs) {
+            batch.delete(d.reference);
+          }
+          await batch.commit();
+          if (snap.docs.length < batchSize) break;
+        }
+      }
+
+      final clientes = await _docPrest!.collection('clientes').get();
+      for (final c in clientes.docs) {
+        await _wipeCollection(c.reference.collection('pagos'));
+        await c.reference.delete();
+      }
+
+      await _wipeCollection(_docPrest!.collection('backups'));
+      await _wipeCollection(_docPrest!.collection('historial'));
+      await _wipeCollection(_docPrest!.collection('metrics'));
+
+      await _docPrest!.delete();
+      await _user!.delete();
+
+      _toast('Cuenta eliminada', color: _Brand.softRed, icon: Icons.delete_forever);
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (r) => false);
+      }
+    } catch (e) {
+      _toast('No se pudo eliminar. Vuelve a iniciar sesión y reintenta.', color: _Brand.softRed, icon: Icons.error_outline);
+    }
   }
 
   // ===== PERFIL =====
@@ -584,9 +740,51 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
 
   // ===== ESTADÍSTICAS =====
   Widget _statsContent() {
-    final recRate = totalPrestado > 0 ? (totalRecuperado * 100 / totalPrestado) : 0.0;
+    // Toggle Actual / Histórico
+    final toggle = Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF2F6FD),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE1E8F5)),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: _segChip('Actual', !_historico, () => setState(() => _historico = false))),
+          const SizedBox(width: 8),
+          Expanded(child: _segChip('Histórico', _historico, () => setState(() => _historico = true))),
+        ],
+      ),
+    );
+
+    // Banner histórico
+    final bannerHistorico = _historico
+        ? Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7E6),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFFE1A8)),
+      ),
+      child: Row(children: const [
+        Text('✨  ', style: TextStyle(fontSize: 16)),
+        Expanded(
+          child: Text('Vista histórica · Acumulado de por vida',
+              style: TextStyle(fontWeight: FontWeight.w800, color: _Brand.ink)),
+        ),
+      ]),
+    )
+        : const SizedBox.shrink();
+
+    // Cálculos comunes
+    final displayPrestado = _historico ? lifetimePrestado : totalPrestado;
+    final displayRecuperado = _historico ? lifetimeRecuperado : totalRecuperado;
+    final recRate = displayPrestado > 0 ? (displayRecuperado * 100 / displayPrestado) : 0.0;
     final recColor = recRate >= 50 ? _Brand.successDark : _Brand.softRed;
 
+    // KPIs
     final kpis = GridView.count(
       shrinkWrap: true,
       crossAxisCount: 2,
@@ -594,22 +792,31 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: 12,
       mainAxisSpacing: 12,
-      children: [
-        _kpi('Total prestado', _rd(totalPrestado),
-            bg: _Brand.kpiGray, accent: _Brand.ink),
-        _kpi('Total recuperado', _rd(totalRecuperado),
-            bg: _Brand.kpiGreen, accent: _Brand.successDark),
-        _kpi('Total pendiente', _rd(totalPendiente),
-            bg: _Brand.kpiBlue, accent: _Brand.primary),
-        _kpi('Recuperación', totalPrestado > 0 ? '${recRate.toStringAsFixed(0)}%' : '—',
+      children: _historico
+          ? [
+        _kpi('Prestado histórico', _rd(displayPrestado), bg: _Brand.kpiPurple, accent: _Brand.purple),
+        _kpi('Recuperado histórico', _rd(displayRecuperado), bg: _Brand.kpiGreen, accent: _Brand.successDark),
+        _kpi('Ganancia', _rd(lifetimeGanancia), bg: _Brand.kpiGray, accent: _Brand.ink),
+        _kpi('Pagos promedio', _rd(lifetimePagosProm), bg: const Color(0xFFF2F6FD), accent: _Brand.primary),
+      ]
+          : [
+        _kpi('Total prestado', _rd(displayPrestado), bg: _Brand.kpiGray, accent: _Brand.ink),
+        _kpi('Total recuperado', _rd(displayRecuperado), bg: _Brand.kpiGreen, accent: _Brand.successDark),
+        _kpi('Total pendiente', _rd(totalPendiente), bg: _Brand.kpiBlue, accent: _Brand.primary),
+        _kpi('Recuperación', displayPrestado > 0 ? '${recRate.toStringAsFixed(0)}%' : '—',
             bg: const Color(0xFFF2F6FD), accent: recColor),
       ],
     );
 
+    // Gráficos
     final chartsCard = _card(
       child: LayoutBuilder(builder: (c, cs) {
+        final leftTitle = _historico ? 'Pagos históricos por mes' : 'Pagos recibidos por mes';
+        if (_historico) {
+          return _chartBlock(leftTitle, _barChart(values: pagosMes, labels: pagosMesLabels));
+        }
         final isWide = cs.maxWidth > 560;
-        final left = _chartBlock('Pagos recibidos por mes', _barChart(values: pagosMes, labels: pagosMesLabels));
+        final left = _chartBlock(leftTitle, _barChart(values: pagosMes, labels: pagosMesLabels));
         final right = _chartBlock('Distribución de clientes', _donutSection());
         return isWide
             ? Row(children: [Expanded(child: left), const SizedBox(width: 12), Expanded(child: right)])
@@ -617,11 +824,41 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       }),
     );
 
+    // Tarjeta inferior
     final bottomCard = _card(
-      child: Column(
+      child: _historico
+          ? Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Cliente con más deuda (estilo recibo)
+          _kv('Primer pago registrado', histPrimerPago),
+          _divider(),
+          _kv('Último pago registrado', histUltimoPago),
+          _divider(),
+          _kv('Mes con más cobros', histMesTop),
+          _divider(),
+          _kv('Recuperación histórica',
+              displayPrestado > 0 ? '${(displayRecuperado * 100 / displayPrestado).toStringAsFixed(0)}%' : '—'),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Borrar historial'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _Brand.softRed,
+                side: const BorderSide(color: _Brand.softRed),
+                shape: const StadiumBorder(),
+                textStyle: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              onPressed: _confirmBorrarHistorico,
+            ),
+          ),
+        ],
+      )
+          : Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Row(
             children: [
               const Icon(Icons.person_outline, color: _Brand.inkDim),
@@ -640,7 +877,8 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             ],
           ),
           const SizedBox(height: 6),
-          const Text('Cliente con más deuda', style: TextStyle(color: _Brand.inkDim, fontSize: 12.5, fontWeight: FontWeight.w600)),
+          const Text('Cliente con más deuda',
+              style: TextStyle(color: _Brand.inkDim, fontSize: 12.5, fontWeight: FontWeight.w600)),
           _divider(),
           _kv('Promedio de interés cobrado', promInteres),
           _divider(),
@@ -652,6 +890,8 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        toggle,
+        bannerHistorico,
         kpis,
         const SizedBox(height: 12),
         chartsCard,
@@ -659,6 +899,54 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         bottomCard,
       ],
     );
+  }
+
+  Future<void> _confirmBorrarHistorico() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_amber_rounded, color: _Brand.softRed),
+            SizedBox(width: 8),
+            Text('¿Borrar histórico?'),
+          ],
+        ),
+        content: const Text(
+          'Esto elimina los datos históricos acumulados (no borra clientes ni pagos). '
+              'Podrás seguir generando histórico con nuevos pagos.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Borrar', style: TextStyle(color: _Brand.softRed, fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await _borrarHistorico();
+  }
+
+  Future<void> _borrarHistorico() async {
+    if (_docPrest == null) return;
+    try {
+      await _docPrest!.collection('metrics').doc('summary').delete();
+    } catch (_) {
+      // si no existe, ignorar
+    }
+    // reset de los mostrados en pantalla
+    setState(() {
+      lifetimePrestado = 0;
+      lifetimeRecuperado = 0;
+      lifetimeGanancia = 0;
+      lifetimePagosProm = 0;
+      histPrimerPago = '—';
+      histUltimoPago = '—';
+      histMesTop = '—';
+    });
+    _toast('Histórico borrado', color: _Brand.softRed, icon: Icons.delete_outline);
   }
 
   // ===== bloques comunes / estilo =====
@@ -844,7 +1132,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                                 decoration: BoxDecoration(
                                   color: _Brand.primary,
                                   borderRadius: BorderRadius.circular(10),
-                                  boxShadow: [BoxShadow(color: _Brand.primary.withOpacity(.18), blurRadius: 10, offset: const Offset(0, 4))],
+                                  boxShadow: [BoxShadow(color: _Brand.primary.withOpacity(.18), blurRadius: 10, offset: Offset(0, 4))],
                                 ),
                               );
                             }),
@@ -942,6 +1230,31 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
       ],
+    );
+  }
+
+  Widget _segChip(String label, bool selected, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: selected ? [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 8, offset: const Offset(0, 3))] : null,
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: selected ? _Brand.ink : _Brand.inkDim,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
