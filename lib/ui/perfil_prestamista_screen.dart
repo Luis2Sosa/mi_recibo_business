@@ -370,9 +370,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         lifetimePagosProm  = countPagos == 0 ? 0 : (sumPagos / countPagos).round();
       }
 
-      // completar históricos calculados en runtime (según tu app actual)
-      lifetimeGanancia = sumIntereses; // GANANCIA = intereses cobrados
-      lifetimePagosProm = countPagos == 0 ? 0 : (sumPagos / countPagos).round();
+      // ⛔️ Ya no sobreescribimos lifetimeGanancia ni lifetimePagosProm aquí.
       histPrimerPago = firstPay == null ? '—' : _fmtFecha(firstPay!);
       histUltimoPago = lastPay == null ? '—' : _fmtFecha(lastPay!);
       histMesTop = topMesVal <= 0 ? '—' : '$topMesKey (${_rd(topMesVal)})';
@@ -1243,7 +1241,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         decoration: BoxDecoration(
           color: selected ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: selected ? [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 8, offset: const Offset(0, 3))] : null,
+          boxShadow: selected ? [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 8, offset: Offset(0, 3))] : null,
         ),
         child: Center(
           child: Text(

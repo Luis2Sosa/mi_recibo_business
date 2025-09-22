@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'dart:io';
+import 'package:mi_recibo/ui/theme/app_theme.dart';
+import 'package:mi_recibo/ui/widgets/app_frame.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -412,13 +414,9 @@ class _ReciboScreenState extends State<ReciboScreen> {
           return false;
         }
       },
-      child: Scaffold(
-        body: Container(
-          constraints: const BoxConstraints.expand(),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(begin: cfg.gradientBegin, end: cfg.gradientEnd, colors: cfg.gradientColors),
-          ),
-          child: SafeArea(
+        child: Scaffold(
+          body: AppGradientBackground(
+            child: SafeArea(
             child: Column(
               mainAxisSize: MainAxisSize.max,
               children: [
@@ -435,14 +433,13 @@ class _ReciboScreenState extends State<ReciboScreen> {
                     key: _captureKey,
                     child: Container(
                       height: captureHeight,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         gradient: LinearGradient(
-                          begin: cfg.gradientBegin,
-                          end: cfg.gradientEnd,
-                          colors: cfg.gradientColors,
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [AppTheme.gradTop, AppTheme.gradBottom], // ✅ mismo fondo de la app
                         ),
                       ),
-
                       child: Center(
                         child: _PlainCardShell(
                           radius: cfg.cardRadius,

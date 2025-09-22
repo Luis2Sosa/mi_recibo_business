@@ -10,11 +10,14 @@ class AppGradientBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [AppTheme.gradTop, AppTheme.gradBottom],
+          colors: [
+            AppTheme.gradTop,
+            AppTheme.gradBottom,
+          ],
         ),
       ),
       child: SafeArea(child: child),
@@ -31,7 +34,7 @@ class AppFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.expand( // ✅ da altura acotada para evitar overflow
+    return SizedBox.expand( // ✅ ocupa todo el alto/ ancho
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
@@ -48,13 +51,13 @@ class AppFrame extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
-                    mainAxisSize: MainAxisSize.max, // ✅ columna ocupa alto disponible
+                    mainAxisSize: MainAxisSize.max,
                     children: [
                       if (header != null) ...[
                         header!,
                         const SizedBox(height: 12),
                       ],
-                      Expanded(child: child), // ✅ contenido se adapta sin desbordar
+                      Expanded(child: child),
                     ],
                   ),
                 ),
