@@ -795,7 +795,18 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         _kpi('Prestado histórico', _rd(displayPrestado), bg: _Brand.kpiPurple, accent: _Brand.purple),
         _kpi('Recuperado histórico', _rd(displayRecuperado), bg: _Brand.kpiGreen, accent: _Brand.successDark),
         _kpi('Ganancia', _rd(lifetimeGanancia), bg: _Brand.kpiGray, accent: _Brand.ink),
-        _kpi('Pagos promedio', _rd(lifetimePagosProm), bg: const Color(0xFFF2F6FD), accent: _Brand.primary),
+
+        // === CAMBIO SOLICITADO: KPI TAPPABLE ===
+        InkWell(
+          onTap: _openGananciaClientes,
+          borderRadius: BorderRadius.circular(18),
+          child: _kpi(
+            'Ganancia por cliente',
+            'Toca para ver',
+            bg: const Color(0xFFF2F6FD),
+            accent: _Brand.primary,
+          ),
+        ),
       ]
           : [
         _kpi('Total prestado', _rd(displayPrestado), bg: _Brand.kpiGray, accent: _Brand.ink),
@@ -1268,6 +1279,20 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       ),
     ),
   );
+
+  // ======= NUEVO: Navegación a la pantalla de Ganancia por cliente =======
+  void _openGananciaClientes() {
+    if (_docPrest == null) {
+      _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GananciaClientesScreen(docPrest: _docPrest!),
+      ),
+    );
+  }
 }
 
 class _LegendDot extends StatelessWidget {
@@ -1319,4 +1344,230 @@ class _DonutPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DonutPainter old) => old.slices != slices;
+}
+
+// ===================== NUEVA PANTALLA =====================
+class GananciaClientesScreen extends StatefulWidget {
+  final DocumentReference<Map<String, dynamic>> docPrest;
+  const GananciaClientesScreen({super.key, required this.docPrest});
+
+  @override
+  State<GananciaClientesScreen> createState() => _GananciaClientesScreenState();
+}
+
+class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
+  late Future<List<_ClienteGanancia>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _cargarGanancias();
+  }
+
+  Future<List<_ClienteGanancia>> _cargarGanancias() async {
+    final cs = await widget.docPrest.collection('clientes').get();
+
+    final List<_ClienteGanancia> rows = [];
+    for (final c in cs.docs) {
+      final data = c.data();
+      final int saldo = (data['saldoActual'] ?? 0) as int;
+
+      // Solo activos (saldo > 0)
+      if (saldo <= 0) continue;
+
+      final pagos = await c.reference.collection('pagos').get();
+      int ganancia = 0; // suma de pagoInteres
+      int totalPagos = 0;
+
+      for (final p in pagos.docs) {
+        final m = p.data();
+        ganancia += (m['pagoInteres'] ?? 0) as int;
+        totalPagos += (m['totalPagado'] ?? 0) as int;
+      }
+
+      final nombre = '${(data['nombre'] ?? '').toString().trim()} ${(data['apellido'] ?? '').toString().trim()}'.trim();
+      final display = nombre.isEmpty ? (data['telefono'] ?? 'Cliente') : nombre;
+
+      rows.add(_ClienteGanancia(
+        id: c.id,
+        nombre: display,
+        ganancia: ganancia,
+        saldo: saldo,
+        totalPagado: totalPagos,
+      ));
+    }
+
+    rows.sort((a, b) => b.ganancia.compareTo(a.ganancia));
+    return rows;
+  }
+
+  String _rd(int v) {
+    if (v <= 0) return 'RD\$0';
+    final s = v.toString();
+    final b = StringBuffer();
+    int c = 0;
+    for (int i = s.length - 1; i >= 0; i--) {
+      b.write(s[i]);
+      c++;
+      if (c == 3 && i != 0) {
+        b.write('.');
+        c = 0;
+      }
+    }
+    return 'RD\$${b.toString().split('').reversed.join()}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: _Brand.primary,
+        foregroundColor: Colors.white,
+        title: const Text('Ganancia por cliente', style: TextStyle(fontWeight: FontWeight.w900)),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [_Brand.gradTop, _Brand.gradBottom]),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: FutureBuilder<List<_ClienteGanancia>>(
+              future: _future,
+              builder: (context, snap) {
+                if (snap.connectionState != ConnectionState.done) {
+                  return _loading();
+                }
+                final list = snap.data ?? const <_ClienteGanancia>[];
+                if (list.isEmpty) {
+                  return _empty();
+                }
+                final total = list.fold<int>(0, (p, e) => p + e.ganancia);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _resumen(total, list.length),
+                    const SizedBox(height: 12),
+                    Expanded(child: _lista(list)),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _resumen(int total, int n) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _Brand.card.withOpacity(.96),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.08), blurRadius: 12, offset: const Offset(0, 5))],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Ganancia total (activos)', style: TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(_rd(total), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: _Brand.ink)),
+            ]),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF2F6FD),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE1E8F5)),
+            ),
+            child: Text('$n clientes', style: const TextStyle(fontWeight: FontWeight.w800, color: _Brand.primary)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _lista(List<_ClienteGanancia> list) {
+    return ListView.separated(
+      itemCount: list.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, i) {
+        final it = list[i];
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _Brand.card.withOpacity(.96),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE8EEF8)),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 8, offset: const Offset(0, 3))],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42, height: 42,
+                decoration: BoxDecoration(color: const Color(0xFFF2F6FD), borderRadius: BorderRadius.circular(12)),
+                child: const Icon(Icons.person, color: _Brand.inkDim),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(it.nombre, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w900, color: _Brand.ink)),
+                  const SizedBox(height: 4),
+                  Text('Saldo: ${_rd(it.saldo)}  •  Pagado: ${_rd(it.totalPagado)}',
+                      style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
+                ]),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text('Ganancia', style: TextStyle(fontSize: 12, color: _Brand.inkDim, fontWeight: FontWeight.w700)),
+                  Text(_rd(it.ganancia), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _Brand.successDark)),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _loading() => Center(
+    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: const [
+      SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5)),
+      SizedBox(width: 10),
+      Text('Cargando…', style: TextStyle(fontWeight: FontWeight.w800)),
+    ]),
+  );
+
+  Widget _empty() => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: _Brand.card.withOpacity(.96),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: const Color(0xFFE8EEF8)),
+    ),
+    child: const Center(
+      child: Text('No hay clientes activos con ganancias', style: TextStyle(fontWeight: FontWeight.w800, color: _Brand.inkDim)),
+    ),
+  );
+}
+
+class _ClienteGanancia {
+  final String id;
+  final String nombre;
+  final int ganancia;
+  final int saldo;
+  final int totalPagado;
+  _ClienteGanancia({
+    required this.id,
+    required this.nombre,
+    required this.ganancia,
+    required this.saldo,
+    required this.totalPagado,
+  });
 }

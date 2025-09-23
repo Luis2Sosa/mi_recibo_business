@@ -126,7 +126,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   Widget build(BuildContext context) {
     // Levantar la tarjeta con el teclado (misma idea, más suave)
     final kb = MediaQuery.of(context).viewInsets.bottom;
-    const double baseDown = 300;
+    const double baseDown = 250;
     final double lift = kb > 0 ? (kb.clamp(0, 340)).toDouble() : 0;
     double translateY = baseDown - lift * 0.8;
     const double minY = 16;
