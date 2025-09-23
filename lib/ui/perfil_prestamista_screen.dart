@@ -40,7 +40,7 @@ class _Brand {
 class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   // Logo
   static const double _logoTop = -48;
-  static const double _logoH = 340;
+  static const double _logoH = 230;
   static const double _gapBelowLogo = -48;
 
   // Tabs
@@ -1517,8 +1517,12 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
                   Text(it.nombre, maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontWeight: FontWeight.w900, color: _Brand.ink)),
                   const SizedBox(height: 4),
-                  Text('Saldo: ${_rd(it.saldo)}  •  Pagado: ${_rd(it.totalPagado)}',
+                  Text('Saldo: ${_rd(it.saldo)}',
                       style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text('Pagado: ${_rd(it.totalPagado)}',
+                      style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
+
                 ]),
               ),
               const SizedBox(width: 10),
