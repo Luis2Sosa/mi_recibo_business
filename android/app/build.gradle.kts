@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.example.mi_recibo" // 👈 cámbialo si en Firebase usas otro nombre de paquete
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36                      // ✅ requerido por google_sign_in_android
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -22,10 +22,10 @@ android {
     }
 
     defaultConfig {
-        // 👈 ESTE applicationId debe ser IGUAL al que pongas en Firebase
+        // 👇 ESTE applicationId debe ser IGUAL al que uses en Firebase / Google Play
         applicationId = "com.example.mi_recibo"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdk = 29            // ✅ Android 10 (recomendado para MediaStore)
+        targetSdk = 36         // ✅ parejo con compileSdk
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -34,6 +34,12 @@ android {
         release {
             // ⚠️ Más adelante agrega tu propia firma para release
             signingConfig = signingConfigs.getByName("debug")
+            // Puedes activar minify si firmas con tu keystore:
+            // isMinifyEnabled = true
+            // proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        debug {
+            // Opcional: ajustes de debug si los necesitas
         }
     }
 }
@@ -51,5 +57,5 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
 
     // Google Sign-In
-    implementation("com.google.android.gms:play-services-auth:21.2.0") // 👈 YA AGREGADO
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
 }

@@ -1,6 +1,6 @@
 name: mi_recibo
 description: "A new Flutter project."
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: 'none'
 
 version: 1.0.0+1
 
@@ -10,22 +10,27 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.8      # íconos iOS
-  google_fonts: ^6.2.1         # letras elegantes
-  google_sign_in: ^6.2.1       # login con Google
-  firebase_core: ^3.5.0        # inicializar Firebase
-  firebase_auth: ^5.1.4        # autenticación Firebase
-  cloud_firestore: ^5.4.4      # base de datos Firestore
-  path_provider: ^2.1.4
-  permission_handler: ^11.3.1  # ✅ permisos para guardar en Descargas
-  file_saver: ^0.2.12
-  flutter_file_dialog: ^3.0.2
 
-  # === Compartir / PDF / Enlaces ===
-  url_launcher: ^6.3.0         # abrir enlaces externos (ej: web, tel, mail)
-  share_plus: ^10.0.2          # compartir en WhatsApp, correo, etc
-  pdf: ^3.11.0                 # generar documentos PDF
-  printing: ^5.13.4            # imprimir/guardar PDF y exportar a imagen
+  # UI / fuentes / íconos
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+
+  # Firebase
+  google_sign_in: ^6.2.1
+  firebase_core: ^3.5.0
+  firebase_auth: ^5.1.4
+  cloud_firestore: ^5.4.4
+
+  # Archivos / guardado / permisos
+  path_provider: ^2.1.4
+  permission_handler: ^11.3.1
+  media_store_plus: ^0.1.3     # ✅
+
+  # Compartir / PDF / enlaces
+  url_launcher: ^6.3.0
+  share_plus: ^10.0.2
+  pdf: ^3.11.0
+  printing: ^5.13.4
 
 dev_dependencies:
   flutter_test:

@@ -1,19 +1,20 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-import 'dart:io';
-import 'package:mi_recibo/ui/theme/app_theme.dart';
-import 'package:mi_recibo/ui/widgets/app_frame.dart';
+import 'dart:io' show File, Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'package:share_plus/share_plus.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter_file_dialog/flutter_file_dialog.dart';
+import 'package:media_store_plus/media_store_plus.dart';
+
+import 'package:mi_recibo/ui/theme/app_theme.dart';
+import 'package:mi_recibo/ui/widgets/app_frame.dart';
 
 /// ==============================
 /// CONFIGURACIÓN VISUAL AJUSTABLE
@@ -186,7 +187,6 @@ class ReciboUIConfig {
       fontWeight: FontWeight.w600,
     ),
 
-
     // Botones
     this.btnWhatsapp = const Color(0xFF22C55E),
     this.btnPdf = const Color(0xFF2563EB),
@@ -340,22 +340,15 @@ class _ReciboScreenState extends State<ReciboScreen> {
     Navigator.popUntil(context, (route) => route.isFirst);
   }
 
-  Future<Uint8List> _capturarArea() async {
-    final boundary = _captureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-    final ui.Image image = await boundary.toImage(pixelRatio: 4.0);
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    return byteData!.buffer.asUint8List();
-  }
-
   Future<void> _compartirWhatsApp() async {
     try {
-      // 1) Capturamos el área como imagen
+      // 1) Capturar el recibo como PNG (resolución alta)
       final boundary = _captureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      final ui.Image image = await boundary.toImage(pixelRatio: 3.0); // 3.0 está bien; WhatsApp comprime igual
+      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       final pngBytes = byteData!.buffer.asUint8List();
 
-      // 2) La metemos dentro de un PDF (sin pérdida)
+      // 2) Generar PDF nítido a partir de la imagen
       final pdf = pw.Document();
       final img = pw.MemoryImage(pngBytes);
       final pageFormat = PdfPageFormat(image.width.toDouble(), image.height.toDouble());
@@ -367,20 +360,44 @@ class _ReciboScreenState extends State<ReciboScreen> {
         ),
       );
       final pdfBytes = await pdf.save();
+      final fileName = 'recibo-$_reciboFmt.pdf';
 
-      // 3) Compartimos el PDF por el share sheet (WhatsApp lo respeta nítido)
+      // 3) Guardar AUTOMÁTICO (silencioso). Si falla, seguimos.
+      final savedPathOrUri = await _guardarSilencioso(pdfBytes, fileName);
+      if (mounted && savedPathOrUri != null) {
+        _showModernSnackBar(
+          icon: Icons.check_circle_rounded,
+          text: 'PDF guardado en Descargas ✅',
+          bg: const Color(0xFF16A34A),
+        );
+      }
+
+      // 4) Compartir PDF por WhatsApp (nítido)
       final caption = 'Recibo $_reciboFmt - ${_fmtFecha(widget.fecha)}';
       await Share.shareXFiles(
-        [XFile.fromData(pdfBytes, name: 'recibo-$_reciboFmt.pdf', mimeType: 'application/pdf')],
+        [XFile.fromData(pdfBytes, name: fileName, mimeType: 'application/pdf')],
         text: caption,
         subject: 'Recibo $_reciboFmt',
       );
+
+      // 5) Aviso de envío preparado (opcional)
+      if (mounted) {
+        _showModernSnackBar(
+          icon: Icons.send_rounded,
+          text: 'Recibo listo para WhatsApp 📄',
+          bg: const Color(0xFF2563EB),
+        );
+      }
     } catch (e) {
-      // fallback opcional: si algo falla, comparte la imagen (no será tan nítida)
+      // Fallback: si algo falla, intenta compartir la imagen (menos nítido)
       try {
-        final bytes = await _capturarArea();
+        final boundary = _captureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+        final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        final pngBytes = byteData!.buffer.asUint8List();
+
         await Share.shareXFiles(
-          [XFile.fromData(bytes, name: 'recibo-$_reciboFmt.png', mimeType: 'image/png')],
+          [XFile.fromData(pngBytes, name: 'recibo-$_reciboFmt.png', mimeType: 'image/png')],
           text: 'Recibo $_reciboFmt - ${_fmtFecha(widget.fecha)}',
           subject: 'Recibo $_reciboFmt',
         );
@@ -390,185 +407,171 @@ class _ReciboScreenState extends State<ReciboScreen> {
     }
   }
 
-
-  Future<void> _guardarPdfYVolver() async {
-    final boundary = _captureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-    final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    final pngBytes = byteData!.buffer.asUint8List();
-
-    final pdf = pw.Document();
-    final img = pw.MemoryImage(pngBytes);
-    final pageFormat = PdfPageFormat(image.width.toDouble(), image.height.toDouble());
-    pdf.addPage(
-      pw.Page(pageFormat: pageFormat, margin: pw.EdgeInsets.zero, build: (_) => pw.Image(img, fit: pw.BoxFit.cover)),
-    );
-    final pdfBytes = await pdf.save();
-
+  // Guarda el PDF en Descargas (Android) o en Documents (iOS) SIN diálogo.
+  // Devuelve la URI (string) o null si algo falló.
+  Future<String?> _guardarSilencioso(Uint8List pdfBytes, String fileName) async {
     try {
-      final params = SaveFileDialogParams(
-        data: pdfBytes,
-        mimeTypesFilter: const ['application/pdf'],
-        fileName: 'recibo-$_reciboFmt.pdf',
-      );
-      await FlutterFileDialog.saveFile(params: params);
-    } catch (_) {
-      final dir = await getApplicationDocumentsDirectory();
-      final path = '${dir.path}/recibo-$_reciboFmt.pdf';
-      await File(path).writeAsBytes(pdfBytes, flush: true);
-    }
+      if (Platform.isAndroid) {
+        // 1) Escribimos el PDF a un archivo temporal con el nombre deseado
+        final tempDir = await getTemporaryDirectory();
+        final tmpPath = '${tempDir.path}/$fileName';
+        final tmpFile = File(tmpPath);
+        await tmpFile.writeAsBytes(pdfBytes, flush: true);
 
-    if (!mounted) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _volverAClientes());
+        // 2) Lo movemos a Descargas usando MediaStore (v0.1.3)
+        final ms = MediaStore();
+        final savedUri = await ms.saveFile(
+          tempFilePath: tmpPath,
+          dirType: DirType.download,
+          dirName: DirName.download, // 👈 enum, NO String
+        );
+
+        return savedUri?.toString();
+      } else if (Platform.isIOS) {
+        // iOS: no hay "Descargas" pública; guardamos en Documents
+        final docs = await getApplicationDocumentsDirectory();
+        final path = '${docs.path}/$fileName';
+        await File(path).writeAsBytes(pdfBytes, flush: true);
+        return path;
+      } else {
+        // Otros (web/desktop): guarda en temporal
+        final dir = await getTemporaryDirectory();
+        final path = '${dir.path}/$fileName';
+        await File(path).writeAsBytes(pdfBytes, flush: true);
+        return path;
+      }
+    } catch (_) {
+      return null;
+    }
   }
 
+  /// ************* AÑADIDO: MÉTODO build *************
   @override
   Widget build(BuildContext context) {
     final cfg = this.cfg;
-    final double captureHeight = MediaQuery.of(context).size.height * 0.9;
 
-    return WillPopScope(
-      onWillPop: () async {
-        final now = DateTime.now();
-        if (_lastBackPress == null || now.difference(_lastBackPress!) > _backWindow) {
-          _lastBackPress = now;
-          HapticFeedback.mediumImpact();
-
-          _showModernSnackBar(
-            icon: Icons.keyboard_return_rounded,
-            text: 'Pulsa atrás otra vez para guardar PDF y volver a Clientes',
-            bg: const Color(0xFF11A7A0),
-          );
-          return false;
-        } else {
-          await _guardarPdfYVolver();
-          return false;
-        }
-      },
-        child: Scaffold(
-          body: AppGradientBackground(
-            child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.max,
-              children: [
-                if (cfg.showHeaderTitle)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Center(child: Text(cfg.headerTitle, style: GoogleFonts.playfair(textStyle: cfg.headerTitleStyle))),
-                  ),
-
-                // ====== CAPTURABLE: Fondo + Recibo centrado ======
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    child: RepaintBoundary(
-                      key: _captureKey,
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          // Altura máxima disponible para la tarjeta (dejamos aire arriba/abajo)
-                          final double maxCardH = (constraints.maxHeight * 0.82).clamp(520.0, 760.0);
-
-                          return Container(
-                            // 👇 ocupa todo el alto disponible del Expanded (no se corta)
-                            height: double.infinity,
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [AppTheme.gradTop, AppTheme.gradBottom],
-                              ),
-                            ),
-                            child: Center(
-                              child: _PlainCardShell(
-                                radius: cfg.cardRadius,
-                                height: maxCardH,                 // 👈 la tarjeta se adapta
-                                padding: cfg.cardPadding,
-                                child: FittedBox(
-                                  fit: BoxFit.contain,
-                                  alignment: Alignment.topCenter,
-                                  child: SizedBox(
-                                    width: cfg.designWidth,
-                                    child: _ReceiptContent(
-                                      cfg: cfg,
-                                      empresa: widget.empresa,
-                                      servidor: widget.servidor,
-                                      telefonoServidor: widget.telefonoServidor,
-                                      cliente: widget.cliente,
-                                      telefonoCliente: widget.telefonoCliente,
-                                      producto: widget.producto,
-                                      numeroRecibo: _fmtNumReciboStr(widget.numeroRecibo),
-                                      fecha: widget.fecha,
-                                      capitalInicial: widget.capitalInicial,
-                                      pagoInteres: widget.pagoInteres,
-                                      pagoCapital: widget.pagoCapital,
-                                      totalPagado: widget.totalPagado,
-                                      saldoAnterior: widget.saldoAnterior,
-                                      saldoActual: widget.saldoActual,
-                                      proximaFecha: widget.proximaFecha,
-                                      fmtFecha: _fmtFecha,
-                                      monedaRD: _monedaRD,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
+    return Scaffold(
+      body: AppGradientBackground(
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              if (cfg.showHeaderTitle)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Center(
+                    child: Text(
+                      cfg.headerTitle,
+                      style: GoogleFonts.playfair(
+                        textStyle: cfg.headerTitleStyle,
                       ),
                     ),
                   ),
                 ),
 
+              // ====== CAPTURABLE: Fondo + Recibo centrado ======
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: RepaintBoundary(
+                    key: _captureKey,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final double maxCardH =
+                        (constraints.maxHeight * 0.82).clamp(520.0, 760.0);
 
-
-
-                const SizedBox(height: 8),
-
-                // Botones (no se incluyen en la captura)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: Container(
-                            width: 28, height: 28,
-                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                            child: Padding(
-                              padding: const EdgeInsets.all(4),
-                              child: Image.asset('assets/images/logo_whatsapp.png', fit: BoxFit.contain),
+                        return Container(
+                          height: double.infinity,
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [AppTheme.gradTop, AppTheme.gradBottom],
                             ),
                           ),
-                          label: const Text('Enviar Recibo'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: cfg.btnWhatsapp, foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12), shape: const StadiumBorder(),
+                          child: Center(
+                            child: _PlainCardShell(
+                              radius: cfg.cardRadius,
+                              height: maxCardH,
+                              padding: cfg.cardPadding,
+                              child: FittedBox(
+                                fit: BoxFit.contain,
+                                alignment: Alignment.topCenter,
+                                child: SizedBox(
+                                  width: cfg.designWidth,
+                                  child: _ReceiptContent(
+                                    cfg: cfg,
+                                    empresa: widget.empresa,
+                                    servidor: widget.servidor,
+                                    telefonoServidor: widget.telefonoServidor,
+                                    cliente: widget.cliente,
+                                    telefonoCliente: widget.telefonoCliente,
+                                    producto: widget.producto,
+                                    numeroRecibo:
+                                    _fmtNumReciboStr(widget.numeroRecibo),
+                                    fecha: widget.fecha,
+                                    capitalInicial: widget.capitalInicial,
+                                    pagoInteres: widget.pagoInteres,
+                                    pagoCapital: widget.pagoCapital,
+                                    totalPagado: widget.totalPagado,
+                                    saldoAnterior: widget.saldoAnterior,
+                                    saldoActual: widget.saldoActual,
+                                    proximaFecha: widget.proximaFecha,
+                                    fmtFecha: _fmtFecha,
+                                    monedaRD: _monedaRD,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
-                          onPressed: _compartirWhatsApp,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: Image.asset('assets/images/logo_pdf.png', height: 22),
-                          label: const Text('Guardar PDF'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: cfg.btnPdf, foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14), shape: const StadiumBorder(),
-                          ),
-                          onPressed: _guardarPdfYVolver,
-                        ),
-                      ),
-                    ],
+                        );
+                      },
+                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // Botón único (no se incluye en la captura)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Image.asset(
+                          'assets/images/logo_whatsapp.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    label: const Text('Enviar recibo por WhatsApp'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: cfg.btnPdf, // azul
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: const StadiumBorder(),
+                    ),
+                    onPressed: _compartirWhatsApp,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+  /// **************************************************
 
   void _showModernSnackBar({
     required IconData icon,
@@ -604,7 +607,6 @@ class _ReciboScreenState extends State<ReciboScreen> {
       ),
     );
   }
-
 }
 
 /// Card plana SIN brillo/sombras
@@ -705,9 +707,11 @@ class _ReceiptContent extends StatelessWidget {
             // Paloma
             Center(
               child: Container(
-                width: cfg.checkCircleSize, height: cfg.checkCircleSize,
+                width: cfg.checkCircleSize,
+                height: cfg.checkCircleSize,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle, border: Border.all(color: cfg.brandTeal, width: cfg.checkBorderWidth),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: cfg.brandTeal, width: cfg.checkBorderWidth),
                 ),
                 child: Icon(Icons.check_rounded, size: cfg.checkIconSize, color: cfg.brandTeal),
               ),
@@ -777,23 +781,22 @@ class _ReceiptContent extends StatelessWidget {
                                 Text(
                                   'Tel:',
                                   style: cfg.valueStyle.copyWith(
-                                    fontSize: 16,          // un poquito más grande
+                                    fontSize: 16,
                                     fontWeight: FontWeight.w700,
-                                    color: Colors.black87, // buen contraste
+                                    color: Colors.black87,
                                   ),
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   telefonoServidor,
                                   style: cfg.valueStyle.copyWith(
-                                    fontSize: 18,          // más grande que el label
+                                    fontSize: 18,
                                     fontWeight: FontWeight.w600,
                                     color: Colors.black87,
                                   ),
                                 ),
                               ],
                             ),
-
                           ],
                         ),
                       ),
@@ -803,7 +806,6 @@ class _ReceiptContent extends StatelessWidget {
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              //Text('Recibo: ', style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w600)),
                               Text(numeroRecibo, style: cfg.valueStrongStyle),
                             ],
                           ),
@@ -837,26 +839,17 @@ class _ReceiptContent extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     child: Column(
                       children: [
-                        // 1) Monto adeudado (antes del pago) => saldoAnterior
                         _row('Monto adeudado', monedaRD(saldoAnterior)),
                         Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-
-                        // 2) Pago de interés
                         _row('Pago de interés', monedaRD(pagoInteres)),
                         Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-
-                        // 3) Pago a capital
                         _row('Pago a capital', monedaRD(pagoCapital)),
-
-                        // 4-5) Solo si queda deuda
                         if (saldoActual > 0) ...[
                           Divider(height: 14, thickness: 1, color: cfg.mintDivider),
                           _row('Saldo pendiente actual', monedaRD(saldoActual)),
                           Divider(height: 14, thickness: 1, color: cfg.mintDivider),
                           _row('Próxima fecha', fmtFecha(proximaFecha)),
                         ],
-
-                        // 6) Producto (dentro de la banda) — solo si viene
                         if (producto.trim().isNotEmpty) ...[
                           Divider(height: 14, thickness: 1, color: cfg.mintDivider),
                           _row('Producto', producto),
@@ -868,7 +861,7 @@ class _ReceiptContent extends StatelessWidget {
                   const SizedBox(height: 10),
                   Divider(height: 14, thickness: 1, color: cfg.line),
 
-                  // Cliente (queda dentro del mismo cuadro)
+                  // Cliente
                   Row(
                     children: [
                       label('Cliente'),
@@ -893,7 +886,7 @@ class _ReceiptContent extends StatelessWidget {
             child: Center(
               child: Image.asset(
                 cfg.brandLogoAsset,
-                height: cfg.brandLogoHeight, // cambia tamaño libremente: no empuja nada
+                height: cfg.brandLogoHeight,
                 fit: BoxFit.contain,
               ),
             ),
@@ -915,7 +908,8 @@ class _ReceiptContent extends StatelessWidget {
         children: [
           for (int i = 0; i < children.length; i++) ...[
             children[i],
-            if (i != children.length - 1) Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+            if (i != children.length - 1)
+              Divider(height: 14, thickness: 1, color: cfg.mintDivider),
           ],
         ],
       ),
