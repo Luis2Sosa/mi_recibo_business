@@ -79,6 +79,8 @@ class ReciboUIConfig {
   final Color btnWhatsapp;
   final Color btnPdf;
 
+  final dynamic phoneStyle;
+
   const ReciboUIConfig({
     // Fondo
     this.gradientBegin = Alignment.topLeft,
@@ -155,29 +157,35 @@ class ReciboUIConfig {
 
     // Textos
     this.labelStyle = const TextStyle(
-      fontSize: 20, // ↑
+      fontSize: 17, // antes 20
       color: Color(0xFF667084),
       fontWeight: FontWeight.w600,
       letterSpacing: .1,
     ),
     this.valueStyle = const TextStyle(
-      fontSize: 22, // ↑
+      fontSize: 18, // antes 22
       color: Color(0xFF0F172A),
       fontWeight: FontWeight.w800,
       letterSpacing: .1,
     ),
     this.valueStrongStyle = const TextStyle(
-      fontSize: 22, // ↑
+      fontSize: 19, // antes 22
       color: Color(0xFF0F172A),
       fontWeight: FontWeight.w900,
       letterSpacing: .1,
     ),
     this.valueClientStyle = const TextStyle(
-      fontSize: 23, // ↑
+      fontSize: 20, // antes 23
       color: Color(0xFF0F172A),
       fontWeight: FontWeight.w900,
       letterSpacing: .2,
     ),
+    this.phoneStyle = const TextStyle(
+      fontSize: 16,
+      color: Color(0xFF667084),
+      fontWeight: FontWeight.w600,
+    ),
+
 
     // Botones
     this.btnWhatsapp = const Color(0xFF22C55E),
@@ -334,31 +342,54 @@ class _ReciboScreenState extends State<ReciboScreen> {
 
   Future<Uint8List> _capturarArea() async {
     final boundary = _captureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-    final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+    final ui.Image image = await boundary.toImage(pixelRatio: 4.0);
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     return byteData!.buffer.asUint8List();
   }
 
   Future<void> _compartirWhatsApp() async {
     try {
-      final bytes = await _capturarArea();
+      // 1) Capturamos el área como imagen
+      final boundary = _captureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final ui.Image image = await boundary.toImage(pixelRatio: 3.0); // 3.0 está bien; WhatsApp comprime igual
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final pngBytes = byteData!.buffer.asUint8List();
+
+      // 2) La metemos dentro de un PDF (sin pérdida)
+      final pdf = pw.Document();
+      final img = pw.MemoryImage(pngBytes);
+      final pageFormat = PdfPageFormat(image.width.toDouble(), image.height.toDouble());
+      pdf.addPage(
+        pw.Page(
+          pageFormat: pageFormat,
+          margin: pw.EdgeInsets.zero,
+          build: (_) => pw.Image(img, fit: pw.BoxFit.cover),
+        ),
+      );
+      final pdfBytes = await pdf.save();
+
+      // 3) Compartimos el PDF por el share sheet (WhatsApp lo respeta nítido)
       final caption = 'Recibo $_reciboFmt - ${_fmtFecha(widget.fecha)}';
       await Share.shareXFiles(
-        [XFile.fromData(bytes, name: 'recibo-$_reciboFmt.png', mimeType: 'image/png')],
+        [XFile.fromData(pdfBytes, name: 'recibo-$_reciboFmt.pdf', mimeType: 'application/pdf')],
         text: caption,
         subject: 'Recibo $_reciboFmt',
       );
-    } catch (_) {
-      final bytes = await _capturarArea();
-      await Share.shareXFiles(
-        [XFile.fromData(bytes, name: 'recibo-$_reciboFmt.png', mimeType: 'image/png')],
-        text: 'Recibo $_reciboFmt',
-        subject: 'Recibo $_reciboFmt',
-      );
+    } catch (e) {
+      // fallback opcional: si algo falla, comparte la imagen (no será tan nítida)
+      try {
+        final bytes = await _capturarArea();
+        await Share.shareXFiles(
+          [XFile.fromData(bytes, name: 'recibo-$_reciboFmt.png', mimeType: 'image/png')],
+          text: 'Recibo $_reciboFmt - ${_fmtFecha(widget.fecha)}',
+          subject: 'Recibo $_reciboFmt',
+        );
+      } catch (_) {}
     } finally {
       _volverAClientes();
     }
   }
+
 
   Future<void> _guardarPdfYVolver() async {
     final boundary = _captureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
@@ -394,7 +425,7 @@ class _ReciboScreenState extends State<ReciboScreen> {
   @override
   Widget build(BuildContext context) {
     final cfg = this.cfg;
-    final double captureHeight = cfg.cardHeight + 60;
+    final double captureHeight = MediaQuery.of(context).size.height * 0.9;
 
     return WillPopScope(
       onWillPop: () async {
@@ -427,59 +458,71 @@ class _ReciboScreenState extends State<ReciboScreen> {
                   ),
 
                 // ====== CAPTURABLE: Fondo + Recibo centrado ======
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  child: RepaintBoundary(
-                    key: _captureKey,
-                    child: Container(
-                      height: captureHeight,
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [AppTheme.gradTop, AppTheme.gradBottom], // ✅ mismo fondo de la app
-                        ),
-                      ),
-                      child: Center(
-                        child: _PlainCardShell(
-                          radius: cfg.cardRadius,
-                          height: cfg.cardHeight,
-                          padding: cfg.cardPadding,
-                          child: FittedBox(
-                            fit: BoxFit.contain,
-                            alignment: Alignment.topCenter,
-                            child: SizedBox(
-                              width: cfg.designWidth,
-                              child: _ReceiptContent(
-                                cfg: cfg,
-                                empresa: widget.empresa,
-                                servidor: widget.servidor,
-                                telefonoServidor: widget.telefonoServidor,
-                                cliente: widget.cliente,
-                                telefonoCliente: widget.telefonoCliente,
-                                producto: widget.producto,
-                                numeroRecibo: _fmtNumReciboStr(widget.numeroRecibo),
-                                fecha: widget.fecha,
-                                capitalInicial: widget.capitalInicial,
-                                pagoInteres: widget.pagoInteres,
-                                pagoCapital: widget.pagoCapital,
-                                totalPagado: widget.totalPagado,
-                                saldoAnterior: widget.saldoAnterior,
-                                saldoActual: widget.saldoActual,
-                                proximaFecha: widget.proximaFecha,
-                                fmtFecha: _fmtFecha,
-                                monedaRD: _monedaRD,
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: RepaintBoundary(
+                      key: _captureKey,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          // Altura máxima disponible para la tarjeta (dejamos aire arriba/abajo)
+                          final double maxCardH = (constraints.maxHeight * 0.82).clamp(520.0, 760.0);
+
+                          return Container(
+                            // 👇 ocupa todo el alto disponible del Expanded (no se corta)
+                            height: double.infinity,
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [AppTheme.gradTop, AppTheme.gradBottom],
                               ),
                             ),
-                          ),
-                        ),
+                            child: Center(
+                              child: _PlainCardShell(
+                                radius: cfg.cardRadius,
+                                height: maxCardH,                 // 👈 la tarjeta se adapta
+                                padding: cfg.cardPadding,
+                                child: FittedBox(
+                                  fit: BoxFit.contain,
+                                  alignment: Alignment.topCenter,
+                                  child: SizedBox(
+                                    width: cfg.designWidth,
+                                    child: _ReceiptContent(
+                                      cfg: cfg,
+                                      empresa: widget.empresa,
+                                      servidor: widget.servidor,
+                                      telefonoServidor: widget.telefonoServidor,
+                                      cliente: widget.cliente,
+                                      telefonoCliente: widget.telefonoCliente,
+                                      producto: widget.producto,
+                                      numeroRecibo: _fmtNumReciboStr(widget.numeroRecibo),
+                                      fecha: widget.fecha,
+                                      capitalInicial: widget.capitalInicial,
+                                      pagoInteres: widget.pagoInteres,
+                                      pagoCapital: widget.pagoCapital,
+                                      totalPagado: widget.totalPagado,
+                                      saldoAnterior: widget.saldoAnterior,
+                                      saldoActual: widget.saldoActual,
+                                      proximaFecha: widget.proximaFecha,
+                                      fmtFecha: _fmtFecha,
+                                      monedaRD: _monedaRD,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ),
                 ),
 
 
-                  const SizedBox(height: 8),
+
+
+                const SizedBox(height: 8),
 
                 // Botones (no se incluyen en la captura)
                 Padding(
@@ -725,9 +768,32 @@ class _ReceiptContent extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            label('Nombre del servidor:'),
+                            label('Nombre del servidor'),
                             const SizedBox(height: 4),
                             value(servidor),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Text(
+                                  'Tel:',
+                                  style: cfg.valueStyle.copyWith(
+                                    fontSize: 16,          // un poquito más grande
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black87, // buen contraste
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  telefonoServidor,
+                                  style: cfg.valueStyle.copyWith(
+                                    fontSize: 18,          // más grande que el label
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+
                           ],
                         ),
                       ),

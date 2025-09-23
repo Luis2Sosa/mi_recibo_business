@@ -38,6 +38,57 @@ class _Brand {
 }
 
 class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
+
+  Widget _inputPremium({
+    required IconData icon,
+    required String label,
+    required TextEditingController controller,
+    TextInputType keyboard = TextInputType.text,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+        border: Border.all(color: const Color(0xFFE8EEF8)),
+      ),
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboard,
+        style: const TextStyle(fontWeight: FontWeight.w700, color: _Brand.ink),
+        decoration: InputDecoration(
+          labelText: label,  // 👈 ahora aparece arriba
+          labelStyle: const TextStyle(
+            fontSize: 13,
+            color: Colors.black87,  // 🔹 texto negro elegante
+            fontWeight: FontWeight.w600,
+          ),
+          floatingLabelStyle: const TextStyle(
+            color: Colors.black,    // 🔹 también negro al enfocar
+            fontWeight: FontWeight.w700,
+          ),
+
+          prefixIcon: Icon(icon, color: _Brand.inkDim),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.white,
+        ),
+      ),
+    );
+  }
+
+
+
   // Logo
   static const double _logoTop = -48;
   static const double _logoH = 230;
@@ -582,13 +633,14 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         _card(
           child: Column(
             children: [
-              _input('Nombre completo (Nombre y Apellido)', _nombreCtrl),
+              _inputPremium(icon: Icons.person, label: 'Nombre completo (Nombre y Apellido)', controller: _nombreCtrl),
               const SizedBox(height: 12),
-              _input('Teléfono (obligatorio)', _telCtrl, keyboard: TextInputType.phone),
+              _inputPremium(icon: Icons.phone, label: 'Teléfono (obligatorio)', controller: _telCtrl, keyboard: TextInputType.phone),
               const SizedBox(height: 12),
-              _input('Empresa (opcional)', _empCtrl),
+              _inputPremium(icon: Icons.business, label: 'Nombre de la Empresa (opcional)', controller: _empCtrl),
               const SizedBox(height: 12),
-              _input('Dirección (opcional)', _dirCtrl),
+              _inputPremium(icon: Icons.home, label: 'Dirección (opcional)', controller: _dirCtrl),
+
               const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
@@ -984,13 +1036,29 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       keyboardType: keyboard,
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: const TextStyle(
+          fontSize: 13,
+          color: Colors.black87,       // 👈 Negro elegante
+          fontWeight: FontWeight.w600, // 👈 Más premium
+        ),
+        floatingLabelStyle: const TextStyle(
+          color: Color(0xFF2563EB),    // 👈 Azul corporativo al enfocar
+          fontWeight: FontWeight.w700,
+        ),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-      ),
-    );
-  }
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 18,                // 👈 Un poco más de aire
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none, // 👈 Sin borde por defecto
+        ),
+      )
+      );
+
+    }
 
   Widget _kpi(String title, String value, {required Color bg, required Color accent}) {
     return Container(
