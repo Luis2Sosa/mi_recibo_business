@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // 🌍 localización
 import 'package:firebase_core/firebase_core.dart'; // Firebase Core
 import 'package:firebase_auth/firebase_auth.dart'; // 👈 para saber si hay sesión
+
 import 'ui/home_screen.dart';
 import 'ui/theme/app_theme.dart';
-
-// 👉 Usa ClientesScreen como "Perfil" principal por ahora.
-// Si tu pantalla de Perfil tiene otro nombre, luego cambiamos este import.
-import 'ui/clientes_screen.dart';
+import 'ui/clientes_screen.dart'; // Perfil / Clientes
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,8 +22,24 @@ class MiReciboApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Mi Recibo',
       theme: AppTheme.materialTheme,
+
+      // ✅ Español (incluye DatePicker/calendario en español)
+      locale: const Locale('es'), // fuerza español; quítalo si quieres seguir el idioma del sistema
+      supportedLocales: const [
+        Locale('es', 'DO'),
+        Locale('es', 'ES'),
+        Locale('es'),
+        Locale('en', 'US'),
+        Locale('en'),
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+
       home: const _StartGate(), // 👈 decide a dónde entrar según sesión
-      routes: {
+      routes: const {
         // '/prestamista/registro': (context) => PrestamistaRegistroScreen(),
         // '/trabajador/registro':  (context) => TrabajadorRegistroScreen(),
       },
