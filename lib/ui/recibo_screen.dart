@@ -342,16 +342,24 @@ class _ReciboScreenState extends State<ReciboScreen> {
 
   Future<void> _compartirWhatsApp() async {
     try {
-      // 1) Capturar el recibo como PNG (resolución alta)
-      final boundary = _captureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      // 1) Capturar el recibo como PNG (alta resolución)
+      final boundary = _captureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
       final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      final pngBytes = byteData!.buffer.asUint8List();
+      if (byteData == null) return;
 
-      // 2) Generar PDF nítido a partir de la imagen
+      final pngBytes = byteData.buffer.asUint8List();
+
+      // 2) Generar PDF nítido a partir de la captura
       final pdf = pw.Document();
       final img = pw.MemoryImage(pngBytes);
-      final pageFormat = PdfPageFormat(image.width.toDouble(), image.height.toDouble());
+      final pageFormat = PdfPageFormat(
+        image.width.toDouble(),
+        image.height.toDouble(),
+      );
+
       pdf.addPage(
         pw.Page(
           pageFormat: pageFormat,
@@ -359,42 +367,48 @@ class _ReciboScreenState extends State<ReciboScreen> {
           build: (_) => pw.Image(img, fit: pw.BoxFit.cover),
         ),
       );
+
       final pdfBytes = await pdf.save();
-      final fileName = 'recibo-$_reciboFmt.pdf';
 
-      // 3) Guardar AUTOMÁTICO (silencioso). Si falla, seguimos.
-      final savedPathOrUri = await _guardarSilencioso(pdfBytes, fileName);
-      if (mounted && savedPathOrUri != null) {
-        _showModernSnackBar(
-          icon: Icons.check_circle_rounded,
-          text: 'PDF guardado en Descargas ✅',
-          bg: const Color(0xFF16A34A),
-        );
-      }
+      // 3) Nombre corto y limpio (evita el “viaje” de números)
+      final fileName = 'Recibo-${_reciboFmt}.pdf';
 
-      // 4) Compartir PDF por WhatsApp (nítido)
+      // 4) Guardar en un archivo temporal con ese NOMBRE (WhatsApp lo respeta)
+      final tempDir = await getTemporaryDirectory();
+      final tempPath = '${tempDir.path}/$fileName';
+      await File(tempPath).writeAsBytes(pdfBytes, flush: true);
+
+      // (Opcional) intenta guardar en Descargas/iOS Documents sin diálogo
+      // Si tienes _guardarSilencioso en este archivo, déjalo; si no, comenta la siguiente línea.
+      //await _guardarSilencioso(pdfBytes, fileName);
+
+      // 5) Compartir por WhatsApp usando la RUTA (mantiene el nombre del archivo)
       final caption = 'Recibo $_reciboFmt - ${_fmtFecha(widget.fecha)}';
       await Share.shareXFiles(
-        [XFile.fromData(pdfBytes, name: fileName, mimeType: 'application/pdf')],
+        [XFile(tempPath, mimeType: 'application/pdf')],
         text: caption,
         subject: 'Recibo $_reciboFmt',
       );
 
-      // 5) Aviso de envío preparado (opcional)
+
       if (mounted) {
         _showModernSnackBar(
           icon: Icons.send_rounded,
-          text: 'Recibo listo para WhatsApp 📄',
+          text: 'Recibo enviado por WhatsApp 📄✅',
           bg: const Color(0xFF2563EB),
         );
       }
     } catch (e) {
-      // Fallback: si algo falla, intenta compartir la imagen (menos nítido)
+      // Fallback: comparte imagen si algo falla
       try {
-        final boundary = _captureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+        final boundary = _captureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+        if (boundary == null) return;
+
         final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
         final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-        final pngBytes = byteData!.buffer.asUint8List();
+        if (byteData == null) return;
+
+        final pngBytes = byteData.buffer.asUint8List();
 
         await Share.shareXFiles(
           [XFile.fromData(pngBytes, name: 'recibo-$_reciboFmt.png', mimeType: 'image/png')],
@@ -582,17 +596,16 @@ class _ReciboScreenState extends State<ReciboScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
+          mainAxisAlignment: MainAxisAlignment.center, // 👈 centra todo
           children: [
             Icon(icon, color: Colors.white, size: 22),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                text,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                ),
+            const SizedBox(width: 8),
+            Text(
+              text,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
               ),
             ),
           ],
@@ -896,25 +909,7 @@ class _ReceiptContent extends StatelessWidget {
     );
   }
 
-  Widget _mintBlock({required List<Widget> children}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: cfg.mint,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cfg.mintBorder),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Column(
-        children: [
-          for (int i = 0; i < children.length; i++) ...[
-            children[i],
-            if (i != children.length - 1)
-              Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-          ],
-        ],
-      ),
-    );
-  }
+
 
   Widget _row(String t, String v) {
     return Padding(

@@ -24,7 +24,7 @@ dependencies:
   # Archivos / guardado / permisos
   path_provider: ^2.1.4
   permission_handler: ^11.3.1
-  media_store_plus: ^0.1.3     # ✅
+  media_store_plus: ^0.1.3   # ✅
 
   # Compartir / PDF / enlaces
   url_launcher: ^6.3.0
