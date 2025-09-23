@@ -39,7 +39,7 @@ class MiReciboApp extends StatelessWidget {
       ],
 
       home: const _StartGate(), // 👈 decide a dónde entrar según sesión
-      routes: const {
+      routes: {
         // '/prestamista/registro': (context) => PrestamistaRegistroScreen(),
         // '/trabajador/registro':  (context) => TrabajadorRegistroScreen(),
       },

@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'prestamista_registro_screen.dart';
+import 'clientes_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -37,39 +40,51 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => cargando = true);
     try {
       final cred = await _loginConGoogle();
-
       final user = cred.user;
-      final nombreCompleto = (user?.displayName ?? '').trim();
-      String? nombre;
-      String? apellido;
-      if (nombreCompleto.isNotEmpty) {
-        final parts = nombreCompleto.split(RegExp(r'\s+'));
-        if (parts.length == 1) {
-          nombre = parts.first;
-        } else {
-          nombre = parts.first;
-          apellido = parts.sublist(1).join(' ');
-        }
-      }
-      final email = user?.email;
-      final fotoUrl = user?.photoURL;
+      if (user == null) throw Exception('No se pudo obtener usuario');
+
+      // 👉 Comprobar en Firestore si ya existe este prestamista
+      final doc = await FirebaseFirestore.instance
+          .collection('prestamistas')
+          .doc(user.uid)
+          .get();
 
       if (!mounted) return;
 
-      // 👉 Navegamos pasando los datos por RouteSettings.arguments (sin tocar el constructor)
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const PrestamistaRegistroScreen(),
-          settings: RouteSettings(arguments: {
-            'nombreCompleto': nombreCompleto,
-            'nombre': nombre,
-            'apellido': apellido,
-            'email': email,
-            'fotoUrl': fotoUrl,
-          }),
-        ),
-      );
+      if (doc.exists) {
+        // ✅ Ya está registrado -> ClientesScreen
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const ClientesScreen()),
+        );
+      } else {
+        // 📝 No registrado -> formulario de registro
+        final nombreCompleto = (user.displayName ?? '').trim();
+        String? nombre;
+        String? apellido;
+        if (nombreCompleto.isNotEmpty) {
+          final parts = nombreCompleto.split(RegExp(r'\s+'));
+          if (parts.length == 1) {
+            nombre = parts.first;
+          } else {
+            nombre = parts.first;
+            apellido = parts.sublist(1).join(' ');
+          }
+        }
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const PrestamistaRegistroScreen(),
+            settings: RouteSettings(arguments: {
+              'nombreCompleto': nombreCompleto,
+              'nombre': nombre,
+              'apellido': apellido,
+              'email': user.email,
+              'fotoUrl': user.photoURL,
+            }),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -85,42 +100,17 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => cargando = true);
     try {
       final cred = await _loginConGoogle();
-
       final user = cred.user;
-      final nombreCompleto = (user?.displayName ?? '').trim();
-      String? nombre;
-      String? apellido;
-      if (nombreCompleto.isNotEmpty) {
-        final parts = nombreCompleto.split(RegExp(r'\s+'));
-        if (parts.length == 1) {
-          nombre = parts.first;
-        } else {
-          nombre = parts.first;
-          apellido = parts.sublist(1).join(' ');
-        }
-      }
-      final email = user?.email;
-      final fotoUrl = user?.photoURL;
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Bienvenido, ${nombreCompleto.isEmpty ? 'Usuario' : nombreCompleto}')),
+        SnackBar(
+          content: Text('Bienvenido, ${user?.displayName ?? 'Usuario'}'),
+        ),
       );
 
       // TODO: cuando tengas la pantalla de registro de Trabajador,
-      // haz lo mismo: navega y pasa los argumentos con RouteSettings.
-      // Ejemplo (cuando exista):
-      // Navigator.push(context, MaterialPageRoute(
-      //   builder: (_) => const TrabajadorRegistroScreen(),
-      //   settings: RouteSettings(arguments: {
-      //     'nombreCompleto': nombreCompleto,
-      //     'nombre': nombre,
-      //     'apellido': apellido,
-      //     'email': email,
-      //     'fotoUrl': fotoUrl,
-      //   }),
-      // ));
-
+      // aplica la misma lógica que con prestamista.
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
