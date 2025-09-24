@@ -3,6 +3,7 @@ import 'cliente_detalle_screen.dart';
 import 'perfil_prestamista_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'agregar_cliente_screen.dart';
+import 'package:flutter/services.dart';
 
 // 🔥 Firestore + Auth
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -39,12 +40,15 @@ class _ClientesScreenState extends State<ClientesScreen> {
     _cargarPerfilPrestamista();
   }
 
-  // 👇 AHORA lee prestamistas/ID-1 (documento fijo que creaste en Firestore)
+  // 👇 Lee prestamistas/<uid actual> (datos básicos del prestamista para el recibo)
   Future<void> _cargarPerfilPrestamista() async {
     try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+
       final doc = await FirebaseFirestore.instance
           .collection('prestamistas')
-          .doc('ID-1')
+          .doc(uid)
           .get();
 
       final data = doc.data() ?? {};
@@ -53,8 +57,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
       setState(() {
         _empresa = (data['empresa'] ?? '').toString().trim();
-        _servidor =
-            [nombre, apellido].where((s) => s.isNotEmpty).join(' ').trim();
+        _servidor = [nombre, apellido].where((s) => s.isNotEmpty).join(' ').trim();
         _telefonoServidor = (data['telefono'] ?? '').toString().trim();
       });
     } catch (_) {
@@ -62,65 +65,71 @@ class _ClientesScreenState extends State<ClientesScreen> {
     }
   }
 
-  // ---- Banner bonito (2s) ----
-  void _showBanner(String texto,
-      {Color color = const Color(0xFF11A7A0),
-        IconData icon = Icons.check_circle}) {
+  // ---- Banner estilo Badoo (2s) ----
+  void _showBanner(
+      String texto, {
+        Color? bg,            // nombre nuevo
+        Color? color,         // alias para compatibilidad con tus llamadas actuales
+        IconData icon = Icons.info_outline,
+      }) {
+    final background = bg ?? color ?? const Color(0xffe9ce53); // amarillo RD
+
     final snack = SnackBar(
       behavior: SnackBarBehavior.floating,
       elevation: 0,
       backgroundColor: Colors.transparent,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      duration: const Duration(seconds: 2),
       content: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 20),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          gradient: LinearGradient(
-            colors: [color, color.withOpacity(0.85)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: background,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.12),
-              blurRadius: 12,
+              color: Colors.black.withOpacity(0.4),
+              blurRadius: 16,
               offset: const Offset(0, 6),
-            )
+            ),
           ],
         ),
-        child: Row(
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            Icon(icon, color: Colors.white),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                texto,
-                style:
-                const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+            // Icono “avatar” a la izquierda
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                width: 28,
+                height: 28,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF3F4F6),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 22, color: const Color(0xFF6B7280)),
+              ),
+            ),
+            // Texto CENTRADO
+            Text(
+              texto,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF111827),
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
         ),
       ),
-      duration: const Duration(seconds: 2),
     );
-    ScaffoldMessenger.of(context)
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
       ..clearSnackBars()
       ..showSnackBar(snack);
   }
 
-  // Back doble
-  Future<bool> _onWillPop() async {
-    final now = DateTime.now();
-    if (_lastBackTime == null ||
-        now.difference(_lastBackTime!) > const Duration(seconds: 2)) {
-      _lastBackTime = now;
-      _showBanner('Presiona atrás otra vez para salir',
-          color: const Color(0xFF2563EB), icon: Icons.info);
-      return false;
-    }
-    return true;
-  }
 
   int _diasHasta(DateTime d) {
     final hoy = DateTime.now();
@@ -132,9 +141,9 @@ class _ClientesScreenState extends State<ClientesScreen> {
   _EstadoVenc _estadoDe(_Cliente c) {
     final d = _diasHasta(c.proximaFecha);
     if (d < 0) return _EstadoVenc.vencido; // vencido
-    if (d == 0) return _EstadoVenc.hoy;    // hoy
+    if (d == 0) return _EstadoVenc.hoy; // hoy
     if (d <= 2) return _EstadoVenc.pronto; // faltan 1–2 días
-    return _EstadoVenc.alDia;              // más de 2 días
+    return _EstadoVenc.alDia; // más de 2 días
   }
 
   bool _esSaldado(_Cliente c) => c.saldoActual <= 0;
@@ -177,8 +186,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
     // 👇 NUEVO: usamos el capital que vino del form para decidir estado/saldo
     final int nuevoCapital = result['capital'] as int? ?? c.capitalInicial;
-    final DateTime nuevaProx =
-        result['proximaFecha'] as DateTime? ?? c.proximaFecha;
+    final DateTime nuevaProx = result['proximaFecha'] as DateTime? ?? c.proximaFecha;
 
     // Campos base (siempre)
     final Map<String, dynamic> update = {
@@ -235,10 +243,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
         }, SetOptions(merge: true));
       }
 
-      _showBanner('Cliente actualizado ✅');
+      _showBanner('Cliente actualizado ✅', color: const Color(0xFFEFFBF3), icon: Icons.check_circle);
     } catch (e) {
       _showBanner('Error al actualizar: $e',
-          color: const Color(0xFFE11D48), icon: Icons.error);
+          color: const Color(0xFFFFF1F2), icon: Icons.error_outline);
     }
   }
 
@@ -248,12 +256,12 @@ class _ClientesScreenState extends State<ClientesScreen> {
     return 'CL-${cut.toUpperCase()}';
   }
 
-
   Future<void> _abrirAgregarCliente() async {
     final res = await Navigator.push(
         context, MaterialPageRoute(builder: (_) => const AgregarClienteScreen()));
     if (res is Map) {
-      _showBanner('Cliente agregado correctamente ✅');
+      _showBanner('Cliente agregado correctamente ✅',
+          color: const Color(0xFFEFFBF3), icon: Icons.check_circle);
     }
   }
 
@@ -264,9 +272,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
         title: const Text('Eliminar cliente'),
         content: Text('¿Seguro que deseas eliminar a ${c.nombreCompleto}?'),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           TextButton(
             onPressed: () async {
               final scaffoldCtx = context;
@@ -282,18 +288,17 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 Navigator.pop(scaffoldCtx);
                 if (mounted) {
                   _showBanner('Cliente eliminado',
-                      color: const Color(0xFFE11D48), icon: Icons.delete);
+                      color: const Color(0xFFFFF1F2), icon: Icons.delete_outline);
                 }
               } catch (e) {
                 Navigator.pop(scaffoldCtx);
                 if (mounted) {
                   _showBanner('Error al eliminar: $e',
-                      color: const Color(0xFFE11D48), icon: Icons.error);
+                      color: const Color(0xFFFFF1F2), icon: Icons.error_outline);
                 }
               }
             },
-            child:
-            const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -313,10 +318,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
             children: [
               const Padding(
                 padding: EdgeInsets.only(top: 6, bottom: 4),
-                child: Text(
-                  'Acciones',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                ),
+                child: Text('Acciones', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
               ),
               const Divider(height: 0, color: Color(0xFFE5E7EB)),
               ListTile(
@@ -330,8 +332,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
               const Divider(height: 0, color: Color(0xFFE5E7EB)),
               ListTile(
                 leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text('Eliminar',
-                    style: TextStyle(color: Colors.red)),
+                title: const Text('Eliminar', style: TextStyle(color: Colors.red)),
                 onTap: () {
                   Navigator.pop(context);
                   _confirmarEliminar(c);
@@ -351,20 +352,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
   }
 
   String _fmtFecha(DateTime d) {
-    const meses = [
-      'ene.',
-      'feb.',
-      'mar.',
-      'abr.',
-      'may.',
-      'jun.',
-      'jul.',
-      'ago.',
-      'sept.',
-      'oct.',
-      'nov.',
-      'dic.'
-    ];
+    const meses = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sept.', 'oct.', 'nov.', 'dic.'];
     return '${d.day} ${meses[d.month - 1]} ${d.year}';
   }
 
@@ -379,11 +367,9 @@ class _ClientesScreenState extends State<ClientesScreen> {
         if (nombre != null && nombre.isNotEmpty) {
           _bienvenidaMostrada = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            final texto = (empresa != null && empresa.isNotEmpty)
-                ? '¡Bienvenido, $nombre! ($empresa)'
-                : '¡Bienvenido, $nombre!';
-            _showBanner(texto,
-                color: const Color(0xFF22C55E), icon: Icons.verified);
+            final texto =
+            (empresa != null && empresa.isNotEmpty) ? '¡Bienvenido, $nombre! ($empresa)' : '¡Bienvenido, $nombre!';
+            _showBanner(texto, color: const Color(0xFFEFFBF3), icon: Icons.verified);
           });
         }
       }
@@ -398,15 +384,34 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope(
+      canPop: false, // controlamos el back manualmente
+      onPopInvoked: (didPop) {
+        if (didPop) return; // si otra capa ya hizo pop, no hacemos nada
+
+        final now = DateTime.now();
+        // Primera vez: mostrar banner y NO salir
+        if (_lastBackTime == null ||
+            now.difference(_lastBackTime!) > const Duration(seconds: 2)) {
+          _lastBackTime = now;
+          _showBanner('Retrocede otra vez para salir'); // texto corto y claro
+          return;
+        }
+
+        // Segunda vez dentro de 2s → salir
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        } else {
+          SystemNavigator.pop(); // cierra la app si esta pantalla es raíz (Android)
+        }
+      },
       child: Scaffold(
         body: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFF2458D6), Color(0xFF0A9A76)]),
+              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+              colors: [Color(0xFF2458D6), Color(0xFF0A9A76)],
+            ),
           ),
           child: SafeArea(
             child: Stack(
@@ -423,11 +428,11 @@ class _ClientesScreenState extends State<ClientesScreen> {
                           child: Container(
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(28), // ⬆️ sutil
+                              borderRadius: BorderRadius.circular(28),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withOpacity(0.18),
-                                  blurRadius: 20, // ⬆️ suave
+                                  blurRadius: 20,
                                   offset: const Offset(0, 10),
                                 ),
                               ],
@@ -436,30 +441,26 @@ class _ClientesScreenState extends State<ClientesScreen> {
                               borderRadius: BorderRadius.circular(28),
                               child: Column(
                                 children: [
-                                  // Título
                                   Padding(
                                     padding: const EdgeInsets.only(
-                                      top: 14,
-                                      left: 16,
-                                      right: 16,
-                                      bottom: 4,
-                                    ),
+                                        top: 14, left: 16, right: 16, bottom: 4),
                                     child: Text(
                                       'CLIENTES',
                                       textAlign: TextAlign.center,
                                       style: GoogleFonts.playfair(
                                         color: Colors.white,
-                                        fontSize: 24, // ⬆️ +2pt
+                                        fontSize: 24,
                                         fontWeight: FontWeight.w600,
                                         fontStyle: FontStyle.italic,
                                       ),
                                     ),
                                   ),
+                                  // ... (lo demás tal cual lo tienes)
+
 
                                   // Buscador + botón agregar
                                   Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                        16, 10, 16, 8),
+                                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
                                     child: Row(
                                       children: [
                                         Expanded(
@@ -468,8 +469,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                             decoration: BoxDecoration(
                                               boxShadow: [
                                                 BoxShadow(
-                                                  color: Colors.black
-                                                      .withOpacity(0.08),
+                                                  color: Colors.black.withOpacity(0.08),
                                                   blurRadius: 8,
                                                   offset: const Offset(0, 4),
                                                 ),
@@ -480,24 +480,15 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                               onChanged: (_) => setState(() {}),
                                               decoration: InputDecoration(
                                                 hintText: 'Buscar',
-                                                hintStyle: const TextStyle(
-                                                  color: Color(0xFF111827),
-                                                ),
-                                                prefixIcon: Icon(
-                                                  Icons.search,
-                                                  color: Colors.black
-                                                      .withOpacity(0.7),
-                                                ),
+                                                hintStyle: const TextStyle(color: Color(0xFF111827)),
+                                                prefixIcon:
+                                                Icon(Icons.search, color: Colors.black.withOpacity(0.7)),
                                                 filled: true,
-                                                fillColor: Colors.white
-                                                    .withOpacity(0.92),
-                                                contentPadding:
-                                                const EdgeInsets.symmetric(
-                                                    horizontal: 14,
-                                                    vertical: 12),
+                                                fillColor: Colors.white.withOpacity(0.92),
+                                                contentPadding: const EdgeInsets.symmetric(
+                                                    horizontal: 14, vertical: 12),
                                                 border: OutlineInputBorder(
-                                                  borderRadius:
-                                                  BorderRadius.circular(18),
+                                                  borderRadius: BorderRadius.circular(18),
                                                   borderSide: BorderSide.none,
                                                 ),
                                               ),
@@ -510,15 +501,12 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                           height: 48, // ⬆️
                                           child: Material(
                                             color: const Color(0xFF22C55E),
-                                            borderRadius:
-                                            BorderRadius.circular(14),
+                                            borderRadius: BorderRadius.circular(14),
                                             elevation: 2,
                                             child: InkWell(
-                                              borderRadius:
-                                              BorderRadius.circular(14),
+                                              borderRadius: BorderRadius.circular(14),
                                               onTap: _abrirAgregarCliente,
-                                              child: const Icon(Icons.add,
-                                                  color: Colors.white),
+                                              child: const Icon(Icons.add, color: Colors.white),
                                             ),
                                           ),
                                         ),
@@ -528,25 +516,19 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
                                   // === Chips de filtro ===
                                   Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                        16, 0, 16, 6),
+                                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
                                     child: Wrap(
                                       spacing: 8,
                                       children: [
                                         ChoiceChip(
                                           label: const Text('Todos'),
-                                          selected:
-                                          _filtro == FiltroClientes.todos,
-                                          onSelected: (_) => setState(() =>
-                                          _filtro = FiltroClientes.todos),
-                                          backgroundColor: Colors.white
-                                              .withOpacity(0.85),
+                                          selected: _filtro == FiltroClientes.todos,
+                                          onSelected: (_) => setState(() => _filtro = FiltroClientes.todos),
+                                          backgroundColor: Colors.white.withOpacity(0.85),
                                           selectedColor: Colors.white,
-                                          side: const BorderSide(
-                                              color: Color(0xFFE5E7EB)),
+                                          side: const BorderSide(color: Color(0xFFE5E7EB)),
                                           labelStyle: TextStyle(
-                                            color: _filtro ==
-                                                FiltroClientes.todos
+                                            color: _filtro == FiltroClientes.todos
                                                 ? const Color(0xFF2563EB)
                                                 : const Color(0xFF0F172A),
                                             fontWeight: FontWeight.w600,
@@ -554,19 +536,14 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                         ),
                                         ChoiceChip(
                                           label: const Text('Pendientes'),
-                                          selected: _filtro ==
-                                              FiltroClientes.pendientes,
-                                          onSelected: (_) => setState(() =>
-                                          _filtro =
-                                              FiltroClientes.pendientes),
-                                          backgroundColor: Colors.white
-                                              .withOpacity(0.85),
+                                          selected: _filtro == FiltroClientes.pendientes,
+                                          onSelected: (_) =>
+                                              setState(() => _filtro = FiltroClientes.pendientes),
+                                          backgroundColor: Colors.white.withOpacity(0.85),
                                           selectedColor: Colors.white,
-                                          side: const BorderSide(
-                                              color: Color(0xFFE5E7EB)),
+                                          side: const BorderSide(color: Color(0xFFE5E7EB)),
                                           labelStyle: TextStyle(
-                                            color: _filtro ==
-                                                FiltroClientes.pendientes
+                                            color: _filtro == FiltroClientes.pendientes
                                                 ? const Color(0xFF2563EB)
                                                 : const Color(0xFF0F172A),
                                             fontWeight: FontWeight.w600,
@@ -574,18 +551,14 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                         ),
                                         ChoiceChip(
                                           label: const Text('Saldados'),
-                                          selected: _filtro ==
-                                              FiltroClientes.saldados,
-                                          onSelected: (_) => setState(() =>
-                                          _filtro = FiltroClientes.saldados),
-                                          backgroundColor: Colors.white
-                                              .withOpacity(0.85),
+                                          selected: _filtro == FiltroClientes.saldados,
+                                          onSelected: (_) =>
+                                              setState(() => _filtro = FiltroClientes.saldados),
+                                          backgroundColor: Colors.white.withOpacity(0.85),
                                           selectedColor: Colors.white,
-                                          side: const BorderSide(
-                                              color: Color(0xFFE5E7EB)),
+                                          side: const BorderSide(color: Color(0xFFE5E7EB)),
                                           labelStyle: TextStyle(
-                                            color: _filtro ==
-                                                FiltroClientes.saldados
+                                            color: _filtro == FiltroClientes.saldados
                                                 ? const Color(0xFF2563EB)
                                                 : const Color(0xFF0F172A),
                                             fontWeight: FontWeight.w600,
@@ -599,162 +572,101 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                   Expanded(
                                     child: uid == null
                                         ? const Center(
-                                        child: Text(
-                                            'No hay sesión. Inicia sesión.',
-                                            style: TextStyle(
-                                                color: Colors.white)))
+                                        child: Text('No hay sesión. Inicia sesión.',
+                                            style: TextStyle(color: Colors.white)))
                                         : StreamBuilder<QuerySnapshot>(
                                       stream: FirebaseFirestore.instance
                                           .collection('prestamistas')
                                           .doc(uid)
                                           .collection('clientes')
-                                          .orderBy('proximaFecha',
-                                          descending: false)
+                                          .orderBy('proximaFecha', descending: false)
                                           .snapshots(),
                                       builder: (context, snap) {
-                                        if (snap.connectionState ==
-                                            ConnectionState.waiting) {
+                                        if (snap.connectionState == ConnectionState.waiting) {
                                           return const Center(
-                                            child:
-                                            CircularProgressIndicator(
-                                                color: Colors.white),
+                                            child: CircularProgressIndicator(color: Colors.white),
                                           );
                                         }
                                         if (snap.hasError) {
                                           return Center(
                                             child: Text(
                                               'Error: ${snap.error}',
-                                              style: const TextStyle(
-                                                  color: Colors.white),
+                                              style: const TextStyle(color: Colors.white),
                                             ),
                                           );
                                         }
-                                        final docs =
-                                            snap.data?.docs ?? [];
+                                        final docs = snap.data?.docs ?? [];
 
                                         // Mapear a modelo _Cliente
                                         final lista = docs.map((d) {
-                                          final data = d.data()
-                                          as Map<String, dynamic>;
-                                          final codigoGuardado =
-                                          (data['codigo']
-                                          as String?)
-                                              ?.trim();
-                                          final codigoVisible =
-                                          (codigoGuardado != null &&
-                                              codigoGuardado
-                                                  .isNotEmpty)
+                                          final data = d.data() as Map<String, dynamic>;
+                                          final codigoGuardado = (data['codigo'] as String?)?.trim();
+                                          final codigoVisible = (codigoGuardado != null &&
+                                              codigoGuardado.isNotEmpty)
                                               ? codigoGuardado
                                               : _codigoDesdeId(d.id);
                                           return _Cliente(
                                             id: d.id,
                                             codigo: codigoVisible,
-                                            nombre: (data['nombre'] ?? '')
-                                            as String,
-                                            apellido:
-                                            (data['apellido'] ?? '')
-                                            as String,
-                                            telefono:
-                                            (data['telefono'] ?? '')
-                                            as String,
-                                            direccion:
-                                            data['direccion']
-                                            as String?,
-                                            producto:
-                                            (data['producto']
-                                            as String?)
-                                                ?.trim(),
-                                            capitalInicial:
-                                            (data['capitalInicial'] ??
-                                                0) as int,
-                                            saldoActual:
-                                            (data['saldoActual'] ??
-                                                0) as int,
-                                            tasaInteres:
-                                            (data['tasaInteres'] ??
-                                                0.0)
-                                                .toDouble(),
-                                            periodo: (data['periodo'] ??
-                                                'Mensual') as String,
-                                            proximaFecha:
-                                            (data['proximaFecha']
-                                            is Timestamp)
-                                                ? (data[
-                                            'proximaFecha']
-                                            as Timestamp)
-                                                .toDate()
+                                            nombre: (data['nombre'] ?? '') as String,
+                                            apellido: (data['apellido'] ?? '') as String,
+                                            telefono: (data['telefono'] ?? '') as String,
+                                            direccion: data['direccion'] as String?,
+                                            producto: (data['producto'] as String?)?.trim(),
+                                            capitalInicial: (data['capitalInicial'] ?? 0) as int,
+                                            saldoActual: (data['saldoActual'] ?? 0) as int,
+                                            tasaInteres: (data['tasaInteres'] ?? 0.0).toDouble(),
+                                            periodo: (data['periodo'] ?? 'Mensual') as String,
+                                            proximaFecha: (data['proximaFecha'] is Timestamp)
+                                                ? (data['proximaFecha'] as Timestamp).toDate()
                                                 : DateTime.now(),
                                           );
                                         }).toList();
 
                                         // Filtro búsqueda
-                                        final q = _searchCtrl.text
-                                            .toLowerCase();
+                                        final q = _searchCtrl.text.toLowerCase();
                                         var filtered = lista.where((c) {
-                                          return c.codigo
-                                              .toLowerCase()
-                                              .contains(q) ||
-                                              c.nombreCompleto
-                                                  .toLowerCase()
-                                                  .contains(q) ||
+                                          return c.codigo.toLowerCase().contains(q) ||
+                                              c.nombreCompleto.toLowerCase().contains(q) ||
                                               c.telefono.contains(q);
                                         }).toList();
 
                                         // Filtro por chips
-                                        filtered = filtered
-                                            .where((c) {
+                                        filtered = filtered.where((c) {
                                           switch (_filtro) {
                                             case FiltroClientes.todos:
                                               return true;
-                                            case FiltroClientes
-                                                .pendientes:
-                                              return c.saldoActual >
-                                                  0;
-                                            case FiltroClientes
-                                                .saldados:
-                                              return c.saldoActual <=
-                                                  0;
+                                            case FiltroClientes.pendientes:
+                                              return c.saldoActual > 0;
+                                            case FiltroClientes.saldados:
+                                              return c.saldoActual <= 0;
                                           }
-                                        })
-                                            .toList()
+                                        }).toList()
                                           ..sort(_compareClientes);
 
                                         if (filtered.isEmpty) {
                                           return const Center(
                                             child: Text('No hay clientes',
-                                                style: TextStyle(
-                                                    fontSize: 16,
-                                                    color:
-                                                    Colors.white)),
+                                                style: TextStyle(fontSize: 16, color: Colors.white)),
                                           );
                                         }
 
                                         return ListView.builder(
-                                          physics:
-                                          const BouncingScrollPhysics(), // ⬅️ feel premium
-                                          padding:
-                                          const EdgeInsets.fromLTRB(
-                                              12, 8, 12, 24),
+                                          physics: const BouncingScrollPhysics(), // ⬅️ feel premium
+                                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
                                           itemCount: filtered.length,
                                           itemBuilder: (_, i) {
                                             final c = filtered[i];
                                             final estado = _estadoDe(c);
-                                            final codigoCorto =
-                                                'ID-${i + 1}';
+                                            final codigoCorto = 'ID-${i + 1}';
                                             return GestureDetector(
-                                              onTap: () =>
-                                                  _abrirDetalleYGuardar(
-                                                      c, codigoCorto),
-                                              onLongPress: () =>
-                                                  _mostrarOpcionesCliente(
-                                                      c),
+                                              onTap: () => _abrirDetalleYGuardar(c, codigoCorto),
+                                              onLongPress: () => _mostrarOpcionesCliente(c),
                                               child: _ClienteCard(
                                                 cliente: c,
-                                                resaltar:
-                                                _resaltarVencimientos,
+                                                resaltar: _resaltarVencimientos,
                                                 estado: estado,
-                                                diasHasta: _diasHasta(
-                                                    c.proximaFecha),
+                                                diasHasta: _diasHasta(c.proximaFecha),
                                                 codigoCorto: codigoCorto,
                                               ),
                                             );
@@ -790,8 +702,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                         child: const CircleAvatar(
                           radius: 18,
                           backgroundColor: Colors.white,
-                          child:
-                          Icon(Icons.person, color: Color(0xFF2458D6)),
+                          child: Icon(Icons.person, color: Color(0xFF2458D6)),
                         ),
                       ),
                       const Spacer(),
@@ -854,11 +765,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
     if (result != null && result is Map && result['accion'] == 'pago') {
       final estadoDespues = _estadoDe(c);
-      if (estadoDespues == _EstadoVenc.alDia &&
-          estadoAntes != _EstadoVenc.alDia) {
-        _showBanner('Pago registrado ✅ · Ahora al día');
+      if (estadoDespues == _EstadoVenc.alDia && estadoAntes != _EstadoVenc.alDia) {
+        _showBanner('Pago registrado ✅ · Ahora al día', color: const Color(0xFFEFFBF3), icon: Icons.check_circle);
       } else {
-        _showBanner('Pago guardado correctamente ✅');
+        _showBanner('Pago guardado correctamente ✅', color: const Color(0xFFEFFBF3), icon: Icons.check_circle);
       }
     }
   }
@@ -932,8 +842,7 @@ class _ClienteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final interesPeriodo =
-    (cliente.saldoActual * (cliente.tasaInteres / 100)).round();
+    final interesPeriodo = (cliente.saldoActual * (cliente.tasaInteres / 100)).round();
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),

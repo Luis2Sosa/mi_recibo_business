@@ -34,6 +34,9 @@ dependencies:
   pdf: ^3.11.0
   printing: ^5.13.4
 
+  # 🔐 Autenticación biométrica (PIN/huella/FaceID)
+  local_auth: ^2.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
