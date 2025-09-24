@@ -53,11 +53,13 @@ class ClienteDetalleScreen extends StatefulWidget {
 class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   static const double _logoHeight = 350;
   static const double _logoTop = -20;
-  static const double _contentTop = 270;
+  static const double _contentTop = 230;
 
   late int _saldoActual;
   late DateTime _proximaFecha;
   bool _tieneCambios = false;
+
+  int _totalPrestado = 0; // 👈 NUEVO acumulado
 
   @override
   void initState() {
@@ -65,6 +67,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     _saldoActual = widget.saldoActual;
     _proximaFecha = widget.proximaFecha;
     Future.microtask(_autoFixEstado);
+    Future.microtask(_cargarTotalPrestado); // 👈 lee/initializa totalPrestado
   }
 
   String _rd(int v) {
@@ -155,6 +158,71 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     }
   }
   // ====== /Autofix ======
+
+  /// 👇 NUEVO: leer/inicializar el total prestado acumulado
+  Future<void> _cargarTotalPrestado() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final ref = FirebaseFirestore.instance
+        .collection('prestamistas')
+        .doc(uid)
+        .collection('clientes')
+        .doc(widget.id);
+
+    try {
+      final snap = await ref.get();
+      final data = snap.data() ?? {};
+
+      // Si existe totalPrestado se usa; si no, inicializamos con capitalInicial o saldoAnterior
+      final int capitalInicial = (data['capitalInicial'] ?? 0) is int ? (data['capitalInicial'] ?? 0) : 0;
+      final int fallbackSaldoAnterior = (data['saldoAnterior'] ?? 0) is int ? (data['saldoAnterior'] ?? 0) : 0;
+      int total = 0;
+
+      if (data.containsKey('totalPrestado')) {
+        final dynamic raw = data['totalPrestado'];
+        if (raw is int) total = raw;
+        if (raw is double) total = raw.round();
+      } else {
+        total = capitalInicial > 0 ? capitalInicial : fallbackSaldoAnterior;
+        // Inicializamos el campo en Firestore para futuras acumulaciones
+        await ref.set({'totalPrestado': total, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+      }
+
+      if (!mounted) return;
+      setState(() => _totalPrestado = total);
+    } catch (_) {
+      // Silencioso: si falla, dejamos 0 y la UI sigue
+    }
+  }
+
+  /// 👇 NUEVO: usa esto cuando hagas una renovación/nuevo préstamo al cliente.
+  /// Ejemplo de uso (en la pantalla donde otorgas el nuevo capital):
+  /// await incrementarTotalPrestado(montoNuevo);
+  Future<void> incrementarTotalPrestado(int monto) async {
+    if (monto <= 0) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final ref = FirebaseFirestore.instance
+        .collection('prestamistas')
+        .doc(uid)
+        .collection('clientes')
+        .doc(widget.id);
+
+    try {
+      await ref.set({
+        'totalPrestado': FieldValue.increment(monto),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // Refrescamos el valor local
+      if (!mounted) return;
+      setState(() => _totalPrestado += monto);
+    } catch (_) {
+      // Silencioso
+    }
+  }
 
   Future<Map<String, String>> _prestamistaSeguro() async {
     String empresa = widget.empresa.trim();
@@ -423,7 +491,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                             const SizedBox(height: 16),
                             Divider(height: 24, thickness: 1, color: const Color(0xFFE7E9EE)),
 
-                            // ==== Banda mint con las 3 filas ====
+                            // ==== Banda mint (incluye Total prestado) ====
                             Container(
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF4FAF7),
@@ -433,10 +501,15 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               child: Column(
                                 children: [
+                                  _rowStyled('Total prestado', _rd(_totalPrestado), labelStyle, valueStyle),
+                                  Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
+
                                   _rowStyled('Saldo actual', _rd(_saldoActual), labelStyle, valueStyle),
                                   Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
+
                                   _rowStyled('Interés ${widget.periodo.toLowerCase()}', _rd(interesPeriodo), labelStyle, valueStyle),
                                   Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
+
                                   _rowStyled('Próxima fecha', _fmtFecha(_proximaFecha), labelStyle, valueStyle),
                                 ],
                               ),

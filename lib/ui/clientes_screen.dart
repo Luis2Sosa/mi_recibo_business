@@ -222,6 +222,19 @@ class _ClientesScreenState extends State<ClientesScreen> {
           .doc(result['id'] ?? c.id)
           .set(update, SetOptions(merge: true));
 
+      // 👇 Nuevo: acumula SOLO el extra prestado en renovaciones
+      final int montoNuevo = (nuevoCapital - c.saldoActual);
+      if (montoNuevo > 0) {
+        await FirebaseFirestore.instance
+            .collection('prestamistas')
+            .doc(uid)
+            .collection('clientes')
+            .doc(result['id'] ?? c.id)
+            .set({
+          'totalPrestado': FieldValue.increment(montoNuevo),
+        }, SetOptions(merge: true));
+      }
+
       _showBanner('Cliente actualizado ✅');
     } catch (e) {
       _showBanner('Error al actualizar: $e',
@@ -234,6 +247,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
     final cut = base.length >= 6 ? base.substring(0, 6) : base.padRight(6, '0');
     return 'CL-${cut.toUpperCase()}';
   }
+
 
   Future<void> _abrirAgregarCliente() async {
     final res = await Navigator.push(

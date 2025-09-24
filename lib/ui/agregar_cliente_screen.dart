@@ -181,12 +181,13 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
                           // 👇 SOLO hay scroll cuando el teclado está abierto
-                          child: tecladoAbierto
-                              ? SingleChildScrollView(
-                            physics: const ClampingScrollPhysics(),
-                            child: _formBody(),
-                          )
-                              : _formBody(),
+                            // ✅ siempre hay scroll; cuando no hay teclado, no permite arrastrar
+                            child: SingleChildScrollView(
+                              physics: tecladoAbierto
+                                  ? const ClampingScrollPhysics()
+                                  : const NeverScrollableScrollPhysics(),
+                              child: _formBody(),
+                            ),
                         ),
                       ),
                     ),

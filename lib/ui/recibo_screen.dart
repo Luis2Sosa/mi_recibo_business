@@ -378,9 +378,7 @@ class _ReciboScreenState extends State<ReciboScreen> {
       final tempPath = '${tempDir.path}/$fileName';
       await File(tempPath).writeAsBytes(pdfBytes, flush: true);
 
-      // (Opcional) intenta guardar en Descargas/iOS Documents sin diálogo
-      // Si tienes _guardarSilencioso en este archivo, déjalo; si no, comenta la siguiente línea.
-      //await _guardarSilencioso(pdfBytes, fileName);
+
 
       // 5) Compartir por WhatsApp usando la RUTA (mantiene el nombre del archivo)
       final caption = 'Recibo $_reciboFmt - ${_fmtFecha(widget.fecha)}';
@@ -389,6 +387,7 @@ class _ReciboScreenState extends State<ReciboScreen> {
         text: caption,
         subject: 'Recibo $_reciboFmt',
       );
+
 
 
       if (mounted) {
@@ -459,127 +458,192 @@ class _ReciboScreenState extends State<ReciboScreen> {
     }
   }
 
+  // ===========================
+// BANNER DOBLE ATRÁS (PREMIUM VERDE)
+// ===========================
+  void _showBackBanner() {
+    final bottomSafe = MediaQuery.of(context).padding.bottom;
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              padding: const EdgeInsets.all(6),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Retrocede otra vez para ir a Clientes',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                color: Colors.white,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF1F623A), // ✅
+        elevation: 6,
+        margin: EdgeInsets.fromLTRB(16, 8, 16, 12 + bottomSafe + 30),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        duration: _backWindow,
+      ),
+    );
+  }
+
+
+
+  Future<bool> _onWillPop() async {
+    final now = DateTime.now();
+    // Primera pulsación: muestra banner y NO sale
+    if (_lastBackPress == null || now.difference(_lastBackPress!) > _backWindow) {
+      _lastBackPress = now;
+      _showBackBanner();
+      return false;
+    }
+    // Segunda dentro de la ventana: ir a Clientes (pantalla inicial)
+    _volverAClientes();
+    return false;
+  }
+
   /// ************* AÑADIDO: MÉTODO build *************
   @override
   Widget build(BuildContext context) {
     final cfg = this.cfg;
 
-    return Scaffold(
-      body: AppGradientBackground(
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              if (cfg.showHeaderTitle)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Center(
-                    child: Text(
-                      cfg.headerTitle,
-                      style: GoogleFonts.playfair(
-                        textStyle: cfg.headerTitleStyle,
+    return WillPopScope(
+      onWillPop: _onWillPop, // 👈 intercepta botón atrás
+      child: Scaffold(
+        body: AppGradientBackground(
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                if (cfg.showHeaderTitle)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Center(
+                      child: Text(
+                        cfg.headerTitle,
+                        style: GoogleFonts.playfair(
+                          textStyle: cfg.headerTitleStyle,
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-              // ====== CAPTURABLE: Fondo + Recibo centrado ======
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  child: RepaintBoundary(
-                    key: _captureKey,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final double maxCardH =
-                        (constraints.maxHeight * 0.82).clamp(520.0, 760.0);
+                // ====== CAPTURABLE: Fondo + Recibo centrado ======
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: RepaintBoundary(
+                      key: _captureKey,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final double maxCardH =
+                          (constraints.maxHeight * 0.82).clamp(520.0, 760.0);
 
-                        return Container(
-                          height: double.infinity,
-                          decoration: const BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [AppTheme.gradTop, AppTheme.gradBottom],
+                          return Container(
+                            height: double.infinity,
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [AppTheme.gradTop, AppTheme.gradBottom],
+                              ),
                             ),
-                          ),
-                          child: Center(
-                            child: _PlainCardShell(
-                              radius: cfg.cardRadius,
-                              height: maxCardH,
-                              padding: cfg.cardPadding,
-                              child: FittedBox(
-                                fit: BoxFit.contain,
-                                alignment: Alignment.topCenter,
-                                child: SizedBox(
-                                  width: cfg.designWidth,
-                                  child: _ReceiptContent(
-                                    cfg: cfg,
-                                    empresa: widget.empresa,
-                                    servidor: widget.servidor,
-                                    telefonoServidor: widget.telefonoServidor,
-                                    cliente: widget.cliente,
-                                    telefonoCliente: widget.telefonoCliente,
-                                    producto: widget.producto,
-                                    numeroRecibo:
-                                    _fmtNumReciboStr(widget.numeroRecibo),
-                                    fecha: widget.fecha,
-                                    capitalInicial: widget.capitalInicial,
-                                    pagoInteres: widget.pagoInteres,
-                                    pagoCapital: widget.pagoCapital,
-                                    totalPagado: widget.totalPagado,
-                                    saldoAnterior: widget.saldoAnterior,
-                                    saldoActual: widget.saldoActual,
-                                    proximaFecha: widget.proximaFecha,
-                                    fmtFecha: _fmtFecha,
-                                    monedaRD: _monedaRD,
+                            child: Center(
+                              child: _PlainCardShell(
+                                radius: cfg.cardRadius,
+                                height: maxCardH,
+                                padding: cfg.cardPadding,
+                                child: FittedBox(
+                                  fit: BoxFit.contain,
+                                  alignment: Alignment.topCenter,
+                                  child: SizedBox(
+                                    width: cfg.designWidth,
+                                    child: _ReceiptContent(
+                                      cfg: cfg,
+                                      empresa: widget.empresa,
+                                      servidor: widget.servidor,
+                                      telefonoServidor: widget.telefonoServidor,
+                                      cliente: widget.cliente,
+                                      telefonoCliente: widget.telefonoCliente,
+                                      producto: widget.producto,
+                                      numeroRecibo:
+                                      _fmtNumReciboStr(widget.numeroRecibo),
+                                      fecha: widget.fecha,
+                                      capitalInicial: widget.capitalInicial,
+                                      pagoInteres: widget.pagoInteres,
+                                      pagoCapital: widget.pagoCapital,
+                                      totalPagado: widget.totalPagado,
+                                      saldoAnterior: widget.saldoAnterior,
+                                      saldoActual: widget.saldoActual,
+                                      proximaFecha: widget.proximaFecha,
+                                      fmtFecha: _fmtFecha,
+                                      monedaRD: _monedaRD,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 8),
+                const SizedBox(height: 8),
 
-              // Botón único (no se incluye en la captura)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Image.asset(
-                          'assets/images/logo_whatsapp.png',
-                          fit: BoxFit.contain,
+                // Botón único (no se incluye en la captura)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Image.asset(
+                            'assets/images/logo_whatsapp.png',
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       ),
+                      label: const Text('Enviar recibo por WhatsApp'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: cfg.btnPdf, // azul
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: const StadiumBorder(),
+                      ),
+                      onPressed: _compartirWhatsApp,
                     ),
-                    label: const Text('Enviar recibo por WhatsApp'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: cfg.btnPdf, // azul
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: const StadiumBorder(),
-                    ),
-                    onPressed: _compartirWhatsApp,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -909,8 +973,6 @@ class _ReceiptContent extends StatelessWidget {
     );
   }
 
-
-
   Widget _row(String t, String v) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -956,7 +1018,7 @@ class _MontoGrande extends StatelessWidget {
 
     return Row(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.baseline,
+      crossAxisAlignment: TextBaseline.alphabetic == null ? CrossAxisAlignment.center : CrossAxisAlignment.baseline,
       textBaseline: TextBaseline.alphabetic,
       children: [
         Text(pref, style: prefixStyle),

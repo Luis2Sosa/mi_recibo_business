@@ -1456,6 +1456,14 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
       final nombre = '${(data['nombre'] ?? '').toString().trim()} ${(data['apellido'] ?? '').toString().trim()}'.trim();
       final display = nombre.isEmpty ? (data['telefono'] ?? 'Cliente') : nombre;
 
+      // 👇 NUEVO: si tiene producto y la ganancia calculada es 0,
+      // usar el monto prestado (totalPrestado si existe; si no, capitalInicial)
+      final bool tieneProducto = ((data['producto'] ?? '').toString().trim().isNotEmpty);
+      final int prestadoBase = ((data['totalPrestado'] ?? data['capitalInicial'] ?? 0) as num).toInt();
+      if (tieneProducto && ganancia == 0) {
+        ganancia = prestadoBase;
+      }
+
       rows.add(_ClienteGanancia(
         id: c.id,
         nombre: display,
@@ -1484,6 +1492,7 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
     }
     return 'RD\$${b.toString().split('').reversed.join()}';
   }
+
 
   @override
   Widget build(BuildContext context) {
