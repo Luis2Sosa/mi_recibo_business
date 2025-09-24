@@ -1438,10 +1438,12 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
     final List<_ClienteGanancia> rows = [];
     for (final c in cs.docs) {
       final data = c.data();
-      final int saldo = (data['saldoActual'] ?? 0) as int;
 
-      // Solo activos (saldo > 0)
-      if (saldo <= 0) continue;
+      final int saldo = (data['saldoActual'] ?? 0) as int;
+      if (saldo <= 0) continue; // solo activos
+
+      final int capitalInicial = (data['capitalInicial'] ?? 0) as int;
+      final String producto = (data['producto'] ?? '').toString().trim();
 
       final pagos = await c.reference.collection('pagos').get();
       int ganancia = 0; // suma de pagoInteres
@@ -1453,23 +1455,21 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
         totalPagos += (m['totalPagado'] ?? 0) as int;
       }
 
+      // ✅ Si tiene producto y ganancia quedó 0, usar capitalInicial como ganancia
+      if (ganancia == 0 && producto.isNotEmpty) {
+        ganancia = capitalInicial;
+      }
+
       final nombre = '${(data['nombre'] ?? '').toString().trim()} ${(data['apellido'] ?? '').toString().trim()}'.trim();
       final display = nombre.isEmpty ? (data['telefono'] ?? 'Cliente') : nombre;
-
-      // 👇 NUEVO: si tiene producto y la ganancia calculada es 0,
-      // usar el monto prestado (totalPrestado si existe; si no, capitalInicial)
-      final bool tieneProducto = ((data['producto'] ?? '').toString().trim().isNotEmpty);
-      final int prestadoBase = ((data['totalPrestado'] ?? data['capitalInicial'] ?? 0) as num).toInt();
-      if (tieneProducto && ganancia == 0) {
-        ganancia = prestadoBase;
-      }
 
       rows.add(_ClienteGanancia(
         id: c.id,
         nombre: display,
         ganancia: ganancia,
-        saldo: saldo,
-        totalPagado: totalPagos,
+        saldo: saldo,                 // → “Pendiente”
+        totalPagado: totalPagos,      // → “Pagado”
+        capitalInicial: capitalInicial, // → “Total prestado”
       ));
     }
 
@@ -1590,16 +1590,24 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(it.nombre, maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w900, color: _Brand.ink)),
-                  const SizedBox(height: 4),
-                  Text('Saldo: ${_rd(it.saldo)}',
-                      style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 2),
-                  Text('Pagado: ${_rd(it.totalPagado)}',
-                      style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(it.nombre,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w900, color: _Brand.ink)),
+                    const SizedBox(height: 4),
 
+                    // 👇 bloque solicitado
+                    Text('Total prestado: ${_rd(it.capitalInicial)}',
+                        style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text('Pendiente: ${_rd(it.saldo)}',
+                        style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Text('Pagado: ${_rd(it.totalPagado)}',
+                        style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
                 ]),
               ),
               const SizedBox(width: 10),
@@ -1642,13 +1650,16 @@ class _ClienteGanancia {
   final String id;
   final String nombre;
   final int ganancia;
-  final int saldo;
-  final int totalPagado;
+  final int saldo;         // Pendiente
+  final int totalPagado;   // Pagado
+  final int capitalInicial; // Total prestado
+
   _ClienteGanancia({
     required this.id,
     required this.nombre,
     required this.ganancia,
     required this.saldo,
     required this.totalPagado,
+    required this.capitalInicial,
   });
 }
