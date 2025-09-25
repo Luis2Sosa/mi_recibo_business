@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';   // 👈 Firestore
 import 'package:firebase_auth/firebase_auth.dart';      // 👈 UID
+import 'package:intl/intl.dart';                        // 👈 Formato moneda pro
 import 'pago_form_screen.dart';
 import 'recibo_screen.dart';
 import 'historial_screen.dart';
@@ -61,6 +62,9 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
   int _totalPrestado = 0; // 👈 NUEVO acumulado
 
+  // 👇 NUEVO: evita doble toque en “Registrar pago”
+  bool _btnPagoBusy = false;
+
   @override
   void initState() {
     super.initState();
@@ -70,19 +74,14 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     Future.microtask(_cargarTotalPrestado); // 👈 lee/initializa totalPrestado
   }
 
+  // ===== Formateo robusto de moneda (RD$) =====
   String _rd(int v) {
-    final s = v.toString();
-    final buf = StringBuffer();
-    int count = 0;
-    for (int i = s.length - 1; i >= 0; i--) {
-      buf.write(s[i]);
-      count++;
-      if (count == 3 && i != 0) {
-        buf.write('.');
-        count = 0;
-      }
-    }
-    return 'RD\$${buf.toString().split('').reversed.join()}';
+    final f = NumberFormat.currency(
+      locale: 'es_DO',
+      symbol: 'RD\$',
+      decimalDigits: 0,
+    );
+    return f.format(v);
   }
 
   String _fmtFecha(DateTime d) {
@@ -289,18 +288,25 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
     int nextReciboFinal = 1;
     try {
-      await clienteRef.set({
-        'saldoActual': saldoNuevo,
-        'proximaFecha': Timestamp.fromDate(proxAlDia),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'nextReciboCliente': FieldValue.increment(1),
-        'saldado': saldoNuevo <= 0,
-        'estado' : saldoNuevo <= 0 ? 'saldado' : 'al_dia',
-      }, SetOptions(merge: true));
+      // === TRANSACCIÓN: actualiza saldo, fecha y obtiene consecutivo atómico ===
+      await FirebaseFirestore.instance.runTransaction((tx) async {
+        final snap = await tx.get(clienteRef);
+        final current = (snap.data()?['nextReciboCliente'] ?? 0) as int;
+        final next = current + 1;
 
-      final snapFinal = await clienteRef.get();
-      nextReciboFinal = (snapFinal.data()?['nextReciboCliente'] ?? 1) as int;
+        tx.set(clienteRef, {
+          'saldoActual': saldoNuevo,
+          'proximaFecha': Timestamp.fromDate(proxAlDia),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'nextReciboCliente': next,
+          'saldado': saldoNuevo <= 0,
+          'estado' : saldoNuevo <= 0 ? 'saldado' : 'al_dia',
+        }, SetOptions(merge: true));
 
+        nextReciboFinal = next;
+      });
+
+      // === Registro de pago (fuera de la transacción) ===
       await clienteRef.collection('pagos').add({
         'fecha': FieldValue.serverTimestamp(),
         'pagoInteres': pagoInteres,
@@ -530,9 +536,11 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                   shape: const StadiumBorder(),
                                   textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                                 ),
-                                onPressed: () {
+                                onPressed: _btnPagoBusy ? null : () async {
                                   HapticFeedback.lightImpact();
-                                  _registrarPagoFlow(context);
+                                  setState(() => _btnPagoBusy = true);
+                                  await _registrarPagoFlow(context);
+                                  if (mounted) setState(() => _btnPagoBusy = false);
                                 },
                                 child: const Text('Registrar pago'),
                               ),

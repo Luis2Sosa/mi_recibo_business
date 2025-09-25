@@ -2,6 +2,7 @@ import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart'; // 👈 moneda RD$
 
 class PagoFormScreen extends StatefulWidget {
   final int saldoAnterior;      // RD$
@@ -35,6 +36,9 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   int _pagoInteres = 0;
   int _pagoCapital = 0;
 
+  // evita doble toque en Continuar
+  bool _btnContinuarBusy = false;
+
   int get _interesMax =>
       (widget.saldoAnterior * (widget.tasaInteres / 100)).round();
 
@@ -47,9 +51,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   @override
   void initState() {
     super.initState();
-    // _proxima = widget.proximaFecha;  // ❌ ya no: fecha debe elegirse manual
-    _proxima = null;
-
+    _proxima = null; // ❌ ya no: fecha debe elegirse manual
     // Interés sugerido
     _interesCtrl.text = _interesMax.toString();
     _pagoInteres = _interesMax;
@@ -61,11 +63,9 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   void _recalcular() {
     setState(() {
       _pagoInteres =
-          int.tryParse(_interesCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ??
-              0;
+          int.tryParse(_interesCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
       _pagoCapital =
-          int.tryParse(_capitalCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ??
-              0;
+          int.tryParse(_capitalCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
     });
   }
 
@@ -97,18 +97,12 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
 
   // ======== Utilidades visuales (sin tocar cálculos) ========
   String _rd(int v) {
-    final s = v.toString();
-    final buf = StringBuffer();
-    int count = 0;
-    for (int i = s.length - 1; i >= 0; i--) {
-      buf.write(s[i]);
-      count++;
-      if (count == 3 && i != 0) {
-        buf.write('.');
-        count = 0;
-      }
-    }
-    return 'RD\\\$${buf.toString().split('').reversed.join()}';
+    final f = NumberFormat.currency(
+      locale: 'es_DO',
+      symbol: 'RD\$',
+      decimalDigits: 0,
+    );
+    return f.format(v);
   }
 
   String _fmtFecha(DateTime d) {
@@ -128,7 +122,8 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   Widget build(BuildContext context) {
     // Levantar la tarjeta con el teclado (más suave y sin alargar el marco)
     final kb = MediaQuery.of(context).viewInsets.bottom; // double
-    const double baseDown = 230.0;
+    final bool tecladoAbierto = kb > 0;
+    const double baseDown = 240.0;
     final double lift = kb > 0 ? kb.clamp(0.0, 320.0) : 0.0;
 
     // Sube la tarjeta cuando hay teclado, pero sin estirarla
@@ -136,18 +131,17 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
 
     // ⚙️ Alto disponible controlado (compacto con teclado)
     final screenH = MediaQuery.of(context).size.height;
-    const double baseMaxH = 460.0; // sin teclado
-    const double kbMaxH   = 360.0; // con teclado
-    final double maxCardH = kb > 0 ? kbMaxH : baseMaxH;
+    const double baseMaxH = 580.0; // sin teclado
+    const double kbMaxH   = 500.0; // con teclado
+    final double maxCardH = tecladoAbierto ? kbMaxH : baseMaxH;
 
-    // El alto real ya no puede pasar del tope (evita “marco largo”)
-    final double availableHeight = 530.0;
-    (screenH - translateY - 24.0).clamp(260.0, maxCardH);
+    // ⬅️ calcula en base al espacio real y respeta un mínimo (corregido)
+    final double availableHeight =
+    (screenH - translateY - 24.0).clamp(260.0, maxCardH).toDouble();
 
     // No empujes el contenido por el teclado (evita que “baje mucho” al hacer scroll)
-    final double bottomPad = kb > 0 ? 12.0 : 0.0;
+    final double bottomPad = tecladoAbierto ? 12.0 : 0.0;
 
-    final brandBlue = const Color(0xFF2563EB); // (puedes usarlo si quieres)
     final glassWhite = Colors.white.withOpacity(0.12);
 
     return Scaffold(
@@ -212,10 +206,11 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(28),
                             child: Padding(
-                              padding:
-                              const EdgeInsets.fromLTRB(16, 18, 16, 16),
+                              padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
                               child: SingleChildScrollView(
-                                physics: const ClampingScrollPhysics(),
+                                physics: tecladoAbierto
+                                    ? const ClampingScrollPhysics()
+                                    : const NeverScrollableScrollPhysics(), // 👈 sin scroll con teclado abajo
                                 padding: EdgeInsets.only(bottom: bottomPad),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min, // ✅
@@ -244,8 +239,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                         borderRadius: BorderRadius.circular(18),
                                         boxShadow: [
                                           BoxShadow(
-                                            color:
-                                            Colors.black.withOpacity(0.06),
+                                            color: Colors.black.withOpacity(0.06),
                                             blurRadius: 12,
                                             offset: const Offset(0, 6),
                                           ),
@@ -281,8 +275,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                               const SizedBox(width: 10),
                                               Expanded(
                                                 child: _campoValidado(
-                                                  label:
-                                                  'Pago capital (RD\$)',
+                                                  label: 'Pago capital (RD\$)',
                                                   controller: _capitalCtrl,
                                                   errorText: _errorCapital,
                                                 ),
@@ -291,21 +284,17 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                           ),
                                           const SizedBox(height: 12),
 
-                                          _resumen('Total pagado',
-                                              _rd(_totalPagado)),
+                                          _resumen('Total pagado', _rd(_totalPagado)),
                                           const SizedBox(height: 6),
-                                          _resumen(
-                                              'Saldo nuevo', _rd(_saldoNuevo)),
+                                          _resumen('Saldo nuevo', _rd(_saldoNuevo)),
                                           const SizedBox(height: 12),
 
                                           // ====== FECHA (manual obligatoria) ======
                                           Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 12, vertical: 10),
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                             decoration: BoxDecoration(
                                               color: const Color(0xFFF7F8FA),
-                                              borderRadius:
-                                              BorderRadius.circular(14),
+                                              borderRadius: BorderRadius.circular(14),
                                               border: Border.all(
                                                 color: _proxima == null
                                                     ? const Color(0xFFEF4444)
@@ -317,9 +306,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                               children: [
                                                 Expanded(
                                                   child: Column(
-                                                    crossAxisAlignment:
-                                                    CrossAxisAlignment
-                                                        .start,
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
                                                     children: [
                                                       Text(
                                                         _proxima == null
@@ -327,66 +314,47 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                             : 'Próxima fecha: ${_fmtFecha(_proxima!)}',
                                                         style: TextStyle(
                                                           fontSize: 15,
-                                                          color: _proxima ==
-                                                              null
-                                                              ? const Color(
-                                                              0xFFEF4444)
-                                                              : const Color(
-                                                              0xFF374151),
-                                                          fontWeight: _proxima ==
-                                                              null
+                                                          color: _proxima == null
+                                                              ? const Color(0xFFEF4444)
+                                                              : const Color(0xFF374151),
+                                                          fontWeight: _proxima == null
                                                               ? FontWeight.w700
                                                               : FontWeight.w400,
                                                         ),
                                                       ),
-                                                      if (_proxima == null)
-                                                        const SizedBox(
-                                                            height: 4),
+                                                      if (_proxima == null) const SizedBox(height: 4),
                                                       if (_proxima == null)
                                                         const Text(
                                                           'Debes elegir una fecha de pago',
                                                           style: TextStyle(
                                                             fontSize: 12.5,
-                                                            color: Color(
-                                                                0xFFEF4444),
-                                                            fontWeight:
-                                                            FontWeight.w600,
+                                                            color: Color(0xFFEF4444),
+                                                            fontWeight: FontWeight.w600,
                                                           ),
                                                         ),
                                                     ],
                                                   ),
                                                 ),
                                                 TextButton.icon(
-                                                  icon: const Icon(
-                                                      Icons.date_range),
-                                                  label: const Text(
-                                                      'Elegir fecha'),
-                                                  onPressed: (_pagoCapital <=
-                                                      widget
-                                                          .saldoAnterior)
+                                                  icon: const Icon(Icons.date_range),
+                                                  label: const Text('Elegir fecha'),
+                                                  onPressed: (_pagoCapital <= widget.saldoAnterior)
                                                       ? () async {
-                                                    final hoy =
-                                                    DateTime.now();
-                                                    final sel =
-                                                    await showDatePicker(
+                                                    final hoy = DateTime.now();
+                                                    final hoy0 = DateTime(hoy.year, hoy.month, hoy.day);
+                                                    final sel = await showDatePicker(
                                                       context: context,
-                                                      initialDate: hoy,
-                                                      firstDate: DateTime(
-                                                          hoy.year - 1),
-                                                      lastDate: DateTime(
-                                                          hoy.year + 5),
+                                                      initialDate: _proxima ?? hoy0,
+                                                      firstDate: hoy0, // 👈 no fechas pasadas
+                                                      lastDate: DateTime(hoy.year + 5),
                                                     );
                                                     if (sel != null) {
-                                                      setState(() =>
-                                                      _proxima = sel);
+                                                      setState(() => _proxima = sel);
                                                     }
                                                   }
                                                       : null,
-                                                  style:
-                                                  TextButton.styleFrom(
-                                                    foregroundColor:
-                                                    const Color(
-                                                        0xFF2563EB),
+                                                  style: TextButton.styleFrom(
+                                                    foregroundColor: const Color(0xFF2563EB),
                                                   ),
                                                 ),
                                               ],
@@ -400,36 +368,27 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                             height: 54,
                                             child: ElevatedButton(
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor:
-                                                const Color(0xFF2563EB),
+                                                backgroundColor: const Color(0xFF2563EB),
                                                 foregroundColor: Colors.white,
                                                 elevation: 0,
-                                                shape:
-                                                const StadiumBorder(),
+                                                shape: const StadiumBorder(),
                                                 textStyle: const TextStyle(
                                                   fontSize: 16,
-                                                  fontWeight:
-                                                  FontWeight.w800,
+                                                  fontWeight: FontWeight.w800,
                                                 ),
                                               ),
-                                              onPressed:
-                                              (_formOk && _proxima != null)
-                                                  ? () {
-                                                Navigator.pop(
-                                                    context, {
-                                                  'pagoInteres':
-                                                  _pagoInteres,
-                                                  'pagoCapital':
-                                                  _pagoCapital,
-                                                  'totalPagado':
-                                                  _totalPagado,
-                                                  'saldoAnterior': widget
-                                                      .saldoAnterior,
-                                                  'saldoNuevo':
-                                                  _saldoNuevo,
-                                                  'proximaFecha':
-                                                  _proxima, // 👈 manual
+                                              onPressed: (_formOk && _proxima != null && !_btnContinuarBusy)
+                                                  ? () async {
+                                                setState(() => _btnContinuarBusy = true);
+                                                Navigator.pop(context, {
+                                                  'pagoInteres': _pagoInteres,
+                                                  'pagoCapital': _pagoCapital,
+                                                  'totalPagado': _totalPagado,
+                                                  'saldoAnterior': widget.saldoAnterior,
+                                                  'saldoNuevo': _saldoNuevo,
+                                                  'proximaFecha': _proxima, // 👈 manual
                                                 });
+                                                if (mounted) setState(() => _btnContinuarBusy = false);
                                               }
                                                   : null, // 🔒 bloqueado si no hay fecha
                                               child: const Text('Continuar'),
@@ -443,21 +402,14 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                             width: double.infinity,
                                             height: 54,
                                             child: OutlinedButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(context),
-                                              style:
-                                              OutlinedButton.styleFrom(
-                                                side: const BorderSide(
-                                                    color:
-                                                    Color(0xFF2563EB)),
-                                                foregroundColor:
-                                                const Color(0xFF2563EB),
-                                                shape:
-                                                const StadiumBorder(),
+                                              onPressed: () => Navigator.pop(context),
+                                              style: OutlinedButton.styleFrom(
+                                                side: const BorderSide(color: Color(0xFF2563EB)),
+                                                foregroundColor: const Color(0xFF2563EB),
+                                                shape: const StadiumBorder(),
                                                 textStyle: const TextStyle(
                                                   fontSize: 16,
-                                                  fontWeight:
-                                                  FontWeight.w800,
+                                                  fontWeight: FontWeight.w800,
                                                 ),
                                               ),
                                               child: const Text('Atrás'),
@@ -492,8 +444,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   }) {
     return TextField(
       controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(
-          decimal: false, signed: false),
+      keyboardType: const TextInputType.numberWithOptions(decimal: false, signed: false),
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       textAlign: TextAlign.right,
       style: const TextStyle(
@@ -507,8 +458,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
         labelStyle: const TextStyle(color: Color(0xFF6B7280)),
         filled: true,
         fillColor: const Color(0xFFF7F8FA),
-        contentPadding:
-        const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
@@ -519,8 +469,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide:
-          const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+          borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -528,12 +477,10 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide:
-          const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+          borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
         ),
         errorText: errorText,
-        errorStyle:
-        const TextStyle(fontSize: 12, color: Color(0xFFEF4444)),
+        errorStyle: const TextStyle(fontSize: 12, color: Color(0xFFEF4444)),
       ),
     );
   }

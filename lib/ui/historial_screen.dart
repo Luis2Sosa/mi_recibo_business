@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart'; // 👈 formato RD$
 
 class HistorialScreen extends StatelessWidget {
   final String idCliente;
@@ -25,15 +26,11 @@ class HistorialScreen extends StatelessWidget {
   }
 
   String _rd(int v) {
-    final s = v.toString();
-    final b = StringBuffer();
-    int c = 0;
-    for (int i = s.length - 1; i >= 0; i--) {
-      b.write(s[i]);
-      c++;
-      if (c == 3 && i != 0) { b.write('.'); c = 0; }
-    }
-    return 'RD\$${b.toString().split('').reversed.join()}';
+    return NumberFormat.currency(
+      locale: 'es_DO',
+      symbol: 'RD\$',
+      decimalDigits: 0,
+    ).format(v);
   }
 
   @override
@@ -90,6 +87,9 @@ class HistorialScreen extends StatelessWidget {
         .collection('pagos')
         .orderBy('fecha', descending: true);
 
+    // 👇 espacio seguro inferior para que el botón nunca quede tapado
+    final double safeBottom = MediaQuery.of(context).padding.bottom;
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -124,7 +124,7 @@ class HistorialScreen extends StatelessWidget {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 720),
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + safeBottom), // 👈 safe bottom
                       child: Container(
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.12),
@@ -216,14 +216,11 @@ class HistorialScreen extends StatelessWidget {
 
                                         // Lista (solo esta parte hace scroll)
                                         Expanded(
-                                          child: StreamBuilder<QuerySnapshot>(
+                                          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>( // 👈 tipado
                                             stream: pagosQuery.snapshots(),
                                             builder: (context, snapshot) {
-                                              if (snapshot.connectionState ==
-                                                  ConnectionState.waiting) {
-                                                return const Center(
-                                                  child: CircularProgressIndicator(),
-                                                );
+                                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                                return const Center(child: CircularProgressIndicator());
                                               }
                                               if (snapshot.hasError) {
                                                 return Center(
@@ -255,7 +252,7 @@ class HistorialScreen extends StatelessWidget {
                                                 itemCount: docs.length,
                                                 separatorBuilder: (_, __) => const SizedBox(height: 12),
                                                 itemBuilder: (context, i) {
-                                                  final d = docs[i].data() as Map<String, dynamic>? ?? {};
+                                                  final d = docs[i].data(); // 👈 sin cast
                                                   final ts = d['fecha'];
                                                   final fecha = ts is Timestamp ? ts.toDate() : DateTime.now();
 

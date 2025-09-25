@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'cliente_detalle_screen.dart';
 import 'perfil_prestamista_screen.dart';
@@ -18,6 +19,7 @@ class ClientesScreen extends StatefulWidget {
 
 class _ClientesScreenState extends State<ClientesScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
+  Timer? _debounce; // para debounce del buscador
 
   // Vencimientos
   bool _resaltarVencimientos = true;
@@ -377,6 +379,13 @@ class _ClientesScreenState extends State<ClientesScreen> {
   }
 
   @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     const double logoTop = -90;
     const double logoHeight = 300;
@@ -457,7 +466,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                   ),
                                   // ... (lo demás tal cual lo tienes)
 
-
                                   // Buscador + botón agregar
                                   Padding(
                                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
@@ -477,7 +485,13 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                             ),
                                             child: TextField(
                                               controller: _searchCtrl,
-                                              onChanged: (_) => setState(() {}),
+                                              onChanged: (txt) {
+                                                // Debounce de 250ms para no recalcular en cada tecla
+                                                _debounce?.cancel();
+                                                _debounce = Timer(const Duration(milliseconds: 250), () {
+                                                  if (mounted) setState(() {});
+                                                });
+                                              },
                                               decoration: InputDecoration(
                                                 hintText: 'Buscar',
                                                 hintStyle: const TextStyle(color: Color(0xFF111827)),

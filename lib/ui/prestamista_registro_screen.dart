@@ -16,13 +16,15 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
   // Logo independiente (no empuja el contenido)
   static const double _logoTop = -20;
   static const double _logoHeight = 400;
-  static const double _gapBelowLogo = -100;
+  static const double _gapBelowLogo = -90; // ⬅️ marco un poco más abajo (no tapa)
 
   final _formKey = GlobalKey<FormState>();
   final _empresaCtrl = TextEditingController();
   final _servidorCtrl = TextEditingController(); // 👉 “Nombre y Apellido”
   final _telefonoCtrl = TextEditingController();
   final _direccionCtrl = TextEditingController();
+
+  bool _guardando = false; // ⬅️ evita doble envío
 
   @override
   void initState() {
@@ -65,9 +67,11 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
     final kb = MediaQuery.of(context).viewInsets.bottom;
     final h = MediaQuery.of(context).size.height;
 
-    const double extraLiftPx = 90;
+    // Cuando hay teclado, levanta un poco más (pero sin invadir el logo)
+    const double extraLiftPx = 110; // ⬅️ leve empuje extra
     final double liftPx = kb > 0 ? (kb + extraLiftPx) : 0;
-    final double liftFraction = (liftPx / h).clamp(0.0, 0.75);
+    final double liftFraction = (liftPx / h).clamp(0.0, 0.60); // ⬅️ CAP: 60%
+    final double safeBottom = MediaQuery.of(context).padding.bottom; // ⬅️ padding seguro
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -84,21 +88,28 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
         child: SafeArea(
           child: Stack(
             children: [
+              // Logo con fade cuando aparece el teclado (no lo tapamos)
               Positioned(
                 top: _logoTop,
                 left: 0,
                 right: 0,
                 child: IgnorePointer(
                   child: Center(
-                    child: Image.asset(
-                      'assets/images/logoB.png',
-                      height: _logoHeight,
-                      fit: BoxFit.contain,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      opacity: kb > 0 ? 0.0 : 1.0, // ⬅️ ocultar logo con teclado
+                      child: Image.asset(
+                        'assets/images/logoB.png',
+                        height: _logoHeight,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
                 ),
               ),
 
+              // Marco translúcido
               Positioned(
                 left: 16,
                 right: 16,
@@ -122,9 +133,18 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(28),
                       child: Padding(
-                        padding: EdgeInsets.fromLTRB(16, 18, 16, kb > 0 ? 28 : 20),
+                        // padding inferior con teclado + safe area (no se tapa botón)
+                        padding: EdgeInsets.fromLTRB(
+                          16,
+                          18,
+                          16,
+                          (kb > 0 ? 28 : 20) + safeBottom,
+                        ),
                         child: SingleChildScrollView(
-                          physics: const BouncingScrollPhysics(),
+                          // No scroll si el teclado está abajo; scroll solo con teclado
+                          physics: kb > 0
+                              ? const ClampingScrollPhysics()
+                              : const NeverScrollableScrollPhysics(),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,6 +167,7 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                 ),
                               ),
 
+                              // Tarjeta blanca con íconos y estética pro
                               Container(
                                 width: double.infinity,
                                 constraints: const BoxConstraints(maxWidth: 520),
@@ -170,11 +191,13 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                       _field(
                                         controller: _empresaCtrl,
                                         label: 'Nombre de la empresa (opcional)',
+                                        icon: Icons.domain, // 🏢
                                       ),
                                       const SizedBox(height: 14),
                                       _field(
                                         controller: _servidorCtrl,
                                         label: 'Nombre y Apellido *',
+                                        icon: Icons.badge, // 🪪
                                         validator: (v) =>
                                         (v == null || v.trim().isEmpty)
                                             ? 'Obligatorio'
@@ -184,9 +207,12 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                       _field(
                                         controller: _telefonoCtrl,
                                         label: 'Teléfono *',
+                                        icon: Icons.call, // 📞
                                         keyboardType: TextInputType.phone,
                                         validator: (v) {
-                                          if (v == null || v.trim().isEmpty) return 'Obligatorio';
+                                          if (v == null || v.trim().isEmpty) {
+                                            return 'Obligatorio';
+                                          }
                                           final digits = v.replaceAll(RegExp(r'[^0-9]'), '');
                                           return digits.length < 8 ? 'Teléfono inválido' : null;
                                         },
@@ -195,6 +221,7 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                       _field(
                                         controller: _direccionCtrl,
                                         label: 'Dirección (opcional)',
+                                        icon: Icons.home, // 🏠
                                       ),
                                       const SizedBox(height: 22),
 
@@ -213,8 +240,11 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                             elevation: 6,
                                             shadowColor: Colors.black.withOpacity(0.25),
                                           ),
-                                          onPressed: () async {
+                                          onPressed: _guardando
+                                              ? null
+                                              : () async {
                                             if (_formKey.currentState!.validate()) {
+                                              setState(() => _guardando = true);
                                               try {
                                                 final args = (ModalRoute.of(context)?.settings.arguments as Map?) ?? {};
                                                 final email = (args['email'] as String?)?.trim();
@@ -230,6 +260,7 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                                   ScaffoldMessenger.of(context).showSnackBar(
                                                     const SnackBar(content: Text('Sesión expirada. Vuelve a iniciar.')),
                                                   );
+                                                  if (mounted) setState(() => _guardando = false);
                                                   return;
                                                 }
                                                 final uid = user.uid;
@@ -254,6 +285,7 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                                   const SnackBar(content: Text('Prestamista registrado ✅')),
                                                 );
 
+                                                if (!mounted) return;
                                                 Navigator.pushAndRemoveUntil(
                                                   context,
                                                   MaterialPageRoute(
@@ -266,13 +298,16 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                                       (route) => false,
                                                 );
                                               } catch (e) {
+                                                if (!mounted) return;
                                                 ScaffoldMessenger.of(context).showSnackBar(
                                                   SnackBar(content: Text('Error al guardar: $e')),
                                                 );
+                                              } finally {
+                                                if (mounted) setState(() => _guardando = false);
                                               }
                                             }
                                           },
-                                          child: const Text('Siguiente'),
+                                          child: Text(_guardando ? 'Guardando…' : 'Siguiente'),
                                         ),
                                       ),
                                     ],
@@ -297,6 +332,7 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
   Widget _field({
     required TextEditingController controller,
     required String label,
+    IconData? icon,
     String? Function(String?)? validator,
     TextInputType? keyboardType,
   }) {
@@ -308,6 +344,9 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
         labelText: label,
         filled: true,
         fillColor: const Color(0xFFF7F8FA),
+        prefixIcon: icon != null
+            ? Icon(icon, color: const Color(0xFF94A3B8))
+            : null,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
@@ -318,7 +357,10 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF2563EB)),
+          borderSide: const BorderSide(
+            color: Color(0xFF2563EB), // ✅ BorderSide correcto (no Color directo)
+            width: 1.5,
+          ),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),

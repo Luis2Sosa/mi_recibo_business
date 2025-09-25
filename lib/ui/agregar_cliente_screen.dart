@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';   // 👈 Firestore
 import 'package:firebase_auth/firebase_auth.dart';      // 👈 UID
+import 'package:flutter/services.dart';                // 👈 (para inputFormatters)
 
 class AgregarClienteScreen extends StatefulWidget {
   final String? id;
@@ -181,13 +182,13 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
                           // 👇 SOLO hay scroll cuando el teclado está abierto
-                            // ✅ siempre hay scroll; cuando no hay teclado, no permite arrastrar
-                            child: SingleChildScrollView(
-                              physics: tecladoAbierto
-                                  ? const ClampingScrollPhysics()
-                                  : const NeverScrollableScrollPhysics(),
-                              child: _formBody(),
-                            ),
+                          // ✅ siempre hay scroll; cuando no hay teclado, no permite arrastrar
+                          child: SingleChildScrollView(
+                            physics: tecladoAbierto
+                                ? const ClampingScrollPhysics()
+                                : const NeverScrollableScrollPhysics(),
+                            child: _formBody(),
+                          ),
                         ),
                       ),
                     ),
@@ -256,6 +257,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
           padding: const EdgeInsets.all(16),
           child: Form(
             key: _formKey,
+            autovalidateMode: AutovalidateMode.onUserInteraction, // 👈 (5)
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -265,6 +267,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                       child: TextFormField(
                         controller: _nombreCtrl,
                         autofocus: true,
+                        textCapitalization: TextCapitalization.words, // 👈 (3)
                         decoration: _deco('Nombre', icon: Icons.person),
                         textInputAction: TextInputAction.next,
                         validator: (v) => (v == null || v.trim().isEmpty)
@@ -275,6 +278,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                     Expanded(
                       child: TextFormField(
                         controller: _apellidoCtrl,
+                        textCapitalization: TextCapitalization.words, // 👈 (3)
                         decoration: _deco('Apellido', icon: Icons.badge),
                         textInputAction: TextInputAction.next,
                         validator: (v) => (v == null || v.trim().isEmpty)
@@ -287,6 +291,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                 TextFormField(
                   controller: _telefonoCtrl,
                   keyboardType: TextInputType.phone,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly], // 👈 (2)
                   decoration: _deco('Teléfono', icon: Icons.call),
                   textInputAction: TextInputAction.next,
                   validator: (v) => (v == null || v.trim().isEmpty)
@@ -311,6 +316,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                       child: TextFormField(
                         controller: _capitalCtrl,
                         keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly], // 👈 (2)
                         decoration: _deco('Saldo inicial (RD\$)', icon: Icons.payments),
                         textInputAction: TextInputAction.next,
                         validator: (v) => (v == null || v.isEmpty)
@@ -321,10 +327,18 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                     Expanded(
                       child: TextFormField(
                         controller: _tasaCtrl,
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true), // 👈 (1)
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')), // 👈 (1)
+                        ],
                         decoration: _deco('% Interés', icon: Icons.percent),
-                        validator: (v) => (v == null || v.isEmpty)
-                            ? 'Obligatorio' : null,
+                        validator: (v) { // 👈 (1)
+                          if (v == null || v.isEmpty) return 'Obligatorio';
+                          final x = double.tryParse(v.replaceAll(',', '.'));
+                          if (x == null) return 'Número inválido';
+                          if (x < 0 || x > 100) return 'Debe ser entre 0 y 100';
+                          return null;
+                        },
                       ),
                     ),
                   ],
@@ -413,10 +427,11 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                             label: const Text('Elegir fecha'),
                             onPressed: () async {
                               final hoy = DateTime.now();
+                              final hoy0 = DateTime(hoy.year, hoy.month, hoy.day); // 👈 (4)
                               final sel = await showDatePicker(
                                 context: context,
-                                initialDate: _proximaFecha ?? hoy,
-                                firstDate: DateTime(hoy.year - 1),
+                                initialDate: _proximaFecha ?? hoy0,            // 👈 (4)
+                                firstDate: hoy0,                                // 👈 (4) no fechas pasadas
                                 lastDate: DateTime(hoy.year + 5),
                               );
                               if (sel != null) {
@@ -476,6 +491,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
 
   // ===== LÓGICA ORIGINAL – con validación de fecha obligatoria =====
   Future<void> _guardar() async {
+    FocusScope.of(context).unfocus(); // 👈 (6) ocultar teclado
     if (!_formKey.currentState!.validate()) return;
     if (_guardando) return;
     if (_proximaFecha == null) {

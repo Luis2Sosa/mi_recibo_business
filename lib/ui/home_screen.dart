@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'prestamista_registro_screen.dart';
 import 'clientes_screen.dart';
+import 'pin_screen.dart'; // 👈 agregado: para el gate de PIN/huella
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -52,11 +53,32 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
 
       if (doc.exists) {
-        // ✅ Ya está registrado -> ClientesScreen
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const ClientesScreen()),
-        );
+        // ✅ Ya está registrado -> chequea si seguridad está activa
+        final data = doc.data() ?? {};
+        final settings = (data['settings'] as Map?) ?? {};
+        final bool pinEnabled = settings['pinEnabled'] == true;
+        final String? pinCode = (settings['pinCode'] as String?)?.trim();
+
+        if (pinEnabled && (pinCode != null && pinCode.isNotEmpty)) {
+          // 🔐 Gate de PIN/huella antes de entrar a Clientes
+          final ok = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(builder: (_) => const PinScreen()),
+          );
+          if (ok == true && mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const ClientesScreen()),
+            );
+          }
+          // Si ok != true, no avanzamos.
+        } else {
+          // 🔓 Sin seguridad -> directo a Clientes
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const ClientesScreen()),
+          );
+        }
       } else {
         // 📝 No registrado -> formulario de registro
         final nombreCompleto = (user.displayName ?? '').trim();

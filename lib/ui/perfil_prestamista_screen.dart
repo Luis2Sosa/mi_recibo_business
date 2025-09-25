@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart'; // 👈 agregado para cerrar sesión de Google
 import 'home_screen.dart';
 
 class PerfilPrestamistaScreen extends StatefulWidget {
@@ -546,8 +547,20 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
               textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
               elevation: 3,
             ),
-            onPressed: () {
-              Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (r) => false);
+            onPressed: () async {
+              // 👇 Cerrar sesión real antes de navegar
+              try {
+                await FirebaseAuth.instance.signOut();
+              } catch (_) {}
+              try {
+                await GoogleSignIn().signOut();
+              } catch (_) {}
+              if (!mounted) return;
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const HomeScreen()),
+                    (r) => false,
+              );
             },
             child: const Text('Salir'),
           ),
@@ -1317,7 +1330,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         decoration: BoxDecoration(
           color: selected ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: selected ? [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 8, offset: Offset(0, 3))] : null,
+          boxShadow: selected ? [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 8, offset: const Offset(0, 3))] : null,
         ),
         child: Center(
           child: Text(
