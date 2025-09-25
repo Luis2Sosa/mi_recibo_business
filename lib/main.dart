@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart'; // 🌍 localización
 import 'package:firebase_core/firebase_core.dart'; // Firebase Core
 import 'package:firebase_auth/firebase_auth.dart'; // 👈 para saber si hay sesión
-import 'package:cloud_firestore/cloud_firestore.dart'; // 🔐 leer settings pin/biometría
-import 'package:local_auth/local_auth.dart'; // 👆 huella/FaceID
+import 'package:cloud_firestore/cloud_firestore.dart'; // 🔐 leer settings lockEnabled
 
 import 'ui/home_screen.dart';
 import 'ui/theme/app_theme.dart';
 import 'ui/clientes_screen.dart'; // Perfil / Clientes
-import 'ui/pin_screen.dart'; // (si existe) pantalla de PIN
+import 'ui/pin_screen.dart'; // Pantalla de PIN/biometría
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,11 +40,7 @@ class MiReciboApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
 
-      home: const _StartGate(), // 👈 decide a dónde entrar según sesión + PIN/huella
-      routes: {
-        // '/prestamista/registro': (context) => PrestamistaRegistroScreen(),
-        // '/trabajador/registro':  (context) => TrabajadorRegistroScreen(),
-      },
+      home: const _StartGate(), // 👈 decide a dónde entrar según sesión + lockEnabled
     );
   }
 }
@@ -53,13 +48,9 @@ class MiReciboApp extends StatelessWidget {
 /// 🔐 Puerta de inicio y re-bloqueo al volver a foreground.
 /// Reglas:
 /// - Si no hay sesión -> HomeScreen.
-/// - Si hay sesión:
-///   - Leer prestamistas/{uid}.settings.{pinEnabled, biometria}
-///   - Si ambos desactivados -> ClientesScreen.
-///   - Si biometría ON -> intentar autenticar con huella/FaceID.
-///       - Si OK -> ClientesScreen.
-///       - Si falla/cancela -> si PIN ON -> PinScreen (fallback).
-///   - Si solo PIN ON -> PinScreen.
+/// - Si hay sesión -> leer prestamistas/{uid}.settings.lockEnabled
+///   - lockEnabled = false -> ClientesScreen.
+///   - lockEnabled = true  -> mostrar PinScreen (ofrece PIN o huella).
 class _StartGate extends StatefulWidget {
   const _StartGate();
 
@@ -70,10 +61,10 @@ class _StartGate extends StatefulWidget {
 class _StartGateState extends State<_StartGate> with WidgetsBindingObserver {
   final _auth = FirebaseAuth.instance;
   final _db = FirebaseFirestore.instance;
-  final _localAuth = LocalAuthentication();
 
   bool _checking = true;
-  bool _unlocked = false; // estado de sesión desbloqueada dentro de la app
+  bool _unlocked = false;     // si ya se desbloqueó esta sesión en foreground
+  bool _lockEnabled = false;  // configuración leída del perfil
 
   @override
   void initState() {
@@ -88,28 +79,27 @@ class _StartGateState extends State<_StartGate> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  // Re-bloqueo al volver a primer plano si hay PIN/biometría configurados
+  // Re-bloqueo al volver a primer plano si el switch está activo
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Solo re-evaluar si ya habíamos desbloqueado antes
-      if (_unlocked) {
-        _routeAccordingToState(relock: true);
+      if (_unlocked && _lockEnabled) {
+        _guardedUnlock(relock: true);
       }
     }
   }
 
-  Future<Map<String, dynamic>> _readSecuritySettings(User user) async {
+  Future<Map<String, dynamic>> _readSettings(User user) async {
     final snap = await _db.collection('prestamistas').doc(user.uid).get();
     final data = snap.data() ?? {};
     final settings = (data['settings'] as Map?) ?? {};
     return {
-      'pinEnabled': settings['pinEnabled'] == true,
-      'biometria': settings['biometria'] == true,
+      // 👇 único switch que gobierna bloqueo por PIN/biometría
+      'lockEnabled': settings['lockEnabled'] == true,
     };
   }
 
-  Future<void> _routeAccordingToState({bool relock = false}) async {
+  Future<void> _routeAccordingToState() async {
     setState(() => _checking = true);
 
     final user = _auth.currentUser;
@@ -119,74 +109,37 @@ class _StartGateState extends State<_StartGate> with WidgetsBindingObserver {
       return;
     }
 
-    final sec = await _readSecuritySettings(user);
-    final pinOn = sec['pinEnabled'] == true;
-    final bioOn = sec['biometria'] == true;
+    final s = await _readSettings(user);
+    _lockEnabled = s['lockEnabled'] == true;
 
-    // Si no hay seguridad activa, entrar directo.
-    if (!pinOn && !bioOn) {
+    if (!_lockEnabled) {
       _unlocked = true;
       _replace(const ClientesScreen());
       return;
     }
 
-    // Intentar biometría primero si está activa
-    if (bioOn) {
-      final canCheck = await _localAuth.canCheckBiometrics || await _localAuth.isDeviceSupported();
-      if (canCheck) {
-        try {
-          final ok = await _localAuth.authenticate(
-            localizedReason: 'Autentícate para continuar',
-            options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true),
-          );
-          if (ok) {
-            _unlocked = true;
-            _replace(const ClientesScreen());
-            return;
-          }
-        } catch (_) {
-          // si falla, cae al PIN si existe
-        }
-      }
-      // Si biometría no está disponible o falló, usar PIN si está activo
-      if (pinOn) {
-        _goPin();
-        return;
-      }
-      // Si no hay PIN, última opción: Home (por seguridad)
-      _unlocked = false;
-      _replace(const HomeScreen());
-      return;
-    }
-
-    // Solo PIN
-    if (pinOn) {
-      _goPin();
-      return;
-    }
-
-    // Fallback: entrar si nada aplica
-    _unlocked = true;
-    _replace(const ClientesScreen());
+    await _guardedUnlock();
   }
 
-  void _goPin() {
+  /// Muestra PinScreen. Si valida (PIN o huella), va a ClientesScreen; si falla/cancela, a Home.
+  Future<void> _guardedUnlock({bool relock = false}) async {
     _unlocked = false;
-    // Navega a la pantalla de PIN esperando resultado.
-    // Se asume que PinScreen hace Navigator.pop(context, true/false) al validar/cancelar.
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final ok = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(builder: (_) => const PinScreen()),
-      );
-      if (ok == true && mounted) {
-        _unlocked = true;
-        _replace(const ClientesScreen());
-      } else if (mounted) {
-        // Si canceló o falló el PIN, llevar a Home por seguridad.
-        _unlocked = false;
-        _replace(const HomeScreen());
-      }
-    });
+    setState(() => _checking = true);
+
+    // Navega a la pantalla de PIN/huella esperando resultado (true/false)
+    final ok = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const PinScreen()),
+    );
+
+    if (!mounted) return;
+
+    if (ok == true) {
+      _unlocked = true;
+      _replace(const ClientesScreen());
+    } else {
+      _unlocked = false;
+      _replace(const HomeScreen());
+    }
   }
 
   void _replace(Widget page) {

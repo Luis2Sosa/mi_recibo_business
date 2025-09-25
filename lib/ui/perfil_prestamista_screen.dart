@@ -108,7 +108,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   final _telCtrl = TextEditingController();
   final _empCtrl = TextEditingController();
   final _dirCtrl = TextEditingController();
-  bool _pin = false, _bio = false, _backup = false, _notif = true;
+  bool _lockEnabled = false, _backup = false, _notif = true; // 👈 ÚNICO SWITCH
   DateTime? _lastBackup;
 
   // Stats (actual)
@@ -208,8 +208,10 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       _dirCtrl.text = (d['direccion'] ?? '').toString().trim();
 
       final s = (d['settings'] as Map?) ?? {};
-      _pin = s['pinEnabled'] == true;
-      _bio = s['biometria'] == true;
+      // 👇 Unificamos: si cualquiera está ON, el switch aparece ON
+      _lockEnabled = (s['lockEnabled'] == true) ||
+          (s['pinEnabled'] == true) ||
+          (s['biometria'] == true);
       _backup = s['backupHabilitado'] == true;
       _notif = (s['notifVenc'] ?? true) as bool;
 
@@ -242,8 +244,10 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       'empresa': _empCtrl.text.trim().isEmpty ? null : _empCtrl.text.trim(),
       'direccion': _dirCtrl.text.trim().isEmpty ? null : _dirCtrl.text.trim(),
       'settings': {
-        'pinEnabled': _pin,
-        'biometria': _bio,
+        // 👇 Escribimos las tres llaves por compatibilidad total
+        'lockEnabled': _lockEnabled,
+        'pinEnabled': _lockEnabled,
+        'biometria': _lockEnabled,
         'backupHabilitado': _backup,
         'notifVenc': _notif,
       },
@@ -675,24 +679,17 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
               _title('Seguridad'),
               const SizedBox(height: 8),
               _switchRow(
-                title: 'Bloquear con PIN',
-                value: _pin,
+                title: 'Bloqueo con PIN o Biometría (rostro/huella)',
+                value: _lockEnabled,
                 onChanged: (v) async {
-                  _pin = v;
-                  await _docPrest?.set({'settings': {'pinEnabled': v}}, SetOptions(merge: true));
+                  _lockEnabled = v;
+                  // 👇 Guardamos las tres llaves por compatibilidad
+                  await _docPrest?.set(
+                    {'settings': {'lockEnabled': v, 'pinEnabled': v, 'biometria': v}},
+                    SetOptions(merge: true),
+                  );
                   if (mounted) setState(() {});
-                  _toast(v ? 'PIN activado ✅' : 'PIN desactivado');
-                },
-              ),
-              _divider(),
-              _switchRow(
-                title: 'Usar huella / biometría',
-                value: _bio,
-                onChanged: (v) async {
-                  _bio = v;
-                  await _docPrest?.set({'settings': {'biometria': v}}, SetOptions(merge: true));
-                  if (mounted) setState(() {});
-                  _toast(v ? 'Biometría activada ✅' : 'Biometría desactivada');
+                  _toast(v ? 'Bloqueo activado ✅' : 'Bloqueo desactivado');
                 },
               ),
             ],
@@ -848,7 +845,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         _kpi('Recuperado histórico', _rd(displayRecuperado), bg: _Brand.kpiGreen, accent: _Brand.successDark),
         _kpi('Ganancia', _rd(lifetimeGanancia), bg: _Brand.kpiGray, accent: _Brand.ink),
 
-        // === CAMBIO SOLICITADO: KPI TAPPABLE ===
+        // === KPI tappable
         InkWell(
           onTap: _openGananciaClientes,
           borderRadius: BorderRadius.circular(18),
@@ -1032,33 +1029,33 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
 
   Widget _input(String label, TextEditingController c, {TextInputType keyboard = TextInputType.text}) {
     return TextField(
-      controller: c,
-      keyboardType: keyboard,
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(
-          fontSize: 13,
-          color: Colors.black87,       // 👈 Negro elegante
-          fontWeight: FontWeight.w600, // 👈 Más premium
-        ),
-        floatingLabelStyle: const TextStyle(
-          color: Color(0xFF2563EB),    // 👈 Azul corporativo al enfocar
-          fontWeight: FontWeight.w700,
-        ),
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 18,                // 👈 Un poco más de aire
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none, // 👈 Sin borde por defecto
-        ),
-      )
-      );
+        controller: c,
+        keyboardType: keyboard,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(
+            fontSize: 13,
+            color: Colors.black87,       // 👈 Negro elegante
+            fontWeight: FontWeight.w600, // 👈 Más premium
+          ),
+          floatingLabelStyle: const TextStyle(
+            color: Color(0xFF2563EB),    // 👈 Azul corporativo al enfocar
+            fontWeight: FontWeight.w700,
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 18,                // 👈 Un poco más de aire
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none, // 👈 Sin borde por defecto
+          ),
+        )
+    );
 
-    }
+  }
 
   Widget _kpi(String title, String value, {required Color bg, required Color accent}) {
     return Container(
@@ -1591,24 +1588,24 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(it.nombre,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w900, color: _Brand.ink)),
-                    const SizedBox(height: 4),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(it.nombre,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w900, color: _Brand.ink)),
+                      const SizedBox(height: 4),
 
-                    // 👇 bloque solicitado
-                    Text('Total prestado: ${_rd(it.capitalInicial)}',
-                        style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 2),
-                    Text('Pendiente: ${_rd(it.saldo)}',
-                        style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 2),
-                    Text('Pagado: ${_rd(it.totalPagado)}',
-                        style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
-                ]),
+                      // 👇 bloque solicitado
+                      Text('Total prestado: ${_rd(it.capitalInicial)}',
+                          style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 2),
+                      Text('Pendiente: ${_rd(it.saldo)}',
+                          style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text('Pagado: ${_rd(it.totalPagado)}',
+                          style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
+                    ]),
               ),
               const SizedBox(width: 10),
               Column(
