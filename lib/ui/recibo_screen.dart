@@ -373,22 +373,30 @@ class _ReciboScreenState extends State<ReciboScreen> {
       // 3) Nombre corto y limpio (evita el “viaje” de números)
       final fileName = 'Recibo-${_reciboFmt}.pdf';
 
-      // 4) Guardar en un archivo temporal con ese NOMBRE (WhatsApp lo respeta)
+      // 4) Guardado silencioso en Descargas (Android) / Documents (iOS)
+      final savedUri = await _guardarSilencioso(pdfBytes, fileName);
+      if (mounted && savedUri != null) {
+        _showModernSnackBar(
+          icon: Icons.download_done_rounded,
+          text: Platform.isAndroid
+              ? 'Guardado en Descargas ✅'
+              : 'Guardado en Documents ✅',
+          bg: const Color(0xFF1F623A),
+        );
+      }
+
+      // 5) Guardar también en temp con el MISMO nombre (WhatsApp respeta el nombre)
       final tempDir = await getTemporaryDirectory();
       final tempPath = '${tempDir.path}/$fileName';
       await File(tempPath).writeAsBytes(pdfBytes, flush: true);
 
-
-
-      // 5) Compartir por WhatsApp usando la RUTA (mantiene el nombre del archivo)
+      // 6) Compartir por WhatsApp usando la ruta del PDF
       final caption = 'Recibo $_reciboFmt - ${_fmtFecha(widget.fecha)}';
       await Share.shareXFiles(
         [XFile(tempPath, mimeType: 'application/pdf')],
         text: caption,
         subject: 'Recibo $_reciboFmt',
       );
-
-
 
       if (mounted) {
         _showModernSnackBar(
@@ -419,6 +427,7 @@ class _ReciboScreenState extends State<ReciboScreen> {
       _volverAClientes();
     }
   }
+
 
   // Guarda el PDF en Descargas (Android) o en Documents (iOS) SIN diálogo.
   // Devuelve la URI (string) o null si algo falló.
