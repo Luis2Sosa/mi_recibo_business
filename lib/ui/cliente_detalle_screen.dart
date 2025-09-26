@@ -409,6 +409,18 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       fontFeatures: const [FontFeature.tabularFigures()],
     );
 
+    // ===== Colores por renglón (como pediste) =====
+    const azul = Color(0xFF2563EB);
+    const verde = Color(0xFF22C55E);
+    final saldoColor = _saldoActual > 0 ? Colors.red : verde;
+
+    final labelBlue  = labelStyle.copyWith(color: azul);
+    final valueBlue  = valueStyle.copyWith(color: azul);
+    final labelSaldo = labelStyle.copyWith(color: saldoColor);
+    final valueSaldo = valueStyle.copyWith(color: saldoColor);
+    final labelInk   = labelStyle.copyWith(color: const Color(0xFF0F172A));
+    final valueInk   = valueStyle.copyWith(color: const Color(0xFF0F172A));
+
     return Scaffold(
       body: AppGradientBackground(
         child: Stack(
@@ -481,18 +493,37 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                             const SizedBox(height: 6),
 
                             // Tel / Dirección / Producto
-                            Text('Tel: ${widget.telefono}',
-                                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF111827))),
+                            Text(
+                              'Tel: ${widget.telefono}',
+                              style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF000000),
+                              ),
+                            ),
                             if (widget.direccion != null && widget.direccion!.trim().isNotEmpty) ...[
                               const SizedBox(height: 6),
-                              Text('Dirección: ${widget.direccion}',
-                                  style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF111827))),
+                              Text(
+                                'Dirección: ${widget.direccion}',
+                                style: GoogleFonts.inter(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF000000),
+                                ),
+                              ),
                             ],
                             if (widget.producto.trim().isNotEmpty) ...[
                               const SizedBox(height: 6),
-                              Text('Producto: ${widget.producto}',
-                                  style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF111827))),
+                              Text(
+                                'Producto: ${widget.producto}',
+                                style: GoogleFonts.inter(
+                                  fontSize: 15, // 📏 igual tamaño
+                                  fontWeight: FontWeight.w700, // 🖋️ negrita
+                                  color: const Color(0xFF000000), // ⚫ negro puro
+                                ),
+                              ),
                             ],
+
 
                             const SizedBox(height: 16),
                             Divider(height: 24, thickness: 1, color: const Color(0xFFE7E9EE)),
@@ -507,16 +538,29 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               child: Column(
                                 children: [
-                                  _rowStyled('Total prestado', _rd(_totalPrestado), labelStyle, valueStyle),
+                                  // 👉 Texto izquierda / monto derecha con color azul
+                                  _rowStyled('Total histórico', _rd(_totalPrestado), labelBlue, valueBlue),
                                   Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
 
-                                  _rowStyled('Saldo actual', _rd(_saldoActual), labelStyle, valueStyle),
+                                  // 👉 Rojo si debe, verde si está en 0
+                                  _rowStyled('Saldo actual pendiente', _rd(_saldoActual), labelSaldo, valueSaldo),
                                   Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
 
-                                  _rowStyled('Interés ${widget.periodo.toLowerCase()}', _rd(interesPeriodo), labelStyle, valueStyle),
+                                  // 👉 Interés quincenal en verde (fila independiente)
+                                  _rowStyled(
+                                    'Interés ${widget.periodo.toLowerCase()}',
+                                    _rd(interesPeriodo),
+                                    labelStyle.copyWith(color: const Color(0xFF22C55E)), // 💚 texto verde
+                                    valueStyle.copyWith(color: const Color(0xFF22C55E)), // 💚 monto verde
+                                  ),
                                   Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
+                                  _rowStyled(
+                                    'Próxima fecha',
+                                    _fmtFecha(_proximaFecha),
+                                    labelInk,
+                                    valueInk,
+                                  ),
 
-                                  _rowStyled('Próxima fecha', _fmtFecha(_proximaFecha), labelStyle, valueStyle),
                                 ],
                               ),
                             ),

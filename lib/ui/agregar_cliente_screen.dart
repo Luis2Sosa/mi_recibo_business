@@ -112,6 +112,78 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     ),
   );
 
+  // ================================
+  // 📞 Helpers para validar y guardar
+  // ================================
+
+  // Quita todo menos dígitos; preserva si empieza con '+'
+  String _cleanDigits(String raw) {
+    final t = raw.trim();
+    final hasPlus = t.startsWith('+');
+    final digits = t.replaceAll(RegExp(r'[^0-9]'), '');
+    return hasPlus ? '+$digits' : digits;
+  }
+
+  // Valida: dominicano (809/829/849 con 10 o 11 dígitos) o internacional +8..15 dígitos
+  bool _isValidPhone(String raw) {
+    final t = raw.trim();
+    final cleaned = _cleanDigits(t);
+
+    // Internacional: +XXXXXXXX (8-15 dígitos)
+    if (cleaned.startsWith('+')) {
+      final digits = cleaned.substring(1);
+      return RegExp(r'^[0-9]{8,15}$').hasMatch(digits);
+    }
+
+    // Dominicano sin +: 10 dígitos, área 809/829/849
+    if (RegExp(r'^(809|829|849)[0-9]{7}$').hasMatch(cleaned)) return true;
+
+    // Dominicano con '1' al inicio (11 dígitos)
+    if (RegExp(r'^1(809|829|849)[0-9]{7}$').hasMatch(cleaned)) return true;
+
+    // Fallback: permitir 8-15 dígitos (sin +)
+    return RegExp(r'^[0-9]{8,15}$').hasMatch(cleaned);
+  }
+
+  // Formatea para guardar:
+  // - Si es DR → 809-123-4567
+  // - Si es internacional → +XXXXXXXX...
+  String _formatPhoneForStorage(String raw) {
+    final t = raw.trim();
+    final hasPlus = t.startsWith('+');
+    final onlyDigits = t.replaceAll(RegExp(r'[^0-9]'), '');
+
+    // Dominicano con 11 dígitos empezando con 1
+    if (onlyDigits.length == 11 &&
+        onlyDigits.startsWith('1') &&
+        RegExp(r'^(809|829|849)$').hasMatch(onlyDigits.substring(1, 4))) {
+      final area = onlyDigits.substring(1, 4);
+      final pref = onlyDigits.substring(4, 7);
+      final line = onlyDigits.substring(7, 11);
+      return '$area-$pref-$line';
+    }
+
+    // Dominicano con 10 dígitos
+    if (onlyDigits.length == 10 &&
+        RegExp(r'^(809|829|849)$').hasMatch(onlyDigits.substring(0, 3))) {
+      final area = onlyDigits.substring(0, 3);
+      final pref = onlyDigits.substring(3, 6);
+      final line = onlyDigits.substring(6, 10);
+      return '$area-$pref-$line';
+    }
+
+    // Internacional: guardar en E.164 si venía con +
+    if (hasPlus) return '+$onlyDigits';
+
+    // Fallback: si es 10 dígitos genérico, guarda 3-3-4 con guiones; si no, tal cual dígitos
+    if (onlyDigits.length == 10) {
+      return '${onlyDigits.substring(0,3)}-'
+          '${onlyDigits.substring(3,6)}-'
+          '${onlyDigits.substring(6)}';
+    }
+    return onlyDigits;
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
@@ -130,17 +202,20 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
         child: SafeArea(
           child: Stack(
             children: [
-              // Logo (ahora con desvanecido cuando el teclado está abierto)
+              // Logo (se oculta COMPLETAMENTE cuando el teclado está abierto)
               Positioned(
                 top: _logoTop, left: 0, right: 0,
                 child: IgnorePointer(
                   child: Center(
-                    child: AnimatedOpacity(
+                    child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOut,
-                      opacity: tecladoAbierto ? 0.15 : 1.0,
-                      child: Image.asset(
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      child: tecladoAbierto
+                          ? const SizedBox.shrink() // 👈 Se quita del árbol
+                          : Image.asset(
                         'assets/images/logoB.png',
+                        key: const ValueKey('logo-visible'),
                         height: _logoHeight,
                         fit: BoxFit.contain,
                       ),
@@ -291,11 +366,16 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                 TextFormField(
                   controller: _telefonoCtrl,
                   keyboardType: TextInputType.phone,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly], // 👈 (2)
+                  // ✅ Permite +, dígitos, espacios, guiones y paréntesis
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-\s\(\)]')),
+                  ],
                   decoration: _deco('Teléfono', icon: Icons.call),
                   textInputAction: TextInputAction.next,
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Obligatorio' : null,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Obligatorio';
+                    return _isValidPhone(v.trim()) ? null : 'Número inválido';
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -511,6 +591,10 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
       _tasaCtrl.text.replaceAll(',', '.'),
     ) ?? 0.0;
 
+    // 📞 Normalizamos el teléfono para guardar (DR con guiones, internacional E.164)
+    final rawTel = _telefonoCtrl.text.trim();
+    final finalTel = _formatPhoneForStorage(rawTel);
+
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -533,7 +617,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
         final Map<String, dynamic> update = {
           'nombre': _nombreCtrl.text.trim(),
           'apellido': _apellidoCtrl.text.trim(),
-          'telefono': _telefonoCtrl.text.trim(),
+          'telefono': finalTel, // 👈 guarda formateado
           'direccion': _direccionCtrl.text.trim().isEmpty ? null : _direccionCtrl.text.trim(),
           'producto': _productoCtrl.text.trim().isEmpty ? null : _productoCtrl.text.trim(),
           'capitalInicial': capital,
@@ -553,8 +637,8 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
         await col.doc(docId).set(update, SetOptions(merge: true));
       } else {
         // 👇 NUEVO: alta de cliente incrementa el histórico lifetimePrestado
-        final tel = _telefonoCtrl.text.trim();
-        final dup = await col.where('telefono', isEqualTo: tel).limit(1).get();
+        // Duplicado por teléfono ya normalizado
+        final dup = await col.where('telefono', isEqualTo: finalTel).limit(1).get();
         if (dup.docs.isNotEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Ese cliente ya existe (teléfono duplicado).')),
@@ -568,7 +652,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
         await newDoc.set({
           'nombre': _nombreCtrl.text.trim(),
           'apellido': _apellidoCtrl.text.trim(),
-          'telefono': tel,
+          'telefono': finalTel, // 👈 guarda formateado
           'direccion': _direccionCtrl.text.trim().isEmpty ? null : _direccionCtrl.text.trim(),
           'producto': _productoCtrl.text.trim().isEmpty ? null : _productoCtrl.text.trim(),
           'capitalInicial': capital,
@@ -605,7 +689,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
         if (_isEdit) 'id': docId,
         'nombre': _nombreCtrl.text,
         'apellido': _apellidoCtrl.text,
-        'telefono': _telefonoCtrl.text,
+        'telefono': finalTel, // 👈 regresamos también formateado
         'direccion': _direccionCtrl.text,
         'producto': _productoCtrl.text,
         'capital': capital,

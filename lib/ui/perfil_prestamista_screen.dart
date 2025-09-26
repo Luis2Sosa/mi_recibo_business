@@ -6,6 +6,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart'; // 👈 agregado para cerrar sesión de Google
 import 'home_screen.dart';
 
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:mi_recibo/ui/theme/app_theme.dart';
+import 'package:mi_recibo/ui/widgets/app_frame.dart';
+
 class PerfilPrestamistaScreen extends StatefulWidget {
   const PerfilPrestamistaScreen({super.key});
   @override
@@ -1424,7 +1430,7 @@ class _DonutPainter extends CustomPainter {
   bool shouldRepaint(covariant _DonutPainter old) => old.slices != slices;
 }
 
-// ===================== NUEVA PANTALLA =====================
+// ===================== NUEVA PANTALLA (adaptada a AppTheme + AppFrame) =====================
 class GananciaClientesScreen extends StatefulWidget {
   final DocumentReference<Map<String, dynamic>> docPrest;
   const GananciaClientesScreen({super.key, required this.docPrest});
@@ -1458,17 +1464,22 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
       final pagos = await c.reference.collection('pagos').get();
       int ganancia = 0; // suma de pagoInteres
       int totalPagos = 0;
+      int pagadoCapital = 0; // 👈 NUEVO: acumulamos capital pagado
 
       for (final p in pagos.docs) {
         final m = p.data();
         ganancia += (m['pagoInteres'] ?? 0) as int;
         totalPagos += (m['totalPagado'] ?? 0) as int;
+        pagadoCapital += (m['pagoCapital'] ?? 0) as int; // 👈 NUEVO
       }
 
       // ✅ Si tiene producto y ganancia quedó 0, usar capitalInicial como ganancia
       if (ganancia == 0 && producto.isNotEmpty) {
         ganancia = capitalInicial;
       }
+
+      // 👇 NUEVO: total histórico real (saldo + capital pagado)
+      final int totalHistorico = saldo + pagadoCapital;
 
       final nombre = '${(data['nombre'] ?? '').toString().trim()} ${(data['apellido'] ?? '').toString().trim()}'.trim();
       final display = nombre.isEmpty ? (data['telefono'] ?? 'Cliente') : nombre;
@@ -1479,7 +1490,7 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
         ganancia: ganancia,
         saldo: saldo,                 // → “Pendiente”
         totalPagado: totalPagos,      // → “Pagado”
-        capitalInicial: capitalInicial, // → “Total prestado”
+        capitalInicial: totalHistorico, // 👈 AHORA muestra el Total histórico correcto
       ));
     }
 
@@ -1503,22 +1514,15 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
     return 'RD\$${b.toString().split('').reversed.join()}';
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: _Brand.primary,
-        foregroundColor: Colors.white,
-        title: const Text('Ganancia por cliente', style: TextStyle(fontWeight: FontWeight.w900)),
-      ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [_Brand.gradTop, _Brand.gradBottom]),
-        ),
-        child: SafeArea(
+      // Fondo con gradiente usando tu componente
+      body: AppGradientBackground(
+        child: AppFrame(
+          header: _HeaderBar(title: 'Ganancia por cliente'),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(0),
             child: FutureBuilder<List<_ClienteGanancia>>(
               future: _future,
               builder: (context, snap) {
@@ -1550,17 +1554,31 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _Brand.card.withOpacity(.96),
+        color: Colors.white.withOpacity(.96),
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.08), blurRadius: 12, offset: const Offset(0, 5))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.08),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+        border: Border.all(color: const Color(0xFFE1E8F5)),
       ),
       child: Row(
         children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Ganancia total (activos)', style: TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w700)),
+              const Text('Ganancia total (activos)', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
-              Text(_rd(total), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: _Brand.ink)),
+              Text(
+                _rd(total),
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  color: AppTheme.gradBottom, // verde del tema
+                ),
+              ),
             ]),
           ),
           Container(
@@ -1570,7 +1588,10 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFE1E8F5)),
             ),
-            child: Text('$n clientes', style: const TextStyle(fontWeight: FontWeight.w800, color: _Brand.primary)),
+            child: Text(
+              '$n clientes',
+              style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.gradTop), // azul del tema
+            ),
           ),
         ],
       ),
@@ -1586,46 +1607,83 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
         return Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: _Brand.card.withOpacity(.96),
+            color: Colors.white.withOpacity(.96),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: const Color(0xFFE8EEF8)),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 8, offset: const Offset(0, 3))],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(.06),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              )
+            ],
           ),
           child: Row(
             children: [
               Container(
                 width: 42, height: 42,
                 decoration: BoxDecoration(color: const Color(0xFFF2F6FD), borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.person, color: _Brand.inkDim),
+                child: const Icon(Icons.person, color: _Colors.inkDim),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(it.nombre,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w900, color: _Brand.ink)),
-                      const SizedBox(height: 4),
+                      Text(
+                        it.nombre,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          textStyle: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: _Colors.ink,
+                            height: 2,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
 
-                      // 👇 bloque solicitado
-                      Text('Total prestado: ${_rd(it.capitalInicial)}',
-                          style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 2),
-                      Text('Pendiente: ${_rd(it.saldo)}',
-                          style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 2),
-                      Text('Pagado: ${_rd(it.totalPagado)}',
-                          style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
+                      // 👇 bloque solicitado (con colores del tema)
+                      Text(
+                        'Total histórico: ${_rd(it.capitalInicial)}',
+                        style: TextStyle(
+                          color: AppTheme.gradTop, // azul del tema
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Pendiente: ${_rd(it.saldo)}',
+                        style: TextStyle(
+                          color: it.saldo > 0 ? Colors.red : Colors.green,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Pagado: ${_rd(it.totalPagado)}',
+                        style: const TextStyle(
+                          color: Color(0xFF2F9655),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ]),
               ),
               const SizedBox(width: 10),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text('Ganancia', style: TextStyle(fontSize: 12, color: _Brand.inkDim, fontWeight: FontWeight.w700)),
-                  Text(_rd(it.ganancia), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _Brand.successDark)),
+                  const Text('Ganancia', style: TextStyle(fontSize: 16, color: Colors.black, fontWeight: FontWeight.w700)),
+                  Text(
+                    _rd(it.ganancia),
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: AppTheme.gradBottom, // verde del tema
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -1646,12 +1704,12 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
   Widget _empty() => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: _Brand.card.withOpacity(.96),
+      color: Colors.white.withOpacity(.96),
       borderRadius: BorderRadius.circular(18),
       border: Border.all(color: const Color(0xFFE8EEF8)),
     ),
     child: const Center(
-      child: Text('No hay clientes activos con ganancias', style: TextStyle(fontWeight: FontWeight.w800, color: _Brand.inkDim)),
+      child: Text('No hay clientes activos con ganancias', style: TextStyle(fontWeight: FontWeight.w800, color: _Colors.inkDim)),
     ),
   );
 }
@@ -1662,7 +1720,7 @@ class _ClienteGanancia {
   final int ganancia;
   final int saldo;         // Pendiente
   final int totalPagado;   // Pagado
-  final int capitalInicial; // Total prestado
+  final int capitalInicial; // Total prestado / histórico mostrado
 
   _ClienteGanancia({
     required this.id,
@@ -1672,4 +1730,45 @@ class _ClienteGanancia {
     required this.totalPagado,
     required this.capitalInicial,
   });
+}
+
+// ===== Encabezado reutilizable dentro de AppFrame (mantiene back + título) =====
+class _HeaderBar extends StatelessWidget {
+  final String title;
+  const _HeaderBar({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        // Botón back
+        IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          style: ButtonStyle(
+            backgroundColor: WidgetStateProperty.all(AppTheme.gradTop.withOpacity(.9)),
+            shape: WidgetStateProperty.all(const CircleBorder()),
+            padding: WidgetStateProperty.all(const EdgeInsets.all(8)),
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ===== Colores de texto básicos (equivalentes a los que usabas) =====
+class _Colors {
+  static const ink = Color(0xFF111827);     // texto fuerte
+  static const inkDim = Color(0xFF6B7280);  // texto tenue
 }

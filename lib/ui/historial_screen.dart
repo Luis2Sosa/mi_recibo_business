@@ -216,7 +216,7 @@ class HistorialScreen extends StatelessWidget {
 
                                         // Lista (solo esta parte hace scroll)
                                         Expanded(
-                                          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>( // 👈 tipado
+                                          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                                             stream: pagosQuery.snapshots(),
                                             builder: (context, snapshot) {
                                               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -252,7 +252,7 @@ class HistorialScreen extends StatelessWidget {
                                                 itemCount: docs.length,
                                                 separatorBuilder: (_, __) => const SizedBox(height: 12),
                                                 itemBuilder: (context, i) {
-                                                  final d = docs[i].data(); // 👈 sin cast
+                                                  final d = docs[i].data();
                                                   final ts = d['fecha'];
                                                   final fecha = ts is Timestamp ? ts.toDate() : DateTime.now();
 
@@ -265,11 +265,12 @@ class HistorialScreen extends StatelessWidget {
 
                                                   return _PagoCard(
                                                     fecha: _fmtFecha(fecha),
-                                                    total: _rd(totalPagado),
-                                                    capital: _rd(pagoCapital),
-                                                    interes: _rd(pagoInteres),
-                                                    saldoAntes: _rd(saldoAnterior),
-                                                    saldoDespues: _rd(saldoNuevo),
+                                                    total: totalPagado,
+                                                    capital: pagoCapital,
+                                                    interes: pagoInteres,
+                                                    saldoAntes: saldoAnterior,
+                                                    saldoDespues: saldoNuevo,
+                                                    rd: _rd, // 👈 usamos el formateador RD$
                                                   );
                                                 },
                                               );
@@ -319,14 +320,15 @@ class HistorialScreen extends StatelessWidget {
   }
 }
 
-// ===== Ítem de pago “premium” =====
+// ===== Ítem de pago “premium” con colores como en Detalles =====
 class _PagoCard extends StatelessWidget {
   final String fecha;
-  final String total;
-  final String capital;
-  final String interes;
-  final String saldoAntes;
-  final String saldoDespues;
+  final int total;
+  final int capital;
+  final int interes;
+  final int saldoAntes;
+  final int saldoDespues;
+  final String Function(int) rd;
 
   const _PagoCard({
     required this.fecha,
@@ -335,10 +337,24 @@ class _PagoCard extends StatelessWidget {
     required this.interes,
     required this.saldoAntes,
     required this.saldoDespues,
+    required this.rd,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Colores consistentes con Detalles del cliente
+    const azul = Color(0xFF2563EB);
+    const verde = Color(0xFF22C55E);
+    final rojo = Colors.red.shade600;
+    final ink = const Color(0xFF0F172A);
+
+    // Lógica de colores de saldo
+    final bool saldoBaja = saldoDespues <= saldoAntes;
+    final Color colorAntes = saldoAntes > 0 ? rojo : verde;
+    final Color colorDespues = saldoDespues == 0
+        ? verde
+        : (saldoBaja ? ink : rojo); // si subió raro → rojo, si bajó → negro elegante
+
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFF),
@@ -365,7 +381,7 @@ class _PagoCard extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
-            child: const Icon(Icons.event_note, color: Color(0xFF2563EB), size: 20),
+            child: const Icon(Icons.event_note, color: azul, size: 20),
           ),
           const SizedBox(width: 12),
 
@@ -374,42 +390,101 @@ class _PagoCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Fila principal: fecha + total
+                // Fila principal: fecha + total (azul)
                 Row(
                   children: [
                     Expanded(
                       child: Text(
                         fecha,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF111827),
+                        ),
                       ),
                     ),
                     Text(
-                      total,
+                      rd(total),
                       style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1D4ED8),
+                        fontWeight: FontWeight.w900,
+                        color: azul,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
 
-                // Detalles secundarios
-                Text(
-                  'C: $capital · I: $interes',
-                  style: TextStyle(
-                    color: Colors.grey.shade800,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
+                // Detalles secundarios con color: Interés (verde), Capital (azul)
+                Row(
+                  children: [
+                    Text(
+                      'I: ',
+                      style: TextStyle(
+                        color: verde,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      rd(interes),
+                      style: TextStyle(
+                        color: verde,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'C: ',
+                      style: const TextStyle(
+                        color: azul,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      rd(capital),
+                      style: const TextStyle(
+                        color: azul,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  'Saldo: $saldoAntes → $saldoDespues',
-                  style: TextStyle(
-                    color: Colors.grey.shade800,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
+                const SizedBox(height: 2),
+
+                // Saldos con colores (antes rojo si debía, después verde si quedó en 0)
+                Row(
+                  children: [
+                    Text(
+                      'Saldo: ',
+                      style: TextStyle(
+                        color: Colors.grey.shade800,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      rd(saldoAntes),
+                      style: TextStyle(
+                        color: colorAntes,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      '  →  ',
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      rd(saldoDespues),
+                      style: TextStyle(
+                        color: colorDespues,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
