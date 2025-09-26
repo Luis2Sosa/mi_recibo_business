@@ -480,75 +480,48 @@ class _ReciboScreenState extends State<ReciboScreen> {
         backgroundColor: Colors.transparent, // no mezclar con el fondo
         elevation: 0,
         // bien separado del botón de WhatsApp y del borde inferior
-        margin: EdgeInsets.fromLTRB(16, 0, 16, bottomSafe + 80),
+        margin: EdgeInsets.fromLTRB(16, 0, 16, bottomSafe + 24),
         duration: _backWindow,
         content: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            // sombra fuerte para “despegarlo” del fondo
-            boxShadow: const [
+            color: Color(0xFFFFE082),
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
               BoxShadow(
-                color: Color(0x40000000), // negro 25%
-                blurRadius: 24,
-                offset: Offset(0, 12),
-              ),
-              BoxShadow(
-                color: Color(0x26000000), // extra glow
-                blurRadius: 8,
-                offset: Offset(0, 2),
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0B132B),           // NAVY sólido (alto contraste)
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white, width: 2), // borde blanco definido
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // pastilla del icono con acento premium
-                Container(
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF14B8A6), // teal premium
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    color: Colors.white,
-                    size: 16,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Flexible(
+                child: Text(
+                  'Atrás otra vez para ir a Clientes',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    letterSpacing: 0.2,
                   ),
                 ),
-                const SizedBox(width: 12),
-                const Flexible(
-                  child: Text(
-                    'Presiona atrás otra vez para volver a Clientes',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+              SizedBox(width: 10),
+              Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Color(0xFF0F172A),
+                size: 20,
+              ),
+            ],
           ),
         ),
       ),
     );
   }
-
-
-
-
-
 
   Future<bool> _onWillPop() async {
     final now = DateTime.now();

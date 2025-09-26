@@ -7,7 +7,6 @@ import 'agregar_cliente_screen.dart';
 import 'package:flutter/services.dart';
 import 'dart:io' show exit, Platform;
 
-
 // 🔥 Firestore + Auth
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -36,6 +35,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
   // ===== Filtro por chips =====
   FiltroClientes _filtro = FiltroClientes.todos;
+
+  // ===== Intent de notificación: 'vencidos' | 'hoy' | 'pronto' =====
+  String? _intent;
+  bool _intentBannerMostrado = false;
 
   @override
   void initState() {
@@ -73,7 +76,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
       String texto, {
         Color? bg,            // nombre nuevo
         Color? color,         // alias para compatibilidad con tus llamadas actuales
-        IconData icon = Icons.info_outline,
+        IconData icon = Icons.info_outline, // ya no se usa, pero lo dejo para compatibilidad
       }) {
     final background = bg ?? color ?? const Color(0xffe9ce53); // amarillo RD
 
@@ -82,7 +85,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
       elevation: 0,
       backgroundColor: Colors.transparent,
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      duration: const Duration(seconds: 2),
+      duration: const Duration(seconds: 3), // tu duración preferida
       content: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 20),
         decoration: BoxDecoration(
@@ -97,32 +100,18 @@ class _ClientesScreenState extends State<ClientesScreen> {
             ),
           ],
         ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // Icono “avatar” a la izquierda
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                width: 28,
-                height: 28,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF3F4F6),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 22, color: const Color(0xFF6B7280)),
-              ),
+        // 👇 Solo texto centrado (sin icono lateral)
+        child: Center(
+          child: Text(
+            texto,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF111827),
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
             ),
-            // Texto CENTRADO
-            Text(
-              texto,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFF111827),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
+          ),
+
         ),
       ),
     );
@@ -132,6 +121,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
       ..clearSnackBars()
       ..showSnackBar(snack);
   }
+
 
   // ===== Banner profesional para salir (modal bloqueante) =====
   Future<void> _confirmarSalirCliente() async {
@@ -218,9 +208,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
       }
     }
   }
-
-
-
 
   int _diasHasta(DateTime d) {
     final hoy = DateTime.now();
@@ -341,11 +328,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
     }
   }
 
-  String _codigoDesdeId(String docId) {
-    final base = docId.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
-    final cut = base.length >= 6 ? base.substring(0, 6) : base.padRight(6, '0');
-    return 'CL-${cut.toUpperCase()}';
-  }
+
 
   Future<void> _abrirAgregarCliente() async {
     final res = await Navigator.push(
@@ -442,6 +425,12 @@ class _ClientesScreenState extends State<ClientesScreen> {
     );
   }
 
+  String _fmtFechaCorta(DateTime d) {
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    return '$dd/$mm';
+  }
+
   String _fmtFecha(DateTime d) {
     const meses = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sept.', 'oct.', 'nov.', 'dic.'];
     return '${d.day} ${meses[d.month - 1]} ${d.year}';
@@ -450,6 +439,8 @@ class _ClientesScreenState extends State<ClientesScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+
+    // Lee args para bienvenida existente
     if (!_bienvenidaMostrada) {
       final args = ModalRoute.of(context)?.settings.arguments;
       if (args is Map) {
@@ -458,11 +449,22 @@ class _ClientesScreenState extends State<ClientesScreen> {
         if (nombre != null && nombre.isNotEmpty) {
           _bienvenidaMostrada = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            final texto =
-            (empresa != null && empresa.isNotEmpty) ? '¡Bienvenido, $nombre! ($empresa)' : '¡Bienvenido, $nombre!';
+            final texto = (empresa != null && empresa.isNotEmpty)
+                ? '¡Bienvenido, $nombre! ($empresa)'
+                : '¡Bienvenido, $nombre!';
             _showBanner(texto, color: const Color(0xFFEFFBF3), icon: Icons.verified);
           });
         }
+      }
+    }
+
+    // Lee args de intención de notificación
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map && _intent == null) {
+      final intent = (args['intent'] as String?)?.trim();
+      if (intent == 'vencidos' || intent == 'hoy' || intent == 'pronto') {
+        _intent = intent;
+        // No mostramos banner aquí; esperamos a tener datos del Stream para contar.
       }
     }
   }
@@ -538,8 +540,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                       ),
                                     ),
                                   ),
-                                  // ... (lo demás tal cual lo tienes)
-
                                   // Buscador + botón agregar
                                   Padding(
                                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
@@ -602,7 +602,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                     ),
                                   ),
 
-                                  // === Chips de filtro ===
+                                  // === Chips de filtro (tus chips se mantienen igual) ===
                                   Padding(
                                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
                                     child: Wrap(
@@ -658,110 +658,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
                                   // ===== Lista desde Firestore (tiempo real) =====
                                   Expanded(
-                                    child: uid == null
-                                        ? const Center(
-                                        child: Text('No hay sesión. Inicia sesión.',
-                                            style: TextStyle(color: Colors.white)))
-                                        : StreamBuilder<QuerySnapshot>(
-                                      stream: FirebaseFirestore.instance
-                                          .collection('prestamistas')
-                                          .doc(uid)
-                                          .collection('clientes')
-                                          .orderBy('proximaFecha', descending: false)
-                                          .snapshots(),
-                                      builder: (context, snap) {
-                                        if (snap.connectionState == ConnectionState.waiting) {
-                                          return const Center(
-                                            child: CircularProgressIndicator(color: Colors.white),
-                                          );
-                                        }
-                                        if (snap.hasError) {
-                                          return Center(
-                                            child: Text(
-                                              'Error: ${snap.error}',
-                                              style: const TextStyle(color: Colors.white),
-                                            ),
-                                          );
-                                        }
-                                        final docs = snap.data?.docs ?? [];
-
-                                        // Mapear a modelo _Cliente
-                                        final lista = docs.map((d) {
-                                          final data = d.data() as Map<String, dynamic>;
-                                          final codigoGuardado = (data['codigo'] as String?)?.trim();
-                                          final codigoVisible = (codigoGuardado != null &&
-                                              codigoGuardado.isNotEmpty)
-                                              ? codigoGuardado
-                                              : _codigoDesdeId(d.id);
-                                          return _Cliente(
-                                            id: d.id,
-                                            codigo: codigoVisible,
-                                            nombre: (data['nombre'] ?? '') as String,
-                                            apellido: (data['apellido'] ?? '') as String,
-                                            telefono: (data['telefono'] ?? '') as String,
-                                            direccion: data['direccion'] as String?,
-                                            producto: (data['producto'] as String?)?.trim(),
-                                            capitalInicial: (data['capitalInicial'] ?? 0) as int,
-                                            saldoActual: (data['saldoActual'] ?? 0) as int,
-                                            tasaInteres: (data['tasaInteres'] ?? 0.0).toDouble(),
-                                            periodo: (data['periodo'] ?? 'Mensual') as String,
-                                            proximaFecha: (data['proximaFecha'] is Timestamp)
-                                                ? (data['proximaFecha'] as Timestamp).toDate()
-                                                : DateTime.now(),
-                                          );
-                                        }).toList();
-
-                                        // Filtro búsqueda
-                                        final q = _searchCtrl.text.toLowerCase();
-                                        var filtered = lista.where((c) {
-                                          return c.codigo.toLowerCase().contains(q) ||
-                                              c.nombreCompleto.toLowerCase().contains(q) ||
-                                              c.telefono.contains(q);
-                                        }).toList();
-
-                                        // Filtro por chips
-                                        filtered = filtered.where((c) {
-                                          switch (_filtro) {
-                                            case FiltroClientes.todos:
-                                              return true;
-                                            case FiltroClientes.pendientes:
-                                              return c.saldoActual > 0;
-                                            case FiltroClientes.saldados:
-                                              return c.saldoActual <= 0;
-                                          }
-                                        }).toList()
-                                          ..sort(_compareClientes);
-
-                                        if (filtered.isEmpty) {
-                                          return const Center(
-                                            child: Text('No hay clientes',
-                                                style: TextStyle(fontSize: 16, color: Colors.white)),
-                                          );
-                                        }
-
-                                        return ListView.builder(
-                                          physics: const BouncingScrollPhysics(), // ⬅️ feel premium
-                                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                                          itemCount: filtered.length,
-                                          itemBuilder: (_, i) {
-                                            final c = filtered[i];
-                                            final estado = _estadoDe(c);
-                                            final codigoCorto = 'ID-${i + 1}';
-                                            return GestureDetector(
-                                              onTap: () => _abrirDetalleYGuardar(c, codigoCorto),
-                                              onLongPress: () => _mostrarOpcionesCliente(c),
-                                              child: _ClienteCard(
-                                                cliente: c,
-                                                resaltar: _resaltarVencimientos,
-                                                estado: estado,
-                                                diasHasta: _diasHasta(c.proximaFecha),
-                                                codigoCorto: codigoCorto,
-                                              ),
-                                            );
-                                          },
-                                        );
-                                      },
-                                    ),
+                                    child: _buildClientesStream(uid),
                                   ),
                                 ],
                               ),
@@ -821,6 +718,247 @@ class _ClientesScreenState extends State<ClientesScreen> {
     );
   }
 
+  Widget _buildClientesStream(String? uid) {
+    if (uid == null) {
+      return const Center(
+        child: Text('No hay sesión. Inicia sesión.', style: TextStyle(color: Colors.white)),
+      );
+    }
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('prestamistas')
+          .doc(uid)
+          .collection('clientes')
+          .orderBy('proximaFecha', descending: false)
+          .snapshots(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Colors.white));
+        }
+        if (snap.hasError) {
+          return Center(
+            child: Text('Error: ${snap.error}', style: const TextStyle(color: Colors.white)),
+          );
+        }
+        final docs = snap.data?.docs ?? [];
+
+        // Mapear a modelo _Cliente
+        final lista = docs.map((d) {
+          final data = d.data() as Map<String, dynamic>;
+          final codigoGuardado = (data['codigo'] as String?)?.trim();
+          final codigoVisible = (codigoGuardado != null && codigoGuardado.isNotEmpty)
+              ? codigoGuardado
+              : _codigoDesdeId(d.id);
+          return _Cliente(
+            id: d.id,
+            codigo: codigoVisible,
+            nombre: (data['nombre'] ?? '') as String,
+            apellido: (data['apellido'] ?? '') as String,
+            telefono: (data['telefono'] ?? '') as String,
+            direccion: data['direccion'] as String?,
+            producto: (data['producto'] as String?)?.trim(),
+            capitalInicial: (data['capitalInicial'] ?? 0) as int,
+            saldoActual: (data['saldoActual'] ?? 0) as int,
+            tasaInteres: (data['tasaInteres'] ?? 0.0).toDouble(),
+            periodo: (data['periodo'] ?? 'Mensual') as String,
+            proximaFecha: (data['proximaFecha'] is Timestamp)
+                ? (data['proximaFecha'] as Timestamp).toDate()
+                : DateTime.now(),
+          );
+        }).toList();
+
+        // Filtro búsqueda
+        final q = _searchCtrl.text.toLowerCase();
+        var filtered = lista.where((c) {
+          return c.codigo.toLowerCase().contains(q) ||
+              c.nombreCompleto.toLowerCase().contains(q) ||
+              c.telefono.contains(q);
+        }).toList();
+
+        // Filtro por chips
+        filtered = filtered.where((c) {
+          switch (_filtro) {
+            case FiltroClientes.todos:
+              return true;
+            case FiltroClientes.pendientes:
+              return c.saldoActual > 0;
+            case FiltroClientes.saldados:
+              return c.saldoActual <= 0;
+          }
+        }).toList()
+          ..sort(_compareClientes);
+
+        // === Cálculo de conteos para banner/intención ===
+        int cVencidos = 0, cHoy = 0, cPronto = 0;
+        for (final c in lista) {
+          if (c.saldoActual <= 0) continue; // ignorar saldados
+          final e = _estadoDe(c);
+          if (e == _EstadoVenc.vencido) cVencidos++;
+          else if (e == _EstadoVenc.hoy) cHoy++;
+          else if (e == _EstadoVenc.pronto) cPronto++;
+        }
+
+        // 👇 Auto-intent si no viene ninguno: prioridad VENCIDOS > HOY > PRONTO
+        if (_intent == null) {
+          if (cVencidos > 0) {
+            _intent = 'vencidos';
+          } else if (cHoy > 0) {
+            _intent = 'hoy';
+          } else if (cPronto > 0) {
+            _intent = 'pronto';
+          } else {
+            _intent = 'hoy'; // para mostrar el "OK" si no hay nada
+          }
+          _intentBannerMostrado = false; // permitir que el banner se dispare
+        }
+
+        // Muestra banner SOLO una vez por intención, cuando ya tenemos datos
+        if (_intent != null && !_intentBannerMostrado && mounted) {
+          _intentBannerMostrado = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            if (_intent == 'vencidos') {
+              if (cVencidos == 1) {
+                // Buscar el cliente para singular
+                final c = lista.firstWhere(
+                      (x) => _estadoDe(x) == _EstadoVenc.vencido && x.saldoActual > 0,
+                  orElse: () => lista.first,
+                );
+                _showBanner(
+                  '⚠️ ${c.nombreCompleto} tiene un pago vencido.',
+                  color: const Color(0xFFDC2626), // 🔴 mismo rojo que la tarjeta
+                  icon: Icons.warning_amber_rounded,
+                );
+              } else if (cVencidos > 1) {
+                _showBanner(
+                  '⚠️ $cVencidos clientes tienen pagos vencidos.',
+                  color: const Color(0xFFDC2626), // 🔴 rojo
+                  icon: Icons.warning_amber_rounded,
+                );
+              } else {
+                _showBanner(
+                  '✅ No hay pagos vencidos ahora mismo.',
+                  color: const Color(0xFFEFFBF3),
+                  icon: Icons.check_circle,
+                );
+              }
+            } else if (_intent == 'hoy') {
+              if (cHoy == 1) {
+                final c = lista.firstWhere(
+                      (x) => _estadoDe(x) == _EstadoVenc.hoy && x.saldoActual > 0,
+                  orElse: () => lista.first,
+                );
+                _showBanner(
+                  '📆 ${c.nombreCompleto} vence hoy. No olvides cobrar.',
+                  color: const Color(0xFFFB923C), // 🟠 mismo naranja que la tarjeta
+                  //icon: Icons.event_available,
+                );
+              } else if (cHoy > 1) {
+                _showBanner(
+                  '📆 $cHoy clientes vencen hoy.',
+                  color: const Color(0xFFFB923C), // 🟠 naranja
+                  //icon: Icons.event_available,
+                );
+              } else {
+                _showBanner(
+                  '✅ Nadie vence hoy.',
+                  color: const Color(0xFFEFFBF3),
+                  icon: Icons.check_circle,
+                );
+              }
+            } else if (_intent == 'pronto') {
+              if (cPronto == 1) {
+                final c = lista.firstWhere(
+                      (x) => _estadoDe(x) == _EstadoVenc.pronto && x.saldoActual > 0,
+                  orElse: () => lista.first,
+                );
+                final d = _diasHasta(c.proximaFecha);
+                final msg = d == 1
+                    ? '⏳ ${c.nombreCompleto} vence mañana.'
+                    : '⏳ ${c.nombreCompleto} vence en $d días.';
+                _showBanner(
+                  msg,
+                  color: const Color(0xFFFACC15), // 🟡 mismo amarillo que la tarjeta
+                  icon: Icons.access_time,
+                );
+
+              } else if (cPronto > 1) {
+                // ✅ NUEVO: distinguir "mañana" vs "2 días" cuando hay varios
+                int d1 = 0, d2 = 0;
+                for (final cli in lista) {
+                  if (cli.saldoActual <= 0) continue;
+                  if (_estadoDe(cli) == _EstadoVenc.pronto) {
+                    final dd = _diasHasta(cli.proximaFecha);
+                    if (dd == 1) d1++;
+                    else if (dd == 2) d2++;
+                  }
+                }
+
+                if (d1 > 0 && d2 == 0) {
+                  _showBanner(
+                    '⏳ $cPronto clientes vencen mañana.',
+                    color: const Color(0xFFFACC15),
+                    icon: Icons.access_time,
+                  );
+                } else if (d2 > 0 && d1 == 0) {
+                  _showBanner(
+                    '⏳ $cPronto clientes vencen en 2 días.',
+                    color: const Color(0xFFFACC15),
+                    icon: Icons.access_time,
+                  );
+                } else {
+                  _showBanner(
+                    '⏳ $cPronto clientes vencen entre mañana y 2 días.',
+                    color: const Color(0xFFFACC15),
+                    icon: Icons.access_time,
+                  );
+                }
+
+              } else {
+                _showBanner(
+                  '✅ No hay vencimientos en 1–2 días.',
+                  color: const Color(0xFFEFFBF3),
+                  icon: Icons.check_circle,
+                );
+              }
+            }
+          });
+        }
+
+
+
+        if (filtered.isEmpty) {
+          return const Center(
+            child: Text('No hay clientes',
+                style: TextStyle(fontSize: 16, color: Colors.white)),
+          );
+        }
+
+        return ListView.builder(
+          physics: const BouncingScrollPhysics(), // ⬅️ feel premium
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+          itemCount: filtered.length,
+          itemBuilder: (_, i) {
+            final c = filtered[i];
+            final estado = _estadoDe(c);
+            final codigoCorto = 'ID-${i + 1}';
+            return GestureDetector(
+              onTap: () => _abrirDetalleYGuardar(c, codigoCorto),
+              onLongPress: () => _mostrarOpcionesCliente(c),
+              child: _ClienteCard(
+                cliente: c,
+                resaltar: _resaltarVencimientos,
+                estado: estado,
+                diasHasta: _diasHasta(c.proximaFecha),
+                codigoCorto: codigoCorto,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   // Abrir detalle y pasar datos del prestamista al recibo
   void _abrirDetalleYGuardar(_Cliente c, String codigoCorto) async {
     final estadoAntes = _estadoDe(c);
@@ -859,6 +997,12 @@ class _ClientesScreenState extends State<ClientesScreen> {
         _showBanner('Pago guardado correctamente ✅', color: const Color(0xFFEFFBF3), icon: Icons.check_circle);
       }
     }
+  }
+
+  String _codigoDesdeId(String docId) {
+    final base = docId.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+    final cut = base.length >= 6 ? base.substring(0, 6) : base.padRight(6, '0');
+    return 'CL-${cut.toUpperCase()}';
   }
 }
 

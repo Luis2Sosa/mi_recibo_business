@@ -1456,29 +1456,27 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
       final data = c.data();
 
       final int saldo = (data['saldoActual'] ?? 0) as int;
-      if (saldo <= 0) continue; // solo activos
+      if (saldo <= 0) continue;
 
       final int capitalInicial = (data['capitalInicial'] ?? 0) as int;
       final String producto = (data['producto'] ?? '').toString().trim();
 
       final pagos = await c.reference.collection('pagos').get();
-      int ganancia = 0; // suma de pagoInteres
+      int ganancia = 0;
       int totalPagos = 0;
-      int pagadoCapital = 0; // 👈 NUEVO: acumulamos capital pagado
+      int pagadoCapital = 0;
 
       for (final p in pagos.docs) {
         final m = p.data();
         ganancia += (m['pagoInteres'] ?? 0) as int;
         totalPagos += (m['totalPagado'] ?? 0) as int;
-        pagadoCapital += (m['pagoCapital'] ?? 0) as int; // 👈 NUEVO
+        pagadoCapital += (m['pagoCapital'] ?? 0) as int;
       }
 
-      // ✅ Si tiene producto y ganancia quedó 0, usar capitalInicial como ganancia
       if (ganancia == 0 && producto.isNotEmpty) {
         ganancia = capitalInicial;
       }
 
-      // 👇 NUEVO: total histórico real (saldo + capital pagado)
       final int totalHistorico = saldo + pagadoCapital;
 
       final nombre = '${(data['nombre'] ?? '').toString().trim()} ${(data['apellido'] ?? '').toString().trim()}'.trim();
@@ -1488,9 +1486,9 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
         id: c.id,
         nombre: display,
         ganancia: ganancia,
-        saldo: saldo,                 // → “Pendiente”
-        totalPagado: totalPagos,      // → “Pagado”
-        capitalInicial: totalHistorico, // 👈 AHORA muestra el Total histórico correcto
+        saldo: saldo,
+        totalPagado: totalPagos,
+        capitalInicial: totalHistorico,
       ));
     }
 
@@ -1517,7 +1515,6 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Fondo con gradiente usando tu componente
       body: AppGradientBackground(
         child: AppFrame(
           header: _HeaderBar(title: 'Ganancia por cliente'),
@@ -1569,14 +1566,14 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
         children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Ganancia total (activos)', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w700)),
+              const Text('Ganancia total (activos)', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
               Text(
                 _rd(total),
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w900,
-                  color: AppTheme.gradBottom, // verde del tema
+                  color: AppTheme.gradBottom,
                 ),
               ),
             ]),
@@ -1590,7 +1587,7 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
             ),
             child: Text(
               '$n clientes',
-              style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.gradTop), // azul del tema
+              style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.gradTop),
             ),
           ),
         ],
@@ -1619,69 +1616,55 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
             ],
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 42, height: 42,
-                decoration: BoxDecoration(color: const Color(0xFFF2F6FD), borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.person, color: _Colors.inkDim),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        it.nombre,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
-                          textStyle: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: _Colors.ink,
-                            height: 2,
-                            letterSpacing: 0.5,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 👤 Ícono pequeño al lado del nombre
+                    Row(
+                      children: [
+                        const Icon(Icons.person, size: 18, color: Color(0xFF0F172A)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            it.nombre,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                              textStyle: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                                color: _Colors.ink,
+                                height: 2,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
+                    ),
 
-                      // 👇 bloque solicitado (con colores del tema)
-                      Text(
-                        'Total histórico: ${_rd(it.capitalInicial)}',
-                        style: TextStyle(
-                          color: AppTheme.gradTop, // azul del tema
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Pendiente: ${_rd(it.saldo)}',
-                        style: TextStyle(
-                          color: it.saldo > 0 ? Colors.red : Colors.green,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Pagado: ${_rd(it.totalPagado)}',
-                        style: const TextStyle(
-                          color: Color(0xFF2F9655),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ]),
+                    _textoMonto('Total histórico:', _rd(it.capitalInicial), AppTheme.gradTop),
+                    const SizedBox(height: 6),
+                    _textoMonto('Pendiente:', _rd(it.saldo), it.saldo > 0 ? Colors.red : Colors.green),
+                    const SizedBox(height: 6),
+                    _textoMonto('Pagado:', _rd(it.totalPagado), const Color(0xFF2F9655)),
+                  ],
+                ),
               ),
               const SizedBox(width: 10),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text('Ganancia', style: TextStyle(fontSize: 16, color: Colors.black, fontWeight: FontWeight.w700)),
+                  const Text('Ganancia', style: TextStyle(fontSize: 16, color: Color(0xFF0F172A), fontWeight: FontWeight.w700)),
                   Text(
                     _rd(it.ganancia),
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w900,
-                      color: AppTheme.gradBottom, // verde del tema
+                      color: AppTheme.gradBottom,
                     ),
                   ),
                 ],
@@ -1693,12 +1676,27 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
     );
   }
 
-  Widget _loading() => Center(
-    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: const [
-      SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5)),
-      SizedBox(width: 10),
-      Text('Cargando…', style: TextStyle(fontWeight: FontWeight.w800)),
-    ]),
+  Widget _textoMonto(String label, String valor, Color color) {
+    return RichText(
+      text: TextSpan(
+        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Color(0xFF0F172A)),
+        children: [
+          TextSpan(text: '$label '),
+          TextSpan(text: valor, style: TextStyle(color: color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _loading() => const Center(
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5)),
+        SizedBox(width: 10),
+        Text('Cargando…', style: TextStyle(fontWeight: FontWeight.w800)),
+      ],
+    ),
   );
 
   Widget _empty() => Container(
@@ -1709,7 +1707,8 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
       border: Border.all(color: const Color(0xFFE8EEF8)),
     ),
     child: const Center(
-      child: Text('No hay clientes activos con ganancias', style: TextStyle(fontWeight: FontWeight.w800, color: _Colors.inkDim)),
+      child: Text('No hay clientes activos con ganancias',
+          style: TextStyle(fontWeight: FontWeight.w800, color: _Colors.inkDim)),
     ),
   );
 }
@@ -1718,9 +1717,9 @@ class _ClienteGanancia {
   final String id;
   final String nombre;
   final int ganancia;
-  final int saldo;         // Pendiente
-  final int totalPagado;   // Pagado
-  final int capitalInicial; // Total prestado / histórico mostrado
+  final int saldo;
+  final int totalPagado;
+  final int capitalInicial;
 
   _ClienteGanancia({
     required this.id,
@@ -1732,7 +1731,6 @@ class _ClienteGanancia {
   });
 }
 
-// ===== Encabezado reutilizable dentro de AppFrame (mantiene back + título) =====
 class _HeaderBar extends StatelessWidget {
   final String title;
   const _HeaderBar({required this.title});
@@ -1741,7 +1739,6 @@ class _HeaderBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // Botón back
         IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           style: ButtonStyle(
@@ -1767,8 +1764,8 @@ class _HeaderBar extends StatelessWidget {
   }
 }
 
-// ===== Colores de texto básicos (equivalentes a los que usabas) =====
+
 class _Colors {
-  static const ink = Color(0xFF111827);     // texto fuerte
-  static const inkDim = Color(0xFF6B7280);  // texto tenue
+  static const ink = Color(0xFF111827);
+  static const inkDim = Color(0xFF6B7280);
 }

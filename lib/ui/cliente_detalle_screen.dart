@@ -8,21 +8,20 @@ import 'pago_form_screen.dart';
 import 'recibo_screen.dart';
 import 'historial_screen.dart';
 import 'widgets/app_frame.dart'; // <-- ruta desde lib/ui/
+// 🚀 Notificaciones Plus
+import '../core/notifications_plus.dart';
 
 class ClienteDetalleScreen extends StatefulWidget {
   // --------- Datos del cliente ---------
-  final String id;              // docId interno (para Firestore)
-  final String codigo;          // 👈 código corto visible (ID-1, ID-2…)
+  final String id;
+  final String codigo;
   final String nombreCompleto;
   final String telefono;
   final String? direccion;
-
   final int saldoActual;
   final double tasaInteres;
   final String periodo;
   final DateTime proximaFecha;
-
-  // 👉 producto del préstamo/venta
   final String producto;
 
   // --------- Datos del prestamista ---------
@@ -59,10 +58,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   late int _saldoActual;
   late DateTime _proximaFecha;
   bool _tieneCambios = false;
-
-  int _totalPrestado = 0; // 👈 NUEVO acumulado
-
-  // 👇 NUEVO: evita doble toque en “Registrar pago”
+  int _totalPrestado = 0;
   bool _btnPagoBusy = false;
 
   @override
@@ -71,10 +67,9 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     _saldoActual = widget.saldoActual;
     _proximaFecha = widget.proximaFecha;
     Future.microtask(_autoFixEstado);
-    Future.microtask(_cargarTotalPrestado); // 👈 lee/initializa totalPrestado
+    Future.microtask(_cargarTotalPrestado);
   }
 
-  // ===== Formateo robusto de moneda (RD$) =====
   String _rd(int v) {
     final f = NumberFormat.currency(
       locale: 'es_DO',
@@ -92,7 +87,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     return '${d.day} ${meses[d.month - 1]} ${d.year}';
   }
 
-  // ====== Fechas y período ======
   DateTime _soloFecha(DateTime d) => DateTime(d.year, d.month, d.day);
 
   bool _esHoyOAnterior(DateTime d) {
@@ -123,8 +117,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     return f;
   }
 
-  /// 🔧 **Autofix** mínimo: solo corrige flags "saldado" si hay saldo > 0.
-  /// ❌ No mueve proximaFecha aquí (la fecha solo cambia al registrar un pago).
   Future<void> _autoFixEstado() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -151,14 +143,10 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     if (needsUpdate) {
       await ref.set(updates, SetOptions(merge: true));
       if (!mounted) return;
-      setState(() {
-        // No tocamos _proximaFecha aquí.
-      });
+      setState(() {});
     }
   }
-  // ====== /Autofix ======
 
-  /// 👇 NUEVO: leer/inicializar el total prestado acumulado
   Future<void> _cargarTotalPrestado() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -172,8 +160,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     try {
       final snap = await ref.get();
       final data = snap.data() ?? {};
-
-      // Si existe totalPrestado se usa; si no, inicializamos con capitalInicial o saldoAnterior
       final int capitalInicial = (data['capitalInicial'] ?? 0) is int ? (data['capitalInicial'] ?? 0) : 0;
       final int fallbackSaldoAnterior = (data['saldoAnterior'] ?? 0) is int ? (data['saldoAnterior'] ?? 0) : 0;
       int total = 0;
@@ -184,20 +170,14 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         if (raw is double) total = raw.round();
       } else {
         total = capitalInicial > 0 ? capitalInicial : fallbackSaldoAnterior;
-        // Inicializamos el campo en Firestore para futuras acumulaciones
         await ref.set({'totalPrestado': total, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
       }
 
       if (!mounted) return;
       setState(() => _totalPrestado = total);
-    } catch (_) {
-      // Silencioso: si falla, dejamos 0 y la UI sigue
-    }
+    } catch (_) {}
   }
 
-  /// 👇 NUEVO: usa esto cuando hagas una renovación/nuevo préstamo al cliente.
-  /// Ejemplo de uso (en la pantalla donde otorgas el nuevo capital):
-  /// await incrementarTotalPrestado(montoNuevo);
   Future<void> incrementarTotalPrestado(int monto) async {
     if (monto <= 0) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -215,12 +195,9 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // Refrescamos el valor local
       if (!mounted) return;
       setState(() => _totalPrestado += monto);
-    } catch (_) {
-      // Silencioso
-    }
+    } catch (_) {}
   }
 
   Future<Map<String, String>> _prestamistaSeguro() async {
@@ -288,7 +265,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
     int nextReciboFinal = 1;
     try {
-      // === TRANSACCIÓN: actualiza saldo, fecha y obtiene consecutivo atómico ===
       await FirebaseFirestore.instance.runTransaction((tx) async {
         final snap = await tx.get(clienteRef);
         final current = (snap.data()?['nextReciboCliente'] ?? 0) as int;
@@ -306,7 +282,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         nextReciboFinal = next;
       });
 
-      // === Registro de pago (fuera de la transacción) ===
       await clienteRef.collection('pagos').add({
         'fecha': FieldValue.serverTimestamp(),
         'pagoInteres': pagoInteres,
@@ -319,7 +294,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         'producto': widget.producto,
       });
 
-      // === ACUMULAR HISTÓRICO: pagos/ganancias que NO se borran al eliminar clientes ===
       final metricsRef = FirebaseFirestore.instance
           .collection('prestamistas')
           .doc(uid)
@@ -327,13 +301,12 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           .doc('summary');
 
       await metricsRef.set({
-        'lifetimeRecuperado': FieldValue.increment(pagoCapital),   // capital devuelto
-        'lifetimeGanancia'  : FieldValue.increment(pagoInteres),   // intereses cobrados
-        'lifetimePagosSum'  : FieldValue.increment(totalPagado),   // suma de pagos
-        'lifetimePagosCount': FieldValue.increment(1),             // cantidad de pagos
+        'lifetimeRecuperado': FieldValue.increment(pagoCapital),
+        'lifetimeGanancia'  : FieldValue.increment(pagoInteres),
+        'lifetimePagosSum'  : FieldValue.increment(totalPagado),
+        'lifetimePagosCount': FieldValue.increment(1),
         'updatedAt'         : FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-
 
     } catch (e) {
       if (!mounted) return;
@@ -341,6 +314,12 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         SnackBar(content: Text('Error al guardar el pago: $e')),
       );
       return;
+    }
+
+    // 🔔 Notificaciones Plus
+    NotificationsPlus.trigger('pago_ok');
+    if (saldoNuevo <= 0) {
+      NotificationsPlus.trigger('deuda_finalizada');
     }
 
     final prest = await _prestamistaSeguro();
@@ -394,7 +373,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   Widget build(BuildContext context) {
     final interesPeriodo = (_saldoActual * (widget.tasaInteres / 100)).round();
 
-    // ===== Tipos premium (solo UI) =====
     final labelStyle = GoogleFonts.inter(
       fontSize: 15,
       color: const Color(0xFF667084),
@@ -409,23 +387,22 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       fontFeatures: const [FontFeature.tabularFigures()],
     );
 
-    // ===== Colores por renglón (como pediste) =====
+    // 🎯 Todos los textos de la izquierda en negro
+    final labelInk = labelStyle.copyWith(color: const Color(0xFF0F172A));
+
     const azul = Color(0xFF2563EB);
     const verde = Color(0xFF22C55E);
     final saldoColor = _saldoActual > 0 ? Colors.red : verde;
 
-    final labelBlue  = labelStyle.copyWith(color: azul);
     final valueBlue  = valueStyle.copyWith(color: azul);
-    final labelSaldo = labelStyle.copyWith(color: saldoColor);
     final valueSaldo = valueStyle.copyWith(color: saldoColor);
-    final labelInk   = labelStyle.copyWith(color: const Color(0xFF0F172A));
+    final valueGreen = valueStyle.copyWith(color: const Color(0xFF22C55E));
     final valueInk   = valueStyle.copyWith(color: const Color(0xFF0F172A));
 
     return Scaffold(
       body: AppGradientBackground(
         child: Stack(
           children: [
-            // Logo al fondo
             Positioned(
               top: _logoTop,
               left: 0,
@@ -439,7 +416,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
               ),
             ),
 
-            // Contenido
             Positioned(
               top: _contentTop,
               left: 0,
@@ -459,7 +435,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                     ),
                   ),
                 ),
-                // 👇 QUITAMOS Expanded y envolvemos el contenido con Scroll
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -481,7 +456,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Nombre
                             Text(
                               widget.nombreCompleto,
                               style: GoogleFonts.inter(
@@ -492,7 +466,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                             ),
                             const SizedBox(height: 6),
 
-                            // Tel / Dirección / Producto
                             Text(
                               'Tel: ${widget.telefono}',
                               style: GoogleFonts.inter(
@@ -517,18 +490,16 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                               Text(
                                 'Producto: ${widget.producto}',
                                 style: GoogleFonts.inter(
-                                  fontSize: 15, // 📏 igual tamaño
-                                  fontWeight: FontWeight.w700, // 🖋️ negrita
-                                  color: const Color(0xFF000000), // ⚫ negro puro
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF000000),
                                 ),
                               ),
                             ],
 
-
                             const SizedBox(height: 16),
                             Divider(height: 24, thickness: 1, color: const Color(0xFFE7E9EE)),
 
-                            // ==== Banda mint (incluye Total prestado) ====
                             Container(
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF4FAF7),
@@ -538,36 +509,32 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               child: Column(
                                 children: [
-                                  // 👉 Texto izquierda / monto derecha con color azul
-                                  _rowStyled('Total histórico', _rd(_totalPrestado), labelBlue, valueBlue),
+                                  _rowStyled('Total histórico', _rd(_totalPrestado), labelInk, valueBlue),
                                   Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
 
-                                  // 👉 Rojo si debe, verde si está en 0
-                                  _rowStyled('Saldo actual pendiente', _rd(_saldoActual), labelSaldo, valueSaldo),
+                                  _rowStyled('Saldo actual pendiente', _rd(_saldoActual), labelInk, valueSaldo),
                                   Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
 
-                                  // 👉 Interés quincenal en verde (fila independiente)
                                   _rowStyled(
                                     'Interés ${widget.periodo.toLowerCase()}',
-                                    _rd(interesPeriodo),
-                                    labelStyle.copyWith(color: const Color(0xFF22C55E)), // 💚 texto verde
-                                    valueStyle.copyWith(color: const Color(0xFF22C55E)), // 💚 monto verde
+                                    _rd((_saldoActual * (widget.tasaInteres / 100)).round()),
+                                    labelInk,
+                                    valueGreen,
                                   ),
                                   Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
+
                                   _rowStyled(
                                     'Próxima fecha',
                                     _fmtFecha(_proximaFecha),
                                     labelInk,
                                     valueInk,
                                   ),
-
                                 ],
                               ),
                             ),
 
                             const SizedBox(height: 20),
 
-                            // Botón principal
                             SizedBox(
                               width: double.infinity,
                               height: 56,
@@ -591,7 +558,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                             ),
                             const SizedBox(height: 14),
 
-                            // Botón secundario
                             SizedBox(
                               width: double.infinity,
                               height: 56,
@@ -628,7 +594,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
               ),
             ),
 
-            // Atrás (área táctil amplia)
             Positioned(
               top: 8,
               left: 8,
@@ -650,7 +615,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     );
   }
 
-  // ===== Helpers UI (no cambian lógica) =====
   Widget _rowStyled(String l, String v, TextStyle ls, TextStyle vs) {
     return Row(
       children: [
@@ -660,7 +624,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     );
   }
 
-  // Mantengo tu helper original (por compatibilidad con otros usos)
   Widget _row(String label, String value) {
     return Row(
       children: [

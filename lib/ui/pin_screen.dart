@@ -254,7 +254,7 @@ class _PinScreenState extends State<PinScreen> {
                 const SizedBox(width: 12),
                 const Flexible(
                   child: Text(
-                    'Presiona atrás otra vez para salir de la app',
+                    'Atrás otra vez para salir de la app',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white,

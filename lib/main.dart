@@ -8,6 +8,8 @@ import 'ui/home_screen.dart';
 import 'ui/theme/app_theme.dart';
 import 'ui/clientes_screen.dart'; // Perfil / Clientes
 import 'ui/pin_screen.dart'; // Pantalla de PIN/biometría
+// 🔔 Notificaciones Plus
+import 'core/notifications_plus.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +26,9 @@ class MiReciboApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Mi Recibo',
       theme: AppTheme.materialTheme,
+      scaffoldMessengerKey: NotificationsPlus.messengerKey,
+      navigatorKey: NotificationsPlus.navigatorKey,
+
 
       // ✅ Español (incluye DatePicker/calendario en español)
       locale: const Locale('es'), // fuerza español; quítalo si quieres seguir el idioma del sistema
@@ -41,6 +46,31 @@ class MiReciboApp extends StatelessWidget {
       ],
 
       home: const _StartGate(), // 👈 decide a dónde entrar según sesión + lockEnabled
+    );
+  }
+}
+
+/// 🔗 Helpers para abrir Clientes con intención (vencidos / hoy / pronto)
+class AppIntents {
+  static void openClientesVencidos(BuildContext context) {
+    _openClientesWithIntent(context, 'vencidos');
+  }
+
+  static void openClientesHoy(BuildContext context) {
+    _openClientesWithIntent(context, 'hoy');
+  }
+
+  static void openClientesPronto(BuildContext context) {
+    _openClientesWithIntent(context, 'pronto');
+  }
+
+  static void _openClientesWithIntent(BuildContext context, String intent) {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => const ClientesScreen(),
+        settings: RouteSettings(arguments: {'intent': intent}),
+      ),
+          (r) => false,
     );
   }
 }
@@ -114,6 +144,9 @@ class _StartGateState extends State<_StartGate> with WidgetsBindingObserver {
 
     if (!_lockEnabled) {
       _unlocked = true;
+      // 🔔 Notificaciones Plus: app abierta sin PIN -> dispara recordatorios
+      NotificationsPlus.onAppOpen(user.uid);
+      // Sin intención especial al entrar normal
       _replace(const ClientesScreen());
       return;
     }
@@ -135,6 +168,11 @@ class _StartGateState extends State<_StartGate> with WidgetsBindingObserver {
 
     if (ok == true) {
       _unlocked = true;
+      // 🔔 Notificaciones Plus: app abierta tras desbloquear -> dispara recordatorios
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        NotificationsPlus.onAppOpen(uid);
+      }
       _replace(const ClientesScreen());
     } else {
       _unlocked = false;
