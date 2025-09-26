@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:local_auth/local_auth.dart';
+import 'dart:io'; // ⬅️ para exit(0)
 
 import 'theme/app_theme.dart';
 
@@ -328,7 +329,8 @@ class _PinScreenState extends State<PinScreen> {
       _toast('Pulsa atrás de nuevo para salir');
       return false; // no salir todavía
     }
-    await SystemNavigator.pop(); // salir app
+    exit(0); // ⬅️ salir de la app completamente
+    // ignore: dead_code
     return false;
   }
 

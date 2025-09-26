@@ -5,6 +5,8 @@ import 'perfil_prestamista_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'agregar_cliente_screen.dart';
 import 'package:flutter/services.dart';
+import 'dart:io' show exit, Platform;
+
 
 // 🔥 Firestore + Auth
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -24,9 +26,8 @@ class _ClientesScreenState extends State<ClientesScreen> {
   // Vencimientos
   bool _resaltarVencimientos = true;
 
-  // Bienvenida y back doble
+  // Bienvenida
   bool _bienvenidaMostrada = false;
-  DateTime? _lastBackTime;
 
   // ===== Datos del prestamista para el recibo =====
   String _empresa = '';
@@ -131,6 +132,94 @@ class _ClientesScreenState extends State<ClientesScreen> {
       ..clearSnackBars()
       ..showSnackBar(snack);
   }
+
+  // ===== Banner profesional para salir (modal bloqueante) =====
+  Future<void> _confirmarSalirCliente() async {
+    final bool? salir = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withOpacity(0.55),
+      builder: (_) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 46, height: 46,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFF3E0),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.lock_outline, size: 26, color: Color(0xFFF59E0B)),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  '¿Seguro que quieres salir?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF111827)),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Si sales, al volver a abrir la app entrarás con PIN, huella o reconocimiento facial.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        style: TextButton.styleFrom(
+                          backgroundColor: const Color(0xFFF3F4F6),
+                          foregroundColor: const Color(0xFF111827),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        child: const Text('Volver'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        style: TextButton.styleFrom(
+                          backgroundColor: const Color(0xFFF59E0B),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        child: const Text('Sí, salir'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (salir == true) {
+      // 🔥 Mata el proceso para que Android arranque la app desde 0 (mostrará PinScreen)
+      if (Platform.isAndroid) {
+        exit(0);
+      } else {
+        // fallback para otras plataformas
+        SystemNavigator.pop();
+      }
+    }
+  }
+
+
 
 
   int _diasHasta(DateTime d) {
@@ -397,22 +486,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
       canPop: false, // controlamos el back manualmente
       onPopInvoked: (didPop) {
         if (didPop) return; // si otra capa ya hizo pop, no hacemos nada
-
-        final now = DateTime.now();
-        // Primera vez: mostrar banner y NO salir
-        if (_lastBackTime == null ||
-            now.difference(_lastBackTime!) > const Duration(seconds: 2)) {
-          _lastBackTime = now;
-          _showBanner('Retrocede otra vez para salir'); // texto corto y claro
-          return;
-        }
-
-        // Segunda vez dentro de 2s → salir
-        if (Navigator.of(context).canPop()) {
-          Navigator.of(context).pop();
-        } else {
-          SystemNavigator.pop(); // cierra la app si esta pantalla es raíz (Android)
-        }
+        _confirmarSalirCliente(); // 👈 banner profesional bloqueante
       },
       child: Scaffold(
         body: Container(
