@@ -53,7 +53,7 @@ class ClienteDetalleScreen extends StatefulWidget {
 
 class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   static const double _logoHeight = 350;
-  static const double _logoTop = -20;
+  static const double _logoTop = -80;
   static const double _contentTop = 230;
 
   late int _saldoActual;

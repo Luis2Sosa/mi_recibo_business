@@ -195,6 +195,83 @@ class _PinScreenState extends State<PinScreen> {
       ..showSnackBar(snack);
   }
 
+  // ===== Banner doble atrás (premium) para salir de la app =====
+  void _showExitBanner() {
+    final messenger = ScaffoldMessenger.of(context);
+    final bottomSafe = MediaQuery.of(context).padding.bottom;
+
+    messenger.hideCurrentSnackBar();
+
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent, // no mezclar con el fondo
+        elevation: 0,
+        // más abajo para no chocar con botones
+        margin: EdgeInsets.fromLTRB(16, 0, 16, bottomSafe + -20),
+        duration: const Duration(seconds: 2),
+        content: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x40000000), // sombra fuerte
+                blurRadius: 24,
+                offset: Offset(0, 12),
+              ),
+              BoxShadow(
+                color: Color(0x26000000),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0B132B), // navy sólido (alto contraste)
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white, width: 2), // borde blanco premium
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // pastilla/icón teal
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF14B8A6),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Flexible(
+                  child: Text(
+                    'Presiona atrás otra vez para salir de la app',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // Evita dobles toques, cancela sesiones previas y abre prompt 1 sola vez
   Future<void> _onUsarHuella() async {
     if (_authInProgress) return;
@@ -326,10 +403,10 @@ class _PinScreenState extends State<PinScreen> {
     final now = DateTime.now();
     if (_lastBack == null || now.difference(_lastBack!) > const Duration(seconds: 2)) {
       _lastBack = now;
-      _toast('Pulsa atrás de nuevo para salir');
-      return false; // no salir todavía
+      _showExitBanner();   // 👈 muestra el banner premium
+      return false;        // no salir todavía
     }
-    exit(0); // ⬅️ salir de la app completamente
+    exit(0);               // 👈 segunda vez: salir COMPLETO
     // ignore: dead_code
     return false;
   }

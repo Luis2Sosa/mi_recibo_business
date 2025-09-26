@@ -467,52 +467,86 @@ class _ReciboScreenState extends State<ReciboScreen> {
     }
   }
 
-  // ===========================
-// BANNER DOBLE ATRÁS (PREMIUM VERDE)
-// ===========================
+
   void _showBackBanner() {
+    final messenger = ScaffoldMessenger.of(context);
     final bottomSafe = MediaQuery.of(context).padding.bottom;
 
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.hideCurrentSnackBar();
+
+    messenger.showSnackBar(
       SnackBar(
-        content: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                shape: BoxShape.circle,
-              ),
-              padding: const EdgeInsets.all(6),
-              child: const Icon(
-                Icons.arrow_back_rounded,
-                color: Colors.white,
-                size: 18,
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'Retrocede otra vez para ir a Clientes',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-                color: Colors.white,
-                letterSpacing: 0.4,
-              ),
-            ),
-          ],
-        ),
         behavior: SnackBarBehavior.floating,
-        backgroundColor: const Color(0xFF1F623A), // ✅
-        elevation: 6,
-        margin: EdgeInsets.fromLTRB(16, 8, 16, 12 + bottomSafe + 30),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        backgroundColor: Colors.transparent, // no mezclar con el fondo
+        elevation: 0,
+        // bien separado del botón de WhatsApp y del borde inferior
+        margin: EdgeInsets.fromLTRB(16, 0, 16, bottomSafe + 80),
         duration: _backWindow,
+        content: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            // sombra fuerte para “despegarlo” del fondo
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x40000000), // negro 25%
+                blurRadius: 24,
+                offset: Offset(0, 12),
+              ),
+              BoxShadow(
+                color: Color(0x26000000), // extra glow
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0B132B),           // NAVY sólido (alto contraste)
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white, width: 2), // borde blanco definido
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // pastilla del icono con acento premium
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF14B8A6), // teal premium
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Flexible(
+                  child: Text(
+                    'Presiona atrás otra vez para volver a Clientes',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
+
+
+
 
 
 
