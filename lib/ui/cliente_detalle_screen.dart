@@ -10,6 +10,8 @@ import 'historial_screen.dart';
 import 'widgets/app_frame.dart'; // <-- ruta desde lib/ui/
 // 🚀 Notificaciones Plus
 import '../core/notifications_plus.dart';
+// 📲 Envíos por WhatsApp (Bloque 3)
+import 'package:url_launcher/url_launcher.dart';
 
 class ClienteDetalleScreen extends StatefulWidget {
   // --------- Datos del cliente ---------
@@ -51,9 +53,19 @@ class ClienteDetalleScreen extends StatefulWidget {
 }
 
 class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
+  // ✅ Icono de WhatsApp reutilizable (usa el PNG de assets)
+  Widget _waIcon({double size = 24}) {
+    return Image.asset(
+      'assets/images/logo_whatsapp.png',
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
+    );
+  }
+
   static const double _logoHeight = 350;
   static const double _logoTop = -80;
-  static const double _contentTop = 230;
+  static const double _contentTop = 160;
 
   late int _saldoActual;
   late DateTime _proximaFecha;
@@ -369,6 +381,264 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     }
   }
 
+  // =======================
+  // 🚀 BLOQUE 3 - Recordatorios SOLO WhatsApp (premium)
+  // =======================
+
+  String _limpiarTelefono(String t) {
+    // Quita todo lo que no sea dígito
+    return t.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
+  /// Normaliza el número para WhatsApp:
+  /// - Acepta formatos con o sin +, guiones, espacios, paréntesis, etc.
+  /// - Si tiene 10 dígitos: asume NANP (RD/US/CA) y antepone '1'
+  /// - Si tiene 11 dígitos y empieza con '1': OK (NANP)
+  /// - Si tiene >= 11 con otro código de país (ej. 52, 57, etc. sin el +): OK
+  /// - Si tiene 7–9 dígitos: inválido (faltaría código de país)
+  String? _normalizarParaWhatsapp(String telefono) {
+    final digits = _limpiarTelefono(telefono);
+    if (digits.isEmpty) return null;
+
+    if (digits.length == 10) {
+      // 10 dígitos (RD/US/CA) → anteponer 1
+      return '1$digits';
+    }
+    if (digits.length == 11 && digits.startsWith('1')) {
+      return digits;
+    }
+    if (digits.length >= 11) {
+      return digits;
+    }
+    return null;
+  }
+
+  Future<void> _enviarPorWhatsApp(String telefono, String mensaje) async {
+    final normalized = _normalizarParaWhatsapp(telefono);
+    if (normalized == null) {
+      if (!mounted) return;
+      _showToastPremium('Número inválido. Agrega el código de país (ej. 1 para RD/EE.UU.).');
+      return;
+    }
+
+    // App normal
+    final uriApp = Uri.parse('whatsapp://send?phone=$normalized&text=${Uri.encodeComponent(mensaje)}');
+    // App Business (si la tienen instalada)
+    final uriBiz = Uri.parse('whatsapp-business://send?phone=$normalized&text=${Uri.encodeComponent(mensaje)}');
+    // Fallback web
+    final uriWeb = Uri.parse('https://wa.me/$normalized?text=${Uri.encodeComponent(mensaje)}');
+
+    try {
+      if (await canLaunchUrl(uriApp)) {
+        final ok = await launchUrl(uriApp, mode: LaunchMode.externalApplication);
+        if (ok) return;
+      }
+      if (await canLaunchUrl(uriBiz)) {
+        final ok = await launchUrl(uriBiz, mode: LaunchMode.externalApplication);
+        if (ok) return;
+      }
+      if (await canLaunchUrl(uriWeb)) {
+        await launchUrl(uriWeb, mode: LaunchMode.externalApplication);
+        return;
+      }
+      if (!mounted) return;
+      _showToastPremium('No se pudo abrir WhatsApp en este dispositivo.');
+    } catch (_) {
+      if (!mounted) return;
+      _showToastPremium('Error al intentar abrir WhatsApp.');
+    }
+  }
+
+  // ✨ Mensajes “premium” cortos y claros
+  String _mensajeRecordatorio(String tipo) {
+    // tipo: 'vencido' | 'hoy' | 'manana' | 'dos_dias' | 'aldia'
+    final nombre = widget.nombreCompleto;
+    final fecha = _fmtFecha(_proximaFecha);
+    final saldo = _rd(_saldoActual);
+
+    switch (tipo) {
+      case 'vencido':
+        return 'Hola $nombre, tienes un pago vencido desde $fecha. Saldo: $saldo. ¿Coordinamos hoy?';
+      case 'hoy':
+        return 'Hola $nombre, tu pago vence HOY ($fecha). Saldo: $saldo. Avísame para pasar a cobrar.';
+      case 'manana':
+        return 'Hola $nombre, tu pago vence MAÑANA ($fecha). Saldo: $saldo. Quedo atento(a).';
+      case 'dos_dias':
+        return 'Hola $nombre, tu pago vence en 2 días ($fecha). Saldo: $saldo.';
+      case 'aldia':
+        return 'Hola $nombre, estás al día ✅. Próxima fecha: $fecha. ¡Gracias por tu puntualidad!';
+      default:
+        return 'Hola $nombre.';
+    }
+  }
+
+  // ====== VALIDACIÓN DE ESTADO PARA HABILITAR / BLOQUEAR EL ENVÍO ======
+  int _diasHasta(DateTime d) {
+    final hoy = _soloFecha(DateTime.now());
+    final dd  = _soloFecha(d);
+    return dd.difference(hoy).inDays; // <0 vencido, 0 hoy, 1 mañana, 2 dos días, >2 al día
+  }
+
+  bool _permiteRecordatorio(String tipo) {
+    final d = _diasHasta(_proximaFecha);
+    final deuda = _saldoActual > 0;
+
+    switch (tipo) {
+      case 'vencido':   return deuda && d < 0;     // solo si ya está vencido
+      case 'hoy':       return deuda && d == 0;    // solo si vence hoy
+      case 'manana':    return deuda && d == 1;    // solo si vence mañana
+      case 'dos_dias':  return deuda && d == 2;    // solo si vence en 2 días
+      case 'aldia':     return !deuda || d > 2;    // al día: sin deuda o faltan >2 días
+      default:          return false;
+    }
+  }
+
+  // 🔔 Banner “premium” cuando el recordatorio NO corresponde
+  void _avisoNoCorresponde() {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+        duration: const Duration(seconds: 2),
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFEF3C7), // amarillo suave premium
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFFDE68A)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.10),
+                blurRadius: 14,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: const [
+              Icon(Icons.lock_clock_rounded, color: Color(0xFF92400E)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '⏳ Aún no es momento para este recordatorio de este cliente.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF78350F),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Mini toast premium reutilizable
+  void _showToastPremium(String text) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+        duration: const Duration(seconds: 2),
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1F2937),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 14,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  // =====================================================
+
+  void _abrirMenuRecordatorio() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFFF9FAFB),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) {
+        Widget item(String title, String tipo, {IconData icon = Icons.schedule}) {
+          return ListTile(
+            leading: Icon(icon, color: Colors.black87, size: 26),
+            title: Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
+            trailing: _waIcon(size: 24),
+            onTap: () async {
+              Navigator.pop(context);
+
+              // ✅ Bloqueo inteligente: solo permite si corresponde al estado real
+              if (!_permiteRecordatorio(tipo)) {
+                _avisoNoCorresponde();
+                return;
+              }
+
+              final msg = _mensajeRecordatorio(tipo);
+              await _enviarPorWhatsApp(widget.telefono, msg);
+            },
+          );
+        }
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 4),
+                const Text(
+                  'Enviar recordatorio',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 6),
+                const Divider(),
+                item('Pago vencido', 'vencido', icon: Icons.warning_amber_rounded),
+                const Divider(height: 0),
+                item('Vence hoy', 'hoy', icon: Icons.event_available),
+                const Divider(height: 0),
+                item('Vence mañana', 'manana', icon: Icons.access_time),
+                const Divider(height: 0),
+                item('Vence en 2 días', 'dos_dias', icon: Icons.schedule),
+                const Divider(height: 0),
+                item('Al día', 'aldia', icon: Icons.check_circle),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // =======================
   @override
   Widget build(BuildContext context) {
     final interesPeriodo = (_saldoActual * (widget.tasaInteres / 100)).round();
@@ -583,6 +853,28 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                   );
                                 },
                                 child: const Text('Ver historial'),
+                              ),
+                            ),
+
+                            const SizedBox(height: 14),
+
+                            // 🚀 NUEVO: Enviar recordatorio (WhatsApp only)
+                            SizedBox(
+                              width: double.infinity,
+                              height: 56,
+                              child: OutlinedButton.icon(
+                                icon: _waIcon(size: 22),
+                                label: const Text('Enviar recordatorio por WhatsApp'),
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: Color(0xFF2563EB), width: 2),
+                                  shape: const StadiumBorder(),
+                                  foregroundColor: const Color(0xFF2563EB),
+                                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                                ),
+                                onPressed: () {
+                                  HapticFeedback.selectionClick();
+                                  _abrirMenuRecordatorio();
+                                },
                               ),
                             ),
                           ],

@@ -798,7 +798,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
           else if (e == _EstadoVenc.pronto) cPronto++;
         }
 
-        // 👇 Auto-intent si no viene ninguno: prioridad VENCIDOS > HOY > PRONTO
+        final bool hayClientes = lista.isNotEmpty;
+        final bool hayActivos  = lista.any((c) => c.saldoActual > 0);
+
+// 👇 Auto-intent si no viene ninguno: prioridad VENCIDOS > HOY > PRONTO
         if (_intent == null) {
           if (cVencidos > 0) {
             _intent = 'vencidos';
@@ -812,7 +815,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
           _intentBannerMostrado = false; // permitir que el banner se dispare
         }
 
-        // Muestra banner SOLO una vez por intención, cuando ya tenemos datos
+// Muestra banner SOLO una vez por intención, cuando ya tenemos datos
         if (_intent != null && !_intentBannerMostrado && mounted) {
           _intentBannerMostrado = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -826,7 +829,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 );
                 _showBanner(
                   '⚠️ ${c.nombreCompleto} tiene un pago vencido.',
-                  color: const Color(0xFFDC2626), // 🔴 mismo rojo que la tarjeta
+                  color: const Color(0xFFDC2626), // 🔴 rojo
                   icon: Icons.warning_amber_rounded,
                 );
               } else if (cVencidos > 1) {
@@ -836,11 +839,17 @@ class _ClientesScreenState extends State<ClientesScreen> {
                   icon: Icons.warning_amber_rounded,
                 );
               } else {
-                _showBanner(
-                  '✅ No hay pagos vencidos ahora mismo.',
-                  color: const Color(0xFFEFFBF3),
-                  icon: Icons.check_circle,
-                );
+                // ✅ Ajuste: mensajes según estado real de los datos
+                if (!hayClientes) {
+                  _showBanner('Aún no has agregado clientes.',
+                      color: const Color(0xFFEFFBF3), icon: Icons.info_outline);
+                } else if (!hayActivos) {
+                  _showBanner('No tienes clientes activos.',
+                      color: const Color(0xFFEFFBF3), icon: Icons.info_outline);
+                } else {
+                  _showBanner('✅ No hay pagos vencidos ahora mismo.',
+                      color: const Color(0xFFEFFBF3), icon: Icons.check_circle);
+                }
               }
             } else if (_intent == 'hoy') {
               if (cHoy == 1) {
@@ -850,7 +859,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 );
                 _showBanner(
                   '📆 ${c.nombreCompleto} vence hoy. No olvides cobrar.',
-                  color: const Color(0xFFFB923C), // 🟠 mismo naranja que la tarjeta
+                  color: const Color(0xFFFB923C), // 🟠 naranja
                   //icon: Icons.event_available,
                 );
               } else if (cHoy > 1) {
@@ -860,11 +869,17 @@ class _ClientesScreenState extends State<ClientesScreen> {
                   //icon: Icons.event_available,
                 );
               } else {
-                _showBanner(
-                  '✅ Nadie vence hoy.',
-                  color: const Color(0xFFEFFBF3),
-                  icon: Icons.check_circle,
-                );
+                // ✅ Ajuste: mensajes según estado real de los datos
+                if (!hayClientes) {
+                  _showBanner('Aún no has agregado clientes.',
+                      color: const Color(0xFFEFFBF3), icon: Icons.info_outline);
+                } else if (!hayActivos) {
+                  _showBanner('No tienes clientes activos.',
+                      color: const Color(0xFFEFFBF3), icon: Icons.info_outline);
+                } else {
+                  _showBanner('✅ Nadie vence hoy.',
+                      color: const Color(0xFFEFFBF3), icon: Icons.check_circle);
+                }
               }
             } else if (_intent == 'pronto') {
               if (cPronto == 1) {
@@ -878,12 +893,11 @@ class _ClientesScreenState extends State<ClientesScreen> {
                     : '⏳ ${c.nombreCompleto} vence en $d días.';
                 _showBanner(
                   msg,
-                  color: const Color(0xFFFACC15), // 🟡 mismo amarillo que la tarjeta
+                  color: const Color(0xFFFACC15), // 🟡 amarillo
                   icon: Icons.access_time,
                 );
-
               } else if (cPronto > 1) {
-                // ✅ NUEVO: distinguir "mañana" vs "2 días" cuando hay varios
+                // ✅ Distinguir "mañana" vs "2 días" cuando hay varios
                 int d1 = 0, d2 = 0;
                 for (final cli in lista) {
                   if (cli.saldoActual <= 0) continue;
@@ -913,19 +927,22 @@ class _ClientesScreenState extends State<ClientesScreen> {
                     icon: Icons.access_time,
                   );
                 }
-
               } else {
-                _showBanner(
-                  '✅ No hay vencimientos en 1–2 días.',
-                  color: const Color(0xFFEFFBF3),
-                  icon: Icons.check_circle,
-                );
+                // ✅ Ajuste: mensajes según estado real de los datos
+                if (!hayClientes) {
+                  _showBanner('Aún no has agregado clientes.',
+                      color: const Color(0xFFEFFBF3), icon: Icons.info_outline);
+                } else if (!hayActivos) {
+                  _showBanner('No tienes clientes activos.',
+                      color: const Color(0xFFEFFBF3), icon: Icons.info_outline);
+                } else {
+                  _showBanner('✅ No hay vencimientos en 1–2 días.',
+                      color: const Color(0xFFEFFBF3), icon: Icons.check_circle);
+                }
               }
             }
           });
         }
-
-
 
         if (filtered.isEmpty) {
           return const Center(

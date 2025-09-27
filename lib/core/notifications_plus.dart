@@ -129,81 +129,77 @@ class NotificationsPlus {
       }
 
       // Tarjeta premium (sin borde blanco en deuda_finalizada)
-      Widget _card() =>
-          Container(
-            constraints: const BoxConstraints(minWidth: 260, maxWidth: 380),
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
-              decoration: intent == 'deuda_finalizada'
-              // 🟢 Verde plano, sin borde ni sombra (adiós fondito)
-                  ? BoxDecoration(
-                color: const Color(0xFF16A34A),
-                borderRadius: BorderRadius.circular(28),
-              )
-              // 📄 Para las demás notificaciones, se mantiene tu estilo actual
-                  : BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.22),
-                    blurRadius: 28,
-                    spreadRadius: 1,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
+      Widget _card() => Container(
+        constraints: const BoxConstraints(minWidth: 240, maxWidth: 340), // 📏 más compacto
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20), // 🪶 menos aire
+        decoration: intent == 'deuda_finalizada'
+            ? BoxDecoration(
+          color: const Color(0xFF16A34A), // 🟢 verde plano limpio
+          borderRadius: BorderRadius.circular(26),
+        )
+            : BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.22),
+              blurRadius: 22,
+              spreadRadius: 0,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 🌟 Ícono más pequeño y elegante
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: intent == 'deuda_finalizada'
+                    ? Colors.white.withOpacity(0.18)
+                    : color.withOpacity(0.10),
+                shape: BoxShape.circle,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      // 🔒 Badge sin halo en "deuda_finalizada"
-                      color: intent == 'deuda_finalizada'
-                          ? Colors.white.withOpacity(0.20)
-                          : color.withOpacity(0.10),
-                      shape: BoxShape.circle,
-                      border: intent == 'deuda_finalizada'
-                          ? null
-                          : Border.all(
-                        color: color.withOpacity(0.25),
-                        width: 1,
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.check_circle_rounded,
-                      size: 26,
-                      color: intent == 'deuda_finalizada' ? Colors.white : color,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    text,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: intent == 'deuda_finalizada'
-                          ? Colors.white
-                          : const Color(0xFF0F172A),
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      height: 1.35,
-                      letterSpacing: 0.2,
-                      decoration: TextDecoration.none,
-                      decorationColor: Colors.transparent,
-                    ),
-                  ),
-                ],
+              child: Icon(
+                Icons.check_circle_rounded,
+                size: 30,
+                color: intent == 'deuda_finalizada' ? Colors.white : color,
               ),
-          );
+            ),
+
+            const SizedBox(height: 14),
+
+            // ✨ Texto más pequeño pero aún profesional
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: intent == 'deuda_finalizada'
+                    ? Colors.white
+                    : const Color(0xFF0F172A),
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.2,
+                height: 1.35,
+                decoration: TextDecoration.none,
+                decorationColor: Colors.transparent,
+              ),
+            ),
+          ],
+        ),
+      );
 
 
-              showGeneralDialog(
+
+
+      showGeneralDialog(
         context: ctx,
         barrierLabel: 'notifications_plus_banner',
         barrierDismissible: false,
@@ -238,7 +234,7 @@ class NotificationsPlus {
       );
 
       // Cierre automático
-      Future.delayed(const Duration(milliseconds: 2400), () {
+      Future.delayed(const Duration(milliseconds: 1500), () {
         final nav = navigatorKey.currentState;
         if (nav != null && nav.canPop()) nav.pop();
       });
