@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';   // 👈 Firestore
 import 'package:firebase_auth/firebase_auth.dart';      // 👈 UID
-import 'package:flutter/services.dart';                // 👈 (para inputFormatters)
+import 'package:flutter/services.dart';                 // 👈 (inputFormatters)
 
 class AgregarClienteScreen extends StatefulWidget {
   final String? id;
@@ -10,10 +10,11 @@ class AgregarClienteScreen extends StatefulWidget {
   final String? initApellido;
   final String? initTelefono;
   final String? initDireccion;
+  final String? initNota;           // 👈 NUEVO
   final String? initProducto;
   final int? initCapital;
   final double? initTasa;
-  final String? initPeriodo; // 'Mensual' | 'Quincenal'
+  final String? initPeriodo;        // 'Mensual' | 'Quincenal'
   final DateTime? initProximaFecha;
 
   const AgregarClienteScreen({
@@ -23,6 +24,7 @@ class AgregarClienteScreen extends StatefulWidget {
     this.initApellido,
     this.initTelefono,
     this.initDireccion,
+    this.initNota,                  // 👈 NUEVO (opcional)
     this.initProducto,
     this.initCapital,
     this.initTasa,
@@ -35,14 +37,12 @@ class AgregarClienteScreen extends StatefulWidget {
 }
 
 class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
-  static const double _logoTop = -70;
-  static const double _logoHeight = 300;
-
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nombreCtrl;
   late final TextEditingController _apellidoCtrl;
   late final TextEditingController _telefonoCtrl;
   late final TextEditingController _direccionCtrl;
+  late final TextEditingController _notaCtrl;          // 👈 NUEVO
   late final TextEditingController _productoCtrl;
   late final TextEditingController _capitalCtrl;
   late final TextEditingController _tasaCtrl;
@@ -60,6 +60,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     _apellidoCtrl  = TextEditingController(text: widget.initApellido ?? '');
     _telefonoCtrl  = TextEditingController(text: widget.initTelefono ?? '');
     _direccionCtrl = TextEditingController(text: widget.initDireccion ?? '');
+    _notaCtrl      = TextEditingController(text: widget.initNota ?? '');   // 👈 NUEVO
     _productoCtrl  = TextEditingController(text: widget.initProducto ?? '');
     _capitalCtrl   = TextEditingController(
       text: widget.initCapital != null ? widget.initCapital.toString() : '',
@@ -77,6 +78,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     _apellidoCtrl.dispose();
     _telefonoCtrl.dispose();
     _direccionCtrl.dispose();
+    _notaCtrl.dispose();                                          // 👈 NUEVO
     _productoCtrl.dispose();
     _capitalCtrl.dispose();
     _tasaCtrl.dispose();
@@ -89,7 +91,6 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     return '${d.day} ${meses[d.month - 1]} ${d.year}';
   }
 
-  // 🔧 Solo estética: soporte opcional para ícono
   InputDecoration _deco(String label, {IconData? icon}) => InputDecoration(
     labelText: label,
     labelStyle: const TextStyle(color: Color(0xFF64748B)),
@@ -112,11 +113,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     ),
   );
 
-  // ================================
-  // 📞 Helpers para validar y guardar
-  // ================================
-
-  // Quita todo menos dígitos; preserva si empieza con '+'
+  // === helpers teléfono (igual que tenías) ===
   String _cleanDigits(String raw) {
     final t = raw.trim();
     final hasPlus = t.startsWith('+');
@@ -124,36 +121,22 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     return hasPlus ? '+$digits' : digits;
   }
 
-  // Valida: dominicano (809/829/849 con 10 o 11 dígitos) o internacional +8..15 dígitos
   bool _isValidPhone(String raw) {
     final t = raw.trim();
     final cleaned = _cleanDigits(t);
-
-    // Internacional: +XXXXXXXX (8-15 dígitos)
     if (cleaned.startsWith('+')) {
       final digits = cleaned.substring(1);
       return RegExp(r'^[0-9]{8,15}$').hasMatch(digits);
     }
-
-    // Dominicano sin +: 10 dígitos, área 809/829/849
     if (RegExp(r'^(809|829|849)[0-9]{7}$').hasMatch(cleaned)) return true;
-
-    // Dominicano con '1' al inicio (11 dígitos)
     if (RegExp(r'^1(809|829|849)[0-9]{7}$').hasMatch(cleaned)) return true;
-
-    // Fallback: permitir 8-15 dígitos (sin +)
     return RegExp(r'^[0-9]{8,15}$').hasMatch(cleaned);
   }
 
-  // Formatea para guardar:
-  // - Si es DR → 809-123-4567
-  // - Si es internacional → +XXXXXXXX...
   String _formatPhoneForStorage(String raw) {
     final t = raw.trim();
     final hasPlus = t.startsWith('+');
     final onlyDigits = t.replaceAll(RegExp(r'[^0-9]'), '');
-
-    // Dominicano con 11 dígitos empezando con 1
     if (onlyDigits.length == 11 &&
         onlyDigits.startsWith('1') &&
         RegExp(r'^(809|829|849)$').hasMatch(onlyDigits.substring(1, 4))) {
@@ -162,8 +145,6 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
       final line = onlyDigits.substring(7, 11);
       return '$area-$pref-$line';
     }
-
-    // Dominicano con 10 dígitos
     if (onlyDigits.length == 10 &&
         RegExp(r'^(809|829|849)$').hasMatch(onlyDigits.substring(0, 3))) {
       final area = onlyDigits.substring(0, 3);
@@ -171,11 +152,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
       final line = onlyDigits.substring(6, 10);
       return '$area-$pref-$line';
     }
-
-    // Internacional: guardar en E.164 si venía con +
     if (hasPlus) return '+$onlyDigits';
-
-    // Fallback: si es 10 dígitos genérico, guarda 3-3-4 con guiones; si no, tal cual dígitos
     if (onlyDigits.length == 10) {
       return '${onlyDigits.substring(0,3)}-'
           '${onlyDigits.substring(3,6)}-'
@@ -191,7 +168,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     final double h = MediaQuery.of(context).size.height;
 
     return Scaffold(
-      resizeToAvoidBottomInset: false, // 👈 No empujar todo el Scaffold
+      resizeToAvoidBottomInset: false,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -202,43 +179,21 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
         child: SafeArea(
           child: Stack(
             children: [
-              // Logo (se oculta COMPLETAMENTE cuando el teclado está abierto)
-              Positioned(
-                top: _logoTop, left: 0, right: 0,
-                child: IgnorePointer(
-                  child: Center(
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
-                      switchInCurve: Curves.easeOut,
-                      switchOutCurve: Curves.easeIn,
-                      child: tecladoAbierto
-                          ? const SizedBox.shrink() // 👈 Se quita del árbol
-                          : Image.asset(
-                        'assets/images/logoB.png',
-                        key: const ValueKey('logo-visible'),
-                        height: _logoHeight,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              // (logo eliminado)
 
-              // ======= MARCO PEGADO ABAJO =======
               Align(
                 alignment: Alignment.bottomCenter,
                 child: AnimatedPadding(
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeOut,
                   padding: EdgeInsets.only(
-                    bottom: tecladoAbierto ? bottomInset + 12 : 10,
+                    bottom: tecladoAbierto ? bottomInset + -25 : 26,
                     left: 16,
                     right: 16,
                   ),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
-                      // 👇 Más alto cuando NO hay teclado; 75% cuando hay teclado
-                      maxHeight: tecladoAbierto ? h * 0.75 : h * 0.90,
+                      maxHeight: tecladoAbierto ? h * 0.75 : h * 0.92,
                     ),
                     child: Container(
                       decoration: BoxDecoration(
@@ -256,8 +211,6 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                         borderRadius: BorderRadius.circular(28),
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-                          // 👇 SOLO hay scroll cuando el teclado está abierto
-                          // ✅ siempre hay scroll; cuando no hay teclado, no permite arrastrar
                           child: SingleChildScrollView(
                             physics: tecladoAbierto
                                 ? const ClampingScrollPhysics()
@@ -271,7 +224,6 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                 ),
               ),
 
-              // Botón back
               Positioned(
                 top: 8,
                 left: 8,
@@ -287,7 +239,6 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     );
   }
 
-  /// ======= Contenido del formulario (sin cambios de lógica) =======
   Widget _formBody() {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -303,36 +254,23 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                 fontStyle: FontStyle.italic,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.5,
-                shadows: [
-                  Shadow(
-                    color: Colors.black26,
-                    blurRadius: 6,
-                    offset: Offset(0, 2),
-                  )
-                ],
+                shadows: [Shadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2))],
               ),
             ),
           ),
         ),
         const SizedBox(height: 14),
 
-        // Formulario
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(22),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.12),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
-              ),
-            ],
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 18, offset: Offset(0, 10))],
           ),
           padding: const EdgeInsets.all(16),
           child: Form(
             key: _formKey,
-            autovalidateMode: AutovalidateMode.onUserInteraction, // 👈 (5)
+            autovalidateMode: AutovalidateMode.onUserInteraction,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -342,22 +280,20 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                       child: TextFormField(
                         controller: _nombreCtrl,
                         autofocus: true,
-                        textCapitalization: TextCapitalization.words, // 👈 (3)
+                        textCapitalization: TextCapitalization.words,
                         decoration: _deco('Nombre', icon: Icons.person),
                         textInputAction: TextInputAction.next,
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'Obligatorio' : null,
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Obligatorio' : null,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextFormField(
                         controller: _apellidoCtrl,
-                        textCapitalization: TextCapitalization.words, // 👈 (3)
+                        textCapitalization: TextCapitalization.words,
                         decoration: _deco('Apellido', icon: Icons.badge),
                         textInputAction: TextInputAction.next,
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'Obligatorio' : null,
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Obligatorio' : null,
                       ),
                     ),
                   ],
@@ -366,10 +302,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                 TextFormField(
                   controller: _telefonoCtrl,
                   keyboardType: TextInputType.phone,
-                  // ✅ Permite +, dígitos, espacios, guiones y paréntesis
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-\s\(\)]')),
-                  ],
+                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-\s\(\)]'))],
                   decoration: _deco('Teléfono', icon: Icons.call),
                   textInputAction: TextInputAction.next,
                   validator: (v) {
@@ -377,42 +310,50 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                     return _isValidPhone(v.trim()) ? null : 'Número inválido';
                   },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 TextFormField(
                   controller: _direccionCtrl,
                   decoration: _deco('Dirección (opcional)', icon: Icons.home),
                   textInputAction: TextInputAction.next,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
+
+                // 👇 NUEVO CAMPO: NOTA (opcional, multilinea)
+                TextFormField(
+                  controller: _notaCtrl,
+                  decoration: _deco('Nota (opcional)', icon: Icons.note_alt_outlined),
+                  maxLines: 3,
+                  textInputAction: TextInputAction.newline,
+                ),
+                const SizedBox(height: 8),
+
                 TextFormField(
                   controller: _productoCtrl,
                   decoration: _deco('Producto (opcional)', icon: Icons.local_offer),
                   textInputAction: TextInputAction.next,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
+
                 Row(
                   children: [
                     Expanded(
                       child: TextFormField(
                         controller: _capitalCtrl,
                         keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly], // 👈 (2)
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         decoration: _deco('Saldo inicial (RD\$)', icon: Icons.payments),
                         textInputAction: TextInputAction.next,
-                        validator: (v) => (v == null || v.isEmpty)
-                            ? 'Obligatorio' : null,
+                        validator: (v) => (v == null || v.isEmpty) ? 'Obligatorio' : null,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextFormField(
                         controller: _tasaCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true), // 👈 (1)
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')), // 👈 (1)
-                        ],
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
                         decoration: _deco('% Interés', icon: Icons.percent),
-                        validator: (v) { // 👈 (1)
+                        validator: (v) {
                           if (v == null || v.isEmpty) return 'Obligatorio';
                           final x = double.tryParse(v.replaceAll(',', '.'));
                           if (x == null) return 'Número inválido';
@@ -425,11 +366,9 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                 ),
                 const SizedBox(height: 14),
 
-                // Período
                 Row(
                   children: [
-                    const Text('Período:',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    const Text('Período:', style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(width: 12),
                     ChoiceChip(
                       label: const Text('Mensual'),
@@ -441,9 +380,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                         fontWeight: FontWeight.w600,
                       ),
                       side: BorderSide(
-                        color: _periodo == 'Mensual'
-                            ? const Color(0xFF2563EB)
-                            : const Color(0xFFE5E7EB),
+                        color: _periodo == 'Mensual' ? const Color(0xFF2563EB) : const Color(0xFFE5E7EB),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -457,9 +394,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                         fontWeight: FontWeight.w600,
                       ),
                       side: BorderSide(
-                        color: _periodo == 'Quincenal'
-                            ? const Color(0xFF2563EB)
-                            : const Color(0xFFE5E7EB),
+                        color: _periodo == 'Quincenal' ? const Color(0xFF2563EB) : const Color(0xFFE5E7EB),
                       ),
                     ),
                   ],
@@ -468,16 +403,14 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                 const Divider(height: 1, color: Color(0xFFE5E7EB)),
                 const SizedBox(height: 10),
 
-                // ===== Próxima fecha (OBLIGATORIA) =====
+                // Próxima fecha (obligatoria)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF7F8FA),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: _proximaFecha == null
-                          ? const Color(0xFFEF4444)
-                          : const Color(0xFFE5E7EB),
+                      color: _proximaFecha == null ? const Color(0xFFEF4444) : const Color(0xFFE5E7EB),
                       width: 1.2,
                     ),
                   ),
@@ -492,12 +425,8 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                                   ? 'Próxima fecha: (selecciona)'
                                   : 'Próxima fecha: ${_fmtFecha(_proximaFecha!)}',
                               style: TextStyle(
-                                color: _proximaFecha == null
-                                    ? const Color(0xFFEF4444)
-                                    : const Color(0xFF374151),
-                                fontWeight: _proximaFecha == null
-                                    ? FontWeight.w700
-                                    : FontWeight.w400,
+                                color: _proximaFecha == null ? const Color(0xFFEF4444) : const Color(0xFF374151),
+                                fontWeight: _proximaFecha == null ? FontWeight.w700 : FontWeight.w400,
                                 fontSize: 15,
                               ),
                             ),
@@ -507,20 +436,16 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                             label: const Text('Elegir fecha'),
                             onPressed: () async {
                               final hoy = DateTime.now();
-                              final hoy0 = DateTime(hoy.year, hoy.month, hoy.day); // 👈 (4)
+                              final hoy0 = DateTime(hoy.year, hoy.month, hoy.day);
                               final sel = await showDatePicker(
                                 context: context,
-                                initialDate: _proximaFecha ?? hoy0,            // 👈 (4)
-                                firstDate: hoy0,                                // 👈 (4) no fechas pasadas
+                                initialDate: _proximaFecha ?? hoy0,
+                                firstDate: hoy0,
                                 lastDate: DateTime(hoy.year + 5),
                               );
-                              if (sel != null) {
-                                setState(() => _proximaFecha = sel);
-                              }
+                              if (sel != null) setState(() => _proximaFecha = sel);
                             },
-                            style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xFF2563EB),
-                            ),
+                            style: TextButton.styleFrom(foregroundColor: const Color(0xFF2563EB)),
                           ),
                         ],
                       ),
@@ -529,11 +454,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                           padding: EdgeInsets.only(top: 4),
                           child: Text(
                             'Debes elegir una próxima fecha de pago',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: Color(0xFFEF4444),
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: TextStyle(fontSize: 12.5, color: Color(0xFFEF4444), fontWeight: FontWeight.w600),
                           ),
                         ),
                     ],
@@ -541,7 +462,6 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Guardar
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -550,14 +470,11 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                       backgroundColor: const Color(0xFF2563EB),
                       foregroundColor: Colors.white,
                       shape: const StadiumBorder(),
-                      textStyle: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w700),
+                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                       elevation: 4,
                       shadowColor: const Color(0xFF2563EB).withOpacity(0.35),
                     ),
-                    onPressed: (_guardando || _proximaFecha == null)
-                        ? null
-                        : _guardar,
+                    onPressed: (_guardando || _proximaFecha == null) ? null : _guardar,
                     child: Text(_guardando ? 'Guardando…' : 'Guardar'),
                   ),
                 ),
@@ -569,9 +486,8 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     );
   }
 
-  // ===== LÓGICA ORIGINAL – con validación de fecha obligatoria =====
   Future<void> _guardar() async {
-    FocusScope.of(context).unfocus(); // 👈 (6) ocultar teclado
+    FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
     if (_guardando) return;
     if (_proximaFecha == null) {
@@ -583,17 +499,12 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
 
     setState(() => _guardando = true);
 
-    final capital = int.tryParse(
-      _capitalCtrl.text.replaceAll(RegExp(r'[^0-9]'), ''),
-    ) ?? 0;
+    final capital = int.tryParse(_capitalCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    final tasa = double.tryParse(_tasaCtrl.text.replaceAll(',', '.')) ?? 0.0;
 
-    final tasa = double.tryParse(
-      _tasaCtrl.text.replaceAll(',', '.'),
-    ) ?? 0.0;
-
-    // 📞 Normalizamos el teléfono para guardar (DR con guiones, internacional E.164)
     final rawTel = _telefonoCtrl.text.trim();
     final finalTel = _formatPhoneForStorage(rawTel);
+    final nota = _notaCtrl.text.trim();                              // 👈 NUEVO
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
@@ -613,13 +524,13 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
       String? docId = widget.id;
 
       if (_isEdit && docId != null) {
-        // 🔧 EDITAR (no cambia históricos)
         final Map<String, dynamic> update = {
           'nombre': _nombreCtrl.text.trim(),
           'apellido': _apellidoCtrl.text.trim(),
-          'telefono': finalTel, // 👈 guarda formateado
+          'telefono': finalTel,
           'direccion': _direccionCtrl.text.trim().isEmpty ? null : _direccionCtrl.text.trim(),
-          'producto': _productoCtrl.text.trim().isEmpty ? null : _productoCtrl.text.trim(),
+          'nota'     : nota.isEmpty ? null : nota,                   // 👈 NUEVO
+          'producto' : _productoCtrl.text.trim().isEmpty ? null : _productoCtrl.text.trim(),
           'capitalInicial': capital,
           'tasaInteres': tasa,
           'periodo': _periodo,
@@ -636,8 +547,6 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
 
         await col.doc(docId).set(update, SetOptions(merge: true));
       } else {
-        // 👇 NUEVO: alta de cliente incrementa el histórico lifetimePrestado
-        // Duplicado por teléfono ya normalizado
         final dup = await col.where('telefono', isEqualTo: finalTel).limit(1).get();
         if (dup.docs.isNotEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -652,8 +561,9 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
         await newDoc.set({
           'nombre': _nombreCtrl.text.trim(),
           'apellido': _apellidoCtrl.text.trim(),
-          'telefono': finalTel, // 👈 guarda formateado
+          'telefono': finalTel,
           'direccion': _direccionCtrl.text.trim().isEmpty ? null : _direccionCtrl.text.trim(),
+          'nota'     : nota.isEmpty ? null : nota,                   // 👈 NUEVO
           'producto': _productoCtrl.text.trim().isEmpty ? null : _productoCtrl.text.trim(),
           'capitalInicial': capital,
           'saldoActual': capital,
@@ -667,7 +577,6 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
           'updatedAt': FieldValue.serverTimestamp(),
         });
 
-        // === ACUMULAR HISTÓRICO: total prestado ===
         final metricsRef = FirebaseFirestore.instance
             .collection('prestamistas')
             .doc(uid)
@@ -689,8 +598,9 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
         if (_isEdit) 'id': docId,
         'nombre': _nombreCtrl.text,
         'apellido': _apellidoCtrl.text,
-        'telefono': finalTel, // 👈 regresamos también formateado
+        'telefono': finalTel,
         'direccion': _direccionCtrl.text,
+        'nota': nota,                                               // 👈 NUEVO
         'producto': _productoCtrl.text,
         'capital': capital,
         'tasa': tasa,

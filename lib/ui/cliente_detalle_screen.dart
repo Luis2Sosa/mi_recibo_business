@@ -65,13 +65,16 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
   static const double _logoHeight = 350;
   static const double _logoTop = -80;
-  static const double _contentTop = 160;
+  static const double _contentTop = 140;
 
   late int _saldoActual;
   late DateTime _proximaFecha;
   bool _tieneCambios = false;
   int _totalPrestado = 0;
   bool _btnPagoBusy = false;
+
+  // ✅ Nota opcional (leída de Firestore SIN tocar el constructor)
+  String? _nota;
 
   @override
   void initState() {
@@ -80,6 +83,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     _proximaFecha = widget.proximaFecha;
     Future.microtask(_autoFixEstado);
     Future.microtask(_cargarTotalPrestado);
+    Future.microtask(_cargarNota); // <-- lee 'nota' si existe
   }
 
   String _rd(int v) {
@@ -146,7 +150,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     bool needsUpdate = false;
     final Map<String, dynamic> updates = {};
 
-    if (_saldoActual > 0 && (saldado == true || (data['estado'] ?? '') == 'saldado')) {
+    if (_saldoActual > 0 &&
+        (saldado == true || (data['estado'] ?? '') == 'saldado')) {
       updates['saldado'] = false;
       updates['estado'] = 'al_dia';
       needsUpdate = true;
@@ -172,8 +177,12 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     try {
       final snap = await ref.get();
       final data = snap.data() ?? {};
-      final int capitalInicial = (data['capitalInicial'] ?? 0) is int ? (data['capitalInicial'] ?? 0) : 0;
-      final int fallbackSaldoAnterior = (data['saldoAnterior'] ?? 0) is int ? (data['saldoAnterior'] ?? 0) : 0;
+      final int capitalInicial = (data['capitalInicial'] ?? 0) is int
+          ? (data['capitalInicial'] ?? 0)
+          : 0;
+      final int fallbackSaldoAnterior = (data['saldoAnterior'] ?? 0) is int
+          ? (data['saldoAnterior'] ?? 0)
+          : 0;
       int total = 0;
 
       if (data.containsKey('totalPrestado')) {
@@ -182,11 +191,30 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         if (raw is double) total = raw.round();
       } else {
         total = capitalInicial > 0 ? capitalInicial : fallbackSaldoAnterior;
-        await ref.set({'totalPrestado': total, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+        await ref.set(
+            {'totalPrestado': total, 'updatedAt': FieldValue.serverTimestamp()},
+            SetOptions(merge: true));
       }
 
       if (!mounted) return;
       setState(() => _totalPrestado = total);
+    } catch (_) {}
+  }
+
+  Future<void> _cargarNota() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('prestamistas').doc(uid)
+          .collection('clientes').doc(widget.id)
+          .get();
+      final data = snap.data() ?? {};
+      final nota = (data['nota'] ?? '').toString().trim();
+      if (!mounted) return;
+      setState(() {
+        _nota = nota.isEmpty ? null : nota;
+      });
     } catch (_) {}
   }
 
@@ -222,17 +250,26 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     }
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return {'empresa': empresa, 'servidor': servidor, 'telefono': telefono};
+    if (uid == null)
+      return {'empresa': empresa, 'servidor': servidor, 'telefono': telefono};
 
     try {
-      final snap = await FirebaseFirestore.instance.collection('prestamistas').doc(uid).get();
+      final snap = await FirebaseFirestore.instance
+          .collection('prestamistas')
+          .doc(uid)
+          .get();
       final data = snap.data() ?? {};
       final nombre = (data['nombre'] ?? '').toString().trim();
       final apellido = (data['apellido'] ?? '').toString().trim();
 
-      empresa = empresa.isNotEmpty ? empresa : (data['empresa'] ?? '').toString().trim();
-      servidor = servidor.isNotEmpty ? servidor : [nombre, apellido].where((s) => s.isNotEmpty).join(' ');
-      telefono = telefono.isNotEmpty ? telefono : (data['telefono'] ?? '').toString().trim();
+      empresa =
+      empresa.isNotEmpty ? empresa : (data['empresa'] ?? '').toString().trim();
+      servidor =
+      servidor.isNotEmpty ? servidor : [nombre, apellido].where((s) =>
+      s.isNotEmpty).join(' ');
+      telefono = telefono.isNotEmpty ? telefono : (data['telefono'] ?? '')
+          .toString()
+          .trim();
     } catch (_) {}
     return {'empresa': empresa, 'servidor': servidor, 'telefono': telefono};
   }
@@ -241,22 +278,24 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     final result = await Navigator.push<Map?>(
       context,
       MaterialPageRoute(
-        builder: (_) => PagoFormScreen(
-          saldoAnterior: _saldoActual,
-          tasaInteres: widget.tasaInteres,
-          periodo: widget.periodo,
-          proximaFecha: _proximaFecha,
-        ),
+        builder: (_) =>
+            PagoFormScreen(
+              saldoAnterior: _saldoActual,
+              tasaInteres: widget.tasaInteres,
+              periodo: widget.periodo,
+              proximaFecha: _proximaFecha,
+            ),
       ),
     );
     if (result == null) return;
 
-    final int pagoInteres   = result['pagoInteres']   as int? ?? 0;
-    final int pagoCapital   = result['pagoCapital']   as int? ?? 0;
-    final int totalPagado   = result['totalPagado']   as int? ?? (pagoInteres + pagoCapital);
+    final int pagoInteres = result['pagoInteres'] as int? ?? 0;
+    final int pagoCapital = result['pagoCapital'] as int? ?? 0;
+    final int totalPagado = result['totalPagado'] as int? ??
+        (pagoInteres + pagoCapital);
     final int saldoAnterior = result['saldoAnterior'] as int? ?? _saldoActual;
-    final int saldoNuevo    = result['saldoNuevo']    as int? ?? _saldoActual;
-    final DateTime prox     = result['proximaFecha']  as DateTime? ?? _proximaFecha;
+    final int saldoNuevo = result['saldoNuevo'] as int? ?? _saldoActual;
+    final DateTime prox = result['proximaFecha'] as DateTime? ?? _proximaFecha;
 
     final DateTime proxAlDia = _siguienteFechaAlDia(prox, widget.periodo);
 
@@ -264,7 +303,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     if (uid == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sesión expirada. Inicia sesión de nuevo.')),
+        const SnackBar(
+            content: Text('Sesión expirada. Inicia sesión de nuevo.')),
       );
       return;
     }
@@ -288,7 +328,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           'updatedAt': FieldValue.serverTimestamp(),
           'nextReciboCliente': next,
           'saldado': saldoNuevo <= 0,
-          'estado' : saldoNuevo <= 0 ? 'saldado' : 'al_dia',
+          'estado': saldoNuevo <= 0 ? 'saldado' : 'al_dia',
         }, SetOptions(merge: true));
 
         nextReciboFinal = next;
@@ -314,12 +354,11 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
       await metricsRef.set({
         'lifetimeRecuperado': FieldValue.increment(pagoCapital),
-        'lifetimeGanancia'  : FieldValue.increment(pagoInteres),
-        'lifetimePagosSum'  : FieldValue.increment(totalPagado),
+        'lifetimeGanancia': FieldValue.increment(pagoInteres),
+        'lifetimePagosSum': FieldValue.increment(totalPagado),
         'lifetimePagosCount': FieldValue.increment(1),
-        'updatedAt'         : FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -341,23 +380,24 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ReciboScreen(
-          empresa: prest['empresa'] ?? widget.empresa,
-          servidor: prest['servidor'] ?? widget.servidor,
-          telefonoServidor: prest['telefono'] ?? widget.telefonoServidor,
-          cliente: widget.nombreCompleto,
-          telefonoCliente: widget.telefono,
-          numeroRecibo: numeroRecibo,
-          producto: widget.producto,
-          fecha: DateTime.now(),
-          capitalInicial: saldoAnterior,
-          pagoInteres: pagoInteres,
-          pagoCapital: pagoCapital,
-          totalPagado: totalPagado,
-          saldoAnterior: saldoAnterior,
-          saldoActual: saldoNuevo,
-          proximaFecha: proxAlDia,
-        ),
+        builder: (_) =>
+            ReciboScreen(
+              empresa: prest['empresa'] ?? widget.empresa,
+              servidor: prest['servidor'] ?? widget.servidor,
+              telefonoServidor: prest['telefono'] ?? widget.telefonoServidor,
+              cliente: widget.nombreCompleto,
+              telefonoCliente: widget.telefono,
+              numeroRecibo: numeroRecibo,
+              producto: widget.producto,
+              fecha: DateTime.now(),
+              capitalInicial: saldoAnterior,
+              pagoInteres: pagoInteres,
+              pagoCapital: pagoCapital,
+              totalPagado: totalPagado,
+              saldoAnterior: saldoAnterior,
+              saldoActual: saldoNuevo,
+              proximaFecha: proxAlDia,
+            ),
       ),
     );
 
@@ -417,24 +457,32 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     final normalized = _normalizarParaWhatsapp(telefono);
     if (normalized == null) {
       if (!mounted) return;
-      _showToastPremium('Número inválido. Agrega el código de país (ej. 1 para RD/EE.UU.).');
+      _showToastPremium(
+          'Número inválido. Agrega el código de país (ej. 1 para RD/EE.UU.).');
       return;
     }
 
     // App normal
-    final uriApp = Uri.parse('whatsapp://send?phone=$normalized&text=${Uri.encodeComponent(mensaje)}');
+    final uriApp = Uri.parse(
+        'whatsapp://send?phone=$normalized&text=${Uri.encodeComponent(
+            mensaje)}');
     // App Business (si la tienen instalada)
-    final uriBiz = Uri.parse('whatsapp-business://send?phone=$normalized&text=${Uri.encodeComponent(mensaje)}');
+    final uriBiz = Uri.parse(
+        'whatsapp-business://send?phone=$normalized&text=${Uri.encodeComponent(
+            mensaje)}');
     // Fallback web
-    final uriWeb = Uri.parse('https://wa.me/$normalized?text=${Uri.encodeComponent(mensaje)}');
+    final uriWeb = Uri.parse(
+        'https://wa.me/$normalized?text=${Uri.encodeComponent(mensaje)}');
 
     try {
       if (await canLaunchUrl(uriApp)) {
-        final ok = await launchUrl(uriApp, mode: LaunchMode.externalApplication);
+        final ok = await launchUrl(
+            uriApp, mode: LaunchMode.externalApplication);
         if (ok) return;
       }
       if (await canLaunchUrl(uriBiz)) {
-        final ok = await launchUrl(uriBiz, mode: LaunchMode.externalApplication);
+        final ok = await launchUrl(
+            uriBiz, mode: LaunchMode.externalApplication);
         if (ok) return;
       }
       if (await canLaunchUrl(uriWeb)) {
@@ -475,8 +523,10 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   // ====== VALIDACIÓN DE ESTADO PARA HABILITAR / BLOQUEAR EL ENVÍO ======
   int _diasHasta(DateTime d) {
     final hoy = _soloFecha(DateTime.now());
-    final dd  = _soloFecha(d);
-    return dd.difference(hoy).inDays; // <0 vencido, 0 hoy, 1 mañana, 2 dos días, >2 al día
+    final dd = _soloFecha(d);
+    return dd
+        .difference(hoy)
+        .inDays; // <0 vencido, 0 hoy, 1 mañana, 2 dos días, >2 al día
   }
 
   bool _permiteRecordatorio(String tipo) {
@@ -484,12 +534,18 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     final deuda = _saldoActual > 0;
 
     switch (tipo) {
-      case 'vencido':   return deuda && d < 0;     // solo si ya está vencido
-      case 'hoy':       return deuda && d == 0;    // solo si vence hoy
-      case 'manana':    return deuda && d == 1;    // solo si vence mañana
-      case 'dos_dias':  return deuda && d == 2;    // solo si vence en 2 días
-      case 'aldia':     return !deuda || d > 2;    // al día: sin deuda o faltan >2 días
-      default:          return false;
+      case 'vencido':
+        return deuda && d < 0; // solo si ya está vencido
+      case 'hoy':
+        return deuda && d == 0; // solo si vence hoy
+      case 'manana':
+        return deuda && d == 1; // solo si vence mañana
+      case 'dos_dias':
+        return deuda && d == 2; // solo si vence en 2 días
+      case 'aldia':
+        return !deuda || d > 2; // al día: sin deuda o faltan >2 días
+      default:
+        return false;
     }
   }
 
@@ -568,13 +624,15 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
             child: Text(
               text,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w700),
             ),
           ),
         ),
       ),
     );
   }
+
   // =====================================================
 
   void _abrirMenuRecordatorio() {
@@ -585,7 +643,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) {
-        Widget item(String title, String tipo, {IconData icon = Icons.schedule}) {
+        Widget item(String title, String tipo,
+            {IconData icon = Icons.schedule}) {
           return ListTile(
             leading: Icon(icon, color: Colors.black87, size: 26),
             title: Text(
@@ -621,7 +680,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Divider(),
-                item('Pago vencido', 'vencido', icon: Icons.warning_amber_rounded),
+                item('Pago vencido', 'vencido',
+                    icon: Icons.warning_amber_rounded),
                 const Divider(height: 0),
                 item('Vence hoy', 'hoy', icon: Icons.event_available),
                 const Divider(height: 0),
@@ -664,10 +724,10 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     const verde = Color(0xFF22C55E);
     final saldoColor = _saldoActual > 0 ? Colors.red : verde;
 
-    final valueBlue  = valueStyle.copyWith(color: azul);
+    final valueBlue = valueStyle.copyWith(color: azul);
     final valueSaldo = valueStyle.copyWith(color: saldoColor);
     final valueGreen = valueStyle.copyWith(color: const Color(0xFF22C55E));
-    final valueInk   = valueStyle.copyWith(color: const Color(0xFF0F172A));
+    final valueInk = valueStyle.copyWith(color: const Color(0xFF0F172A));
 
     return Scaffold(
       body: AppGradientBackground(
@@ -721,164 +781,224 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                     borderRadius: BorderRadius.circular(22),
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                      child: SingleChildScrollView(
-                        physics: const ClampingScrollPhysics(),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.nombreCompleto,
-                              style: GoogleFonts.inter(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF0F172A),
+                      // 👇 Ajuste para que el marco se adapte al contenido
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return SingleChildScrollView(
+                            physics: const ClampingScrollPhysics(),
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                // Estírate al alto disponible, pero permite crecer si hay más contenido
+                                minHeight: constraints.maxHeight,
                               ),
-                            ),
-                            const SizedBox(height: 6),
-
-                            Text(
-                              'Tel: ${widget.telefono}',
-                              style: GoogleFonts.inter(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF000000),
-                              ),
-                            ),
-                            if (widget.direccion != null && widget.direccion!.trim().isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                'Dirección: ${widget.direccion}',
-                                style: GoogleFonts.inter(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF000000),
-                                ),
-                              ),
-                            ],
-                            if (widget.producto.trim().isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                'Producto: ${widget.producto}',
-                                style: GoogleFonts.inter(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF000000),
-                                ),
-                              ),
-                            ],
-
-                            const SizedBox(height: 16),
-                            Divider(height: 24, thickness: 1, color: const Color(0xFFE7E9EE)),
-
-                            Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF4FAF7),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: const Color(0xFFDDE7E1)),
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  _rowStyled('Total histórico', _rd(_totalPrestado), labelInk, valueBlue),
-                                  Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
-
-                                  _rowStyled('Saldo actual pendiente', _rd(_saldoActual), labelInk, valueSaldo),
-                                  Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
-
-                                  _rowStyled(
-                                    'Interés ${widget.periodo.toLowerCase()}',
-                                    _rd((_saldoActual * (widget.tasaInteres / 100)).round()),
-                                    labelInk,
-                                    valueGreen,
+                                  Text(
+                                    widget.nombreCompleto,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF0F172A),
+                                    ),
                                   ),
-                                  Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
+                                  const SizedBox(height: 6),
 
-                                  _rowStyled(
-                                    'Próxima fecha',
-                                    _fmtFecha(_proximaFecha),
-                                    labelInk,
-                                    valueInk,
+                                  Text(
+                                    'Tel: ${widget.telefono}',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF000000),
+                                    ),
+                                  ),
+                                  if (widget.direccion != null &&
+                                      widget.direccion!.trim().isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Dirección: ${widget.direccion}',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF000000),
+                                      ),
+                                    ),
+                                  ],
+
+                                  // ✅ Nota opcional (si existe en Firestore)
+                                  if ((_nota ?? '').isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Nota: $_nota',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF000000),
+                                      ),
+                                    ),
+                                  ],
+
+                                  if (widget.producto
+                                      .trim()
+                                      .isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Producto: ${widget.producto}',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF000000),
+                                      ),
+                                    ),
+                                  ],
+
+                                  const SizedBox(height: 16),
+                                  Divider(height: 24,
+                                      thickness: 1,
+                                      color: const Color(0xFFE7E9EE)),
+
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF4FAF7),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                          color: const Color(0xFFDDE7E1)),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 12),
+                                    child: Column(
+                                      children: [
+                                        _rowStyled('Total histórico',
+                                            _rd(_totalPrestado), labelInk,
+                                            valueBlue),
+                                        Divider(height: 14,
+                                            thickness: 1,
+                                            color: const Color(0xFFE7F0EA)),
+
+                                        _rowStyled('Saldo actual pendiente',
+                                            _rd(_saldoActual), labelInk,
+                                            valueSaldo),
+                                        Divider(height: 14,
+                                            thickness: 1,
+                                            color: const Color(0xFFE7F0EA)),
+
+                                        _rowStyled(
+                                          'Interés ${widget.periodo
+                                              .toLowerCase()}',
+                                          _rd((_saldoActual *
+                                              (widget.tasaInteres / 100))
+                                              .round()),
+                                          labelInk,
+                                          valueGreen,
+                                        ),
+                                        Divider(height: 14,
+                                            thickness: 1,
+                                            color: const Color(0xFFE7F0EA)),
+
+                                        _rowStyled(
+                                          'Próxima fecha',
+                                          _fmtFecha(_proximaFecha),
+                                          labelInk,
+                                          valueInk,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 20),
+
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 56,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        elevation: 2,
+                                        shadowColor: const Color(0xFF2563EB)
+                                            .withOpacity(0.35),
+                                        backgroundColor: const Color(
+                                            0xFF2563EB),
+                                        foregroundColor: Colors.white,
+                                        shape: const StadiumBorder(),
+                                        textStyle: const TextStyle(fontSize: 16,
+                                            fontWeight: FontWeight.w700),
+                                      ),
+                                      onPressed: _btnPagoBusy
+                                          ? null
+                                          : () async {
+                                        HapticFeedback.lightImpact();
+                                        setState(() => _btnPagoBusy = true);
+                                        await _registrarPagoFlow(context);
+                                        if (mounted) setState(() =>
+                                        _btnPagoBusy = false);
+                                      },
+                                      child: const Text('Registrar pago'),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 56,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        elevation: 0,
+                                        backgroundColor: const Color(
+                                            0xFF22C55E),
+                                        foregroundColor: Colors.white,
+                                        shape: const StadiumBorder(),
+                                        textStyle: const TextStyle(fontSize: 16,
+                                            fontWeight: FontWeight.w700),
+                                      ),
+                                      onPressed: () {
+                                        HapticFeedback.lightImpact();
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                HistorialScreen(
+                                                  idCliente: widget.id,
+                                                  nombreCliente: widget
+                                                      .nombreCompleto,
+                                                  producto: widget.producto,
+                                                ),
+                                          ),
+                                        );
+                                      },
+                                      child: const Text('Ver historial'),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 14),
+
+                                  // 🚀 Enviar recordatorio (WhatsApp only)
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 56,
+                                    child: OutlinedButton.icon(
+                                      icon: _waIcon(size: 22),
+                                      label: const Text(
+                                          'Enviar recordatorio por WhatsApp'),
+                                      style: OutlinedButton.styleFrom(
+                                        side: const BorderSide(
+                                            color: Color(0xFF2563EB), width: 2),
+                                        shape: const StadiumBorder(),
+                                        foregroundColor: const Color(
+                                            0xFF2563EB),
+                                        textStyle: const TextStyle(fontSize: 16,
+                                            fontWeight: FontWeight.w800),
+                                      ),
+                                      onPressed: () {
+                                        HapticFeedback.selectionClick();
+                                        _abrirMenuRecordatorio();
+                                      },
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
-
-                            const SizedBox(height: 20),
-
-                            SizedBox(
-                              width: double.infinity,
-                              height: 56,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  elevation: 2,
-                                  shadowColor: const Color(0xFF2563EB).withOpacity(0.35),
-                                  backgroundColor: const Color(0xFF2563EB),
-                                  foregroundColor: Colors.white,
-                                  shape: const StadiumBorder(),
-                                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                                ),
-                                onPressed: _btnPagoBusy ? null : () async {
-                                  HapticFeedback.lightImpact();
-                                  setState(() => _btnPagoBusy = true);
-                                  await _registrarPagoFlow(context);
-                                  if (mounted) setState(() => _btnPagoBusy = false);
-                                },
-                                child: const Text('Registrar pago'),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-
-                            SizedBox(
-                              width: double.infinity,
-                              height: 56,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  elevation: 0,
-                                  backgroundColor: const Color(0xFF22C55E),
-                                  foregroundColor: Colors.white,
-                                  shape: const StadiumBorder(),
-                                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                                ),
-                                onPressed: () {
-                                  HapticFeedback.lightImpact();
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => HistorialScreen(
-                                        idCliente: widget.id,
-                                        nombreCliente: widget.nombreCompleto,
-                                        producto: widget.producto,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: const Text('Ver historial'),
-                              ),
-                            ),
-
-                            const SizedBox(height: 14),
-
-                            // 🚀 NUEVO: Enviar recordatorio (WhatsApp only)
-                            SizedBox(
-                              width: double.infinity,
-                              height: 56,
-                              child: OutlinedButton.icon(
-                                icon: _waIcon(size: 22),
-                                label: const Text('Enviar recordatorio por WhatsApp'),
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: Color(0xFF2563EB), width: 2),
-                                  shape: const StadiumBorder(),
-                                  foregroundColor: const Color(0xFF2563EB),
-                                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                                ),
-                                onPressed: () {
-                                  HapticFeedback.selectionClick();
-                                  _abrirMenuRecordatorio();
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -896,7 +1016,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                   onTap: _onBack,
                   child: const Padding(
                     padding: EdgeInsets.all(8.0),
-                    child: Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                    child: Icon(
+                        Icons.arrow_back, color: Colors.white, size: 28),
                   ),
                 ),
               ),
@@ -925,3 +1046,4 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     );
   }
 }
+
