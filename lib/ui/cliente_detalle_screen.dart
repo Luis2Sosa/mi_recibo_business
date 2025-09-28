@@ -497,7 +497,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     }
   }
 
-  // ✨ Mensajes “premium” cortos y claros
+  // ✨ Mensajes “premium” cortos y claros para enviar por whatsapp
   String _mensajeRecordatorio(String tipo) {
     // tipo: 'vencido' | 'hoy' | 'manana' | 'dos_dias' | 'aldia'
     final nombre = widget.nombreCompleto;
