@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="external_files" path="." />
+<paths>
+    <!-- Archivos en cache (recomendado para compartir PDFs/imagenes) -->
+    <cache-path
+        name="shared_cache"
+        path="." />
+
+    <!-- Si guardas en files/ (interno de la app) -->
+    <files-path
+        name="shared_files"
+        path="." />
+
+    <!-- (Opcional) Si usas externalFilesDir para exportar -->
+    <external-files-path
+        name="shared_external_files"
+        path="." />
 </paths>

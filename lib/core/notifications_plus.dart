@@ -2,16 +2,16 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class NotificationsPlus {
   static final GlobalKey<ScaffoldMessengerState> messengerKey =
   GlobalKey<ScaffoldMessengerState>();
 
-  // 👇 NUEVO: clave para abrir el diálogo en cualquier pantalla
   static final GlobalKey<NavigatorState> navigatorKey =
   GlobalKey<NavigatorState>();
 
-  // Cooldown por intención (0 = sin cooldown)
   static const _cooldowns = <String, Duration>{
     'pago_ok': Duration.zero,
     'deuda_finalizada': Duration.zero,
@@ -30,7 +30,6 @@ class NotificationsPlus {
     final lastIso = prefs.getString(key);
     final cd = _cooldowns[intent] ?? const Duration(hours: 12);
 
-    // Respeta cooldown solo si es > 0
     if (cd > Duration.zero && lastIso != null) {
       final lastDt = DateTime.tryParse(lastIso);
       if (lastDt != null && now.difference(lastDt) < cd) return;
@@ -44,17 +43,13 @@ class NotificationsPlus {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
 
-    // Semanal (1 vez/semana)
     final lastWeekIso = prefs.getString('last_revision_semanal');
     final lastWeek = DateTime.tryParse(lastWeekIso ?? '');
-    if (lastWeek == null || now
-        .difference(lastWeek)
-        .inDays >= 7) {
+    if (lastWeek == null || now.difference(lastWeek).inDays >= 7) {
       await prefs.setString('last_revision_semanal', now.toIso8601String());
       trigger('revision_semanal');
     }
 
-    // Inactividad (3+ días sin abrir)
     final lastOpenIso = prefs.getString('last_app_open');
     final lastOpen = DateTime.tryParse(lastOpenIso ?? '');
     if (lastOpen != null &&
@@ -63,11 +58,11 @@ class NotificationsPlus {
     }
     await prefs.setString('last_app_open', now.toIso8601String());
 
-    // Resumen mensual (una vez al entrar a un mes nuevo)
     final lastMonthIso = prefs.getString('last_resumen_mes');
     final lastMonth = DateTime.tryParse(lastMonthIso ?? '');
     final monthChanged =
-        lastMonth == null || lastMonth.month != now.month ||
+        lastMonth == null ||
+            lastMonth.month != now.month ||
             lastMonth.year != now.year;
     if (monthChanged) {
       await prefs.setString('last_resumen_mes', now.toIso8601String());
@@ -78,7 +73,6 @@ class NotificationsPlus {
     }
   }
 
-  // ---- Interno: decide texto/tono del banner ----
   static void _show(String intent, Map payload) {
     switch (intent) {
       case 'pago_ok':
@@ -87,7 +81,7 @@ class NotificationsPlus {
         break;
       case 'deuda_finalizada':
         _showBanner('📊 El cliente saldó su deuda',
-            color: const Color(0xFF22C55E), intent: intent); // 👈 verde
+            color: const Color(0xFF22C55E), intent: intent);
         break;
       case 'sync_ok':
         _showBanner('☁️ Datos sincronizados correctamente.',
@@ -113,28 +107,32 @@ class NotificationsPlus {
             '📚 Resumen mensual: Prestaste RD\$${prestado} y cobraste RD\$${cobrado}.',
             color: const Color(0xFF2563EB), intent: intent);
         break;
+      default:
+        final msg = (payload['text'] as String?)?.trim();
+        if (msg != null && msg.isNotEmpty) {
+          _showBanner(msg, color: const Color(0xFF2563EB), intent: intent);
+        }
     }
   }
 
-  // ===================== BANNER PREMIUM CENTRADO ======================
   static void _showBanner(String text,
       {required Color color, required String intent}) {
     void showNow() {
       final ctx = navigatorKey.currentState?.overlay?.context ??
           messengerKey.currentContext;
       if (ctx == null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) =>
-            _showBanner(text, color: color, intent: intent));
+        WidgetsBinding.instance.addPostFrameCallback(
+                (_) => _showBanner(text, color: color, intent: intent));
         return;
       }
 
-      // Tarjeta premium (sin borde blanco en deuda_finalizada)
       Widget _card() => Container(
-        constraints: const BoxConstraints(minWidth: 240, maxWidth: 340), // 📏 más compacto
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20), // 🪶 menos aire
+        constraints: const BoxConstraints(minWidth: 240, maxWidth: 340),
+        padding:
+        const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         decoration: intent == 'deuda_finalizada'
             ? BoxDecoration(
-          color: const Color(0xFF16A34A), // 🟢 verde plano limpio
+          color: const Color(0xFF16A34A),
           borderRadius: BorderRadius.circular(26),
         )
             : BoxDecoration(
@@ -144,7 +142,8 @@ class NotificationsPlus {
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
+          border: Border.all(
+              color: const Color(0xFFE5E7EB), width: 1.2),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.22),
@@ -157,7 +156,6 @@ class NotificationsPlus {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 🌟 Ícono más pequeño y elegante
             Container(
               width: 46,
               height: 46,
@@ -170,13 +168,11 @@ class NotificationsPlus {
               child: Icon(
                 Icons.check_circle_rounded,
                 size: 30,
-                color: intent == 'deuda_finalizada' ? Colors.white : color,
+                color:
+                intent == 'deuda_finalizada' ? Colors.white : color,
               ),
             ),
-
             const SizedBox(height: 14),
-
-            // ✨ Texto más pequeño pero aún profesional
             Text(
               text,
               textAlign: TextAlign.center,
@@ -196,14 +192,10 @@ class NotificationsPlus {
         ),
       );
 
-
-
-
       showGeneralDialog(
         context: ctx,
         barrierLabel: 'notifications_plus_banner',
         barrierDismissible: false,
-        // 🔦 Fondo más oscuro
         barrierColor: Colors.black.withOpacity(0.40),
         transitionDuration: const Duration(milliseconds: 220),
         pageBuilder: (_, __, ___) => const SizedBox.shrink(),
@@ -212,7 +204,6 @@ class NotificationsPlus {
           return Stack(
             fit: StackFit.expand,
             children: [
-              // 💎 Blur suave del fondo para que resalte
               Positioned.fill(
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
@@ -233,7 +224,6 @@ class NotificationsPlus {
         },
       );
 
-      // Cierre automático
       Future.delayed(const Duration(milliseconds: 1500), () {
         final nav = navigatorKey.currentState;
         if (nav != null && nav.canPop()) nav.pop();
@@ -241,5 +231,102 @@ class NotificationsPlus {
     }
 
     showNow();
+  }
+
+  static void showForeground(String text, {Color? color}) {
+    final c = color ?? const Color(0xFF2563EB);
+    _showBanner(text, color: c, intent: 'foreground');
+  }
+
+  // =================== FIRESTORE: LECTURA Y ROTACIÓN ===================
+
+  static const _cfgCol = 'config';
+  static const _cfgDoc = '(default)';
+  static const _tplCol = 'push_templates';
+  static const _dailyDoc = 'diarias';
+  static const _dueCol = 'vencimiento';
+  static const _dueDoc = 'mensajes';
+
+  static Future<List<String>> _readDailyMessages() async {
+    final snap = await FirebaseFirestore.instance
+        .collection(_cfgCol)
+        .doc(_cfgDoc)
+        .collection(_tplCol)
+        .doc(_dailyDoc)
+        .get();
+
+    final data = snap.data() ?? {};
+    final List<dynamic> raw = (data['mensajes'] as List?) ?? const [];
+    return raw.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList();
+  }
+
+  static Future<Map<String, List<String>>> _readDueMessages() async {
+    final snap = await FirebaseFirestore.instance
+        .collection(_cfgCol)
+        .doc(_cfgDoc)
+        .collection(_dueCol)
+        .doc(_dueDoc)
+        .get();
+
+    final data = snap.data() ?? {};
+    final estados = (data['estados'] as Map?) ?? {};
+    List<String> _arr(String k) {
+      final v = estados[k];
+      if (v is List) {
+        return v.map((e) => e.toString()).where((s) => s.trim().isNotEmpty).toList();
+      }
+      return const [];
+    }
+
+    return {
+      'vencido': _arr('vencido'),
+      'venceHoy': _arr('venceHoy'),
+      'venceManana': _arr('venceManana'),
+      'venceEn2Dias': _arr('venceEn2Dias'),
+    };
+  }
+
+  static Future<String?> pickDailyMessage() async {
+    final list = await _readDailyMessages();
+    if (list.isEmpty) return null;
+
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'daily_index';
+    final idx = (prefs.getInt(key) ?? -1) + 1;
+    final next = idx % list.length;
+    await prefs.setInt(key, next);
+    return list[next];
+  }
+
+  static Future<String?> pickDueMessage(String estado) async {
+    final map = await _readDueMessages();
+    final list = map[estado] ?? const [];
+    if (list.isEmpty) return null;
+
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'due_index_$estado';
+    final idx = (prefs.getInt(key) ?? -1) + 1;
+    final next = idx % list.length;
+    await prefs.setInt(key, next);
+    return list[next];
+  }
+
+  static Future<void> showDailyForeground() async {
+    final msg = await pickDailyMessage();
+    if (msg == null) return;
+    showForeground(msg);
+  }
+
+  static Future<void> showDueForeground(String estado) async {
+    final msg = await pickDueMessage(estado);
+    if (msg == null) return;
+    final color = switch (estado) {
+      'vencido' => const Color(0xFFDC2626),
+      'venceHoy' => const Color(0xFFFB923C),
+      'venceManana' => const Color(0xFFFACC15),
+      'venceEn2Dias' => const Color(0xFF2563EB),
+      _ => const Color(0xFF2563EB),
+    };
+    _showBanner(msg, color: color, intent: 'due_$estado');
   }
 }

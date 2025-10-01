@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart'; // 🌍 local
 import 'package:firebase_core/firebase_core.dart'; // Firebase Core
 import 'package:firebase_auth/firebase_auth.dart'; // 👈 para saber si hay sesión
 import 'package:cloud_firestore/cloud_firestore.dart'; // 🔐 leer settings lockEnabled
+import 'package:firebase_messaging/firebase_messaging.dart'; // 🔔 FCM
 
 import 'ui/home_screen.dart';
 import 'ui/theme/app_theme.dart';
@@ -11,9 +12,21 @@ import 'ui/pin_screen.dart'; // Pantalla de PIN/biometría
 // 🔔 Notificaciones Plus
 import 'core/notifications_plus.dart';
 
+/// 🔔 Handler de mensajes en background/terminated
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  // Aquí podrías registrar métricas si quieres
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+
+  // 🔔 FCM básico (background)
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  await _setupFCM(); // registra token + handlers
+
   runApp(const MiReciboApp());
 }
 
@@ -28,7 +41,6 @@ class MiReciboApp extends StatelessWidget {
       theme: AppTheme.materialTheme,
       scaffoldMessengerKey: NotificationsPlus.messengerKey,
       navigatorKey: NotificationsPlus.navigatorKey,
-
 
       // ✅ Español (incluye DatePicker/calendario en español)
       locale: const Locale('es'), // fuerza español; quítalo si quieres seguir el idioma del sistema
@@ -206,4 +218,129 @@ class _StartGateState extends State<_StartGate> with WidgetsBindingObserver {
       ),
     );
   }
+}
+
+/// ========= Navegación desde PUSH =========
+/// Usa el navigatorKey global para abrir la lista con intención.
+void _routeFromPushIntent(String? intent) {
+  if (intent == null || intent.isEmpty) return;
+  final ctx = NotificationsPlus.navigatorKey.currentState?.context;
+  if (ctx == null) return;
+
+  switch (intent) {
+    case 'vencidos':
+      AppIntents.openClientesVencidos(ctx);
+      break;
+    case 'hoy':
+      AppIntents.openClientesHoy(ctx);
+      break;
+    case 'pronto':
+      AppIntents.openClientesPronto(ctx);
+      break;
+    default:
+    // ignorar intents desconocidos
+      break;
+  }
+}
+
+/// 🔔 Setup FCM: permisos, token y handlers
+Future<void> _setupFCM() async {
+  final messaging = FirebaseMessaging.instance;
+
+  // Permiso (Android 13 requiere POST_NOTIFICATIONS en manifest)
+  await messaging.requestPermission(alert: true, badge: true, sound: true);
+
+  // Token actual
+  final token = await messaging.getToken();
+
+  // Guarda token si ya hay sesión
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid != null && token != null) {
+    await FirebaseFirestore.instance
+        .collection('prestamistas')
+        .doc(uid)
+        .set({
+      'meta': {
+        'fcmToken': token,
+        'fcmUpdatedAt': FieldValue.serverTimestamp(),
+      }
+    }, SetOptions(merge: true));
+  }
+
+  // Si el token cambia
+  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+    final u = FirebaseAuth.instance.currentUser;
+    if (u != null) {
+      await FirebaseFirestore.instance
+          .collection('prestamistas')
+          .doc(u.uid)
+          .set({
+        'meta': {
+          'fcmToken': newToken,
+          'fcmUpdatedAt': FieldValue.serverTimestamp(),
+        }
+      }, SetOptions(merge: true));
+    }
+  });
+
+  // Foreground: muestra banner premium usando tu messengerKey (sin tocar otros archivos)
+  FirebaseMessaging.onMessage.listen((msg) {
+    final title = msg.notification?.title?.trim();
+    final body  = msg.notification?.body?.trim();
+    final parts = <String>[];
+    if (title != null && title.isNotEmpty) parts.add(title);
+    if (body  != null && body .isNotEmpty) parts.add(body);
+    final text = parts.join(' · ');
+
+    final messenger = NotificationsPlus.messengerKey.currentState;
+    if (messenger == null || text.isEmpty) return;
+
+    messenger
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          margin: const EdgeInsets.fromLTRB(20, 14, 20, 120),
+          duration: const Duration(seconds: 2),
+          content: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.18),
+                  blurRadius: 22,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Text(
+                text,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+  });
+
+  // 👇 NUEVO: Si la app se abrió desde CERRADA por tocar la notificación
+  final initialMsg = await FirebaseMessaging.instance.getInitialMessage();
+  if (initialMsg != null) {
+    _routeFromPushIntent(initialMsg.data['intent'] as String?);
+  }
+
+  // 👇 NUEVO: Si la app estaba en background y la abren tocando la notificación
+  FirebaseMessaging.onMessageOpenedApp.listen((msg) {
+    _routeFromPushIntent(msg.data['intent'] as String?);
+  });
 }

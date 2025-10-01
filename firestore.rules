@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Perfil del prestamista: prestamistas/{uid}
+    match /prestamistas/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // Subcolección de clientes de ese prestamista
+      match /clientes/{clienteId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // (Opcional) más subcolecciones futuras (recibos, pagos, etc.)
+      match /{sub=**} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+  }
+}
