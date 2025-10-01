@@ -11,6 +11,9 @@ import 'dart:io' show exit, Platform;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+// 🔔 FCM (añadido)
+import 'package:firebase_messaging/firebase_messaging.dart';
+
 class ClientesScreen extends StatefulWidget {
   const ClientesScreen({super.key});
 
@@ -44,6 +47,14 @@ class _ClientesScreenState extends State<ClientesScreen> {
   void initState() {
     super.initState();
     _cargarPerfilPrestamista();
+
+    // ⬇️ NUEVO: guardar token FCM y escuchar mensajes en foreground
+    _guardarTokenFCM();
+    FirebaseMessaging.onMessage.listen((m) {
+      // Para confirmar que llega mientras la app está abierta
+      // ignore: avoid_print
+      print('📩 Push (foreground): ${m.notification?.title} - ${m.notification?.body}');
+    });
   }
 
   // 👇 Lee prestamistas/<uid actual> (datos básicos del prestamista para el recibo)
@@ -68,6 +79,35 @@ class _ClientesScreenState extends State<ClientesScreen> {
       });
     } catch (_) {
       // si falla, simplemente quedan strings vacíos
+    }
+  }
+
+  // 🔔 NUEVO: guarda el token FCM en prestamistas/{uid}/meta/fcmToken
+  Future<void> _guardarTokenFCM() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // En Android 13+/iOS hay que pedir permiso
+      await FirebaseMessaging.instance.requestPermission();
+
+      // Obtener token del dispositivo
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token == null || token.trim().isEmpty) return;
+
+      await FirebaseFirestore.instance
+          .collection('prestamistas')
+          .doc(user.uid)
+          .set({'meta': {'fcmToken': token}}, SetOptions(merge: true));
+
+      // ignore: avoid_print
+      print('✅ FCM token guardado: $token');
+
+      // (Opcional) Suscribirse a un tema común, por si luego lo usamos
+      // await FirebaseMessaging.instance.subscribeToTopic('diarias');
+    } catch (e) {
+      // ignore: avoid_print
+      print('❌ Error guardando FCM token: $e');
     }
   }
 
@@ -697,14 +737,14 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
                 // ===== Logo (independiente) =====
                 const Positioned(
-                  top: logoTop,
+                  top: -90,
                   left: 0,
                   right: 0,
                   child: IgnorePointer(
                     child: Center(
                       child: Image(
                         image: AssetImage('assets/images/logoB.png'),
-                        height: logoHeight,
+                        height: 300,
                         fit: BoxFit.contain,
                       ),
                     ),

@@ -1,107 +1,191 @@
-// index.js (Firebase Functions v2 + Scheduler)
-
-const admin = require('firebase-admin');
+// functions/index.js
+const functions = require("firebase-functions/v1"); // ← v1 para .pubsub.schedule(...)
+const admin = require("firebase-admin");
 admin.initializeApp();
 
-const { logger } = require('firebase-functions');
-const { onSchedule } = require('firebase-functions/v2/scheduler');
-const { onRequest }  = require('firebase-functions/v2/https');
+// ---------- Utilidades ----------
+const CHUNK = 500;
+const arrayChunks = (arr, size) =>
+  arr.reduce((acc, _, i) => (i % size ? acc : [...acc, arr.slice(i, i + size)]), []);
 
-// ---------- Helpers ----------
-const CHUNK = 500; // FCM permite hasta 500 tokens por envío
-
-function arrayChunks(arr, size) {
-  const out = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
+function today00() {
+  const n = new Date();
+  return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+}
+function addDays(d, n) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+function pickRandom(arr) {
+  if (!arr || arr.length === 0) return null;
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
+async function getPrestamistasConToken(db) {
+  const qs = await db.collection("prestamistas").get();
+  const list = [];
+  qs.forEach((doc) => {
+    const data = doc.data() || {};
+    const meta = data.meta || {};
+    const token = (meta.fcmToken || data.fcmToken || "").toString().trim();
+    if (token) list.push({ uid: doc.id, token });
+  });
+  return list;
+}
+async function getTodosTokens(db) {
+  const pres = await getPrestamistasConToken(db);
+  return pres.map((p) => p.token);
+}
+
+// ---------- LECTURAS DE CONFIG ----------
 async function getDailyMessage(db) {
-  // Lee /config/(default)/push_templates/diarias  ->  { mensajes: [ ... ] }
   const snap = await db
-    .collection('config').doc('(default)')
-    .collection('push_templates').doc('diarias')
+    .collection("config").doc("(default)")
+    .collection("push_templates").doc("diarias")
     .get();
 
-  let mensajes = [];
-  if (snap.exists) {
-    const data = snap.data() || {};
-    if (Array.isArray(data.mensajes)) {
-      mensajes = data.mensajes
-        .filter((s) => typeof s === 'string' && s.trim().length > 0);
-    }
-  }
-
+  if (!snap.exists) return null;
+  const mensajes = (snap.data().mensajes || [])
+    .filter((s) => typeof s === "string" && s.trim());
   if (mensajes.length === 0) return null;
 
-  // Índice del día (rota automáticamente)
-  const MS_PER_DAY = 24 * 60 * 60 * 1000;
-  const daysSinceEpoch = Math.floor(Date.now() / MS_PER_DAY);
-  const idx = daysSinceEpoch % mensajes.length;
+  const MS_PER_DAY = 86400000;
+  const idx = Math.floor(Date.now() / MS_PER_DAY) % mensajes.length;
   return mensajes[idx];
 }
 
-async function getAllTokens(db) {
-  // prestamistas/{uid}.meta.fcmToken
-  const qs = await db.collection('prestamistas').get();
-  const tokens = [];
-  qs.forEach((doc) => {
-    const data = doc.data() || {};
-    const t = data?.meta?.fcmToken;
-    if (typeof t === 'string' && t.trim()) tokens.push(t.trim());
-  });
-  return tokens;
+async function getVencTemplates(db) {
+  const snap = await db
+    .collection("config").doc("(default)")
+    .collection("push_templates").doc("vencimiento")
+    .get();
+  const data = snap.exists ? (snap.data() || {}) : {};
+  const clean = (x) => (Array.isArray(x) ? x.filter((s) => typeof s === "string" && s.trim()) : []);
+  return {
+    vencido: clean(data.vencido),
+    venceHoy: clean(data.venceHoy),
+    venceManana: clean(data.venceManana),
+    venceEn2Dias: clean(data.venceEn2Dias),
+  };
 }
 
-async function enviarDiarias() {
+// ---------- CÁLCULO DE ESTADOS ----------
+async function contarEstadosCliente(db, uid) {
+  const base = today00();        // hoy 00:00
+  const man  = addDays(base, 1); // mañana 00:00
+  const dos  = addDays(base, 2); // pasado mañana 00:00
+  const tres = addDays(base, 3); // +2 días (exclusivo)
+
+  const qs = await db
+    .collection("prestamistas").doc(uid)
+    .collection("clientes")
+    .where("saldoActual", ">", 0)
+    .get();
+
+  let vencidos = 0, hoy = 0, manana = 0, en2 = 0;
+  qs.forEach((doc) => {
+    const d = doc.data() || {};
+    const t = d.proximaFecha;
+    const f = t?.toDate ? t.toDate() : null;
+    if (!f) return;
+    if (f < base) vencidos++;
+    else if (f >= base && f < man) hoy++;
+    else if (f >= man && f < dos) manana++;
+    else if (f >= dos && f < tres) en2++;
+  });
+  return { vencidos, hoy, manana, en2 };
+}
+
+// =====================================================
+// ===============   LÓGICA EJECUTABLE   ===============
+// =====================================================
+async function runDiarias() {
   const db = admin.firestore();
-
-  // 1) Mensaje del día
   const mensaje = await getDailyMessage(db);
-  if (!mensaje) {
-    logger.warn('No hay mensajes diarios configurados en /config/(default)/push_templates/diarias.mensajes');
-    return;
-  }
+  if (!mensaje) return { sent: 0, failed: 0, note: "Sin mensajes diarios" };
 
-  // 2) Tokens
-  const tokens = await getAllTokens(db);
-  if (tokens.length === 0) {
-    logger.warn('No hay tokens FCM en prestamistas/*');
-    return;
-  }
+  const tokens = await getTodosTokens(db);
+  if (tokens.length === 0) return { sent: 0, failed: 0, note: "Sin tokens" };
 
   const notif = {
-    notification: { title: 'Mi Recibo', body: mensaje },
-    data: { type: 'daily' }, // para que la app sepa que es diario
+    notification: { title: "Mi Recibo", body: mensaje },
+    data: { type: "daily" },
   };
 
-  // 3) Enviar en bloques de 500
-  let sent = 0; let failed = 0;
+  let sent = 0, failed = 0;
   for (const chunk of arrayChunks(tokens, CHUNK)) {
-    const res = await admin.messaging().sendEachForMulticast({
-      tokens: chunk,
-      ...notif,
-    });
-    sent  += res.successCount;
+    const res = await admin.messaging().sendEachForMulticast({ tokens: chunk, ...notif });
+    sent += res.successCount;
     failed += res.failureCount;
   }
-
-  logger.info(`✅ Notificaciones diarias: Enviadas=${sent}  Fallidas=${failed}`);
+  return { sent, failed };
 }
 
-// ---------- CRON: 9:00 AM todos los días (zona RD) ----------
-exports.enviarNotificacionesDiarias = onSchedule(
-  { schedule: '0 9 * * *', timeZone: 'America/Santo_Domingo' }, // 9:00 AM diario
-  async () => { await enviarDiarias(); }
-);
+async function runVencimientos() {
+  const db = admin.firestore();
+  const tpl = await getVencTemplates(db);
+  const prestamistas = await getPrestamistasConToken(db);
+  if (prestamistas.length === 0) return { sent: 0, skipped: 0, note: "Sin prestamistas/token" };
 
-// ---------- Endpoint HTTP para pruebas locales ----------
-exports['run-enviarNotificacionesDiarias'] = onRequest(async (_req, res) => {
-  try {
-    await enviarDiarias();
-    res.status(200).send('OK ✅');
-  } catch (e) {
-    logger.error(e);
-    res.status(500).send('Error');
+  let sent = 0, skipped = 0;
+  for (const p of prestamistas) {
+    const { vencidos, hoy, manana, en2 } = await contarEstadosCliente(db, p.uid);
+    let body = null;
+    if (vencidos > 0) body = pickRandom(tpl.vencido);
+    else if (hoy > 0) body = pickRandom(tpl.venceHoy);
+    else if (manana > 0) body = pickRandom(tpl.venceManana);
+    else if (en2 > 0) body = pickRandom(tpl.venceEn2Dias);
+
+    if (!body) { skipped++; continue; }
+
+    await admin.messaging().send({
+      token: p.token,
+      notification: { title: "Mi Recibo", body },
+      data: {
+        type: "due",
+        vencidos: String(vencidos),
+        hoy: String(hoy),
+        manana: String(manana),
+        en2: String(en2),
+      },
+    });
+    sent++;
   }
+  return { sent, skipped };
+}
+
+// =====================================================
+// ==============    CRON (PRODUCCIÓN)    ==============
+// =====================================================
+exports.enviarNotificacionesDiarias = functions.pubsub
+  .schedule("0 9 * * *").timeZone("America/Santo_Domingo")
+  .onRun(async () => {
+    const r = await runDiarias();
+    console.log("Diarias →", r);
+    return null;
+  });
+
+exports.enviarNotificacionesVencimiento = functions.pubsub
+  .schedule("30 8 * * *").timeZone("America/Santo_Domingo")
+  .onRun(async () => {
+    const r = await runVencimientos();
+    console.log("Vencimientos →", r);
+    return null;
+  });
+
+// =====================================================
+// ==============   HTTP TEST (EMULADOR)   =============
+// =====================================================
+exports.testDiarias = functions.https.onRequest(async (_req, res) => {
+  const r = await runDiarias();
+  res.json({ ok: true, ...r });
 });
+
+exports.testVencimientos = functions.https.onRequest(async (_req, res) => {
+  const r = await runVencimientos();
+  res.json({ ok: true, ...r });
+});
+
+// Ping simple
+exports.ping = functions.https.onRequest((_req, res) => res.send("OK"));
