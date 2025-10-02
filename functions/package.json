@@ -1,24 +1,14 @@
 {
   "name": "functions",
-  "description": "Cloud Functions for Firebase",
-  "private": true,
   "main": "index.js",
-  "engines": {
-    "node": "22"
-  },
+  "engines": { "node": "22" },
   "scripts": {
-    "lint": "echo \"(lint deshabilitado en predeploy)\"",
-    "serve": "firebase emulators:start --only functions,pubsub",
-    "shell": "firebase functions:shell",
-    "start": "npm run shell",
-    "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "build": "echo \"(JS plano)\"",
+    "serve": "firebase emulators:start --only functions,firestore",
+    "deploy": "firebase deploy --only functions"
   },
   "dependencies": {
     "firebase-admin": "^12.6.0",
-    "firebase-functions": "^6.0.1"
-  },
-  "devDependencies": {
-    "firebase-functions-test": "^3.1.0"
+    "firebase-functions": "^5.0.0"
   }
 }

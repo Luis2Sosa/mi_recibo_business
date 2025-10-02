@@ -1,191 +1,207 @@
-// functions/index.js
-const functions = require("firebase-functions/v1"); // ← v1 para .pubsub.schedule(...)
+/**
+ * Mi Recibo — Notificaciones (v2)
+ * - Vencimientos: 8:00 AM
+ * - Diaria:       9:00 AM
+ * - Candados separados por tipo (diaria | vencimiento)
+ * - dryRun NO coloca candados
+ * - Se bloquea solo después de confirmar plantilla y tokens
+ */
+
 const admin = require("firebase-admin");
-admin.initializeApp();
+try { admin.app(); } catch { admin.initializeApp(); }
 
-// ---------- Utilidades ----------
-const CHUNK = 500;
-const arrayChunks = (arr, size) =>
-  arr.reduce((acc, _, i) => (i % size ? acc : [...acc, arr.slice(i, i + size)]), []);
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onRequest }  = require("firebase-functions/v2/https");
 
-function today00() {
-  const n = new Date();
-  return new Date(n.getFullYear(), n.getMonth(), n.getDate());
-}
-function addDays(d, n) {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
-}
-function pickRandom(arr) {
-  if (!arr || arr.length === 0) return null;
-  return arr[Math.floor(Math.random() * arr.length)];
-}
+const TZ = "America/Santo_Domingo";
+const VENC_CRON  = "0 8 * * *"; // 8:00 AM
+const DAILY_CRON = "0 9 * * *"; // 9:00 AM
 
-async function getPrestamistasConToken(db) {
-  const qs = await db.collection("prestamistas").get();
-  const list = [];
-  qs.forEach((doc) => {
-    const data = doc.data() || {};
-    const meta = data.meta || {};
-    const token = (meta.fcmToken || data.fcmToken || "").toString().trim();
-    if (token) list.push({ uid: doc.id, token });
+// ---------- Utils ----------
+const db = admin.firestore();
+
+function todayKeyTZ(tz = TZ) {
+  const f = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
   });
-  return list;
-}
-async function getTodosTokens(db) {
-  const pres = await getPrestamistasConToken(db);
-  return pres.map((p) => p.token);
+  const parts = f.formatToParts(new Date());
+  const y = parts.find(p => p.type === "year").value;
+  const m = parts.find(p => p.type === "month").value;
+  const d = parts.find(p => p.type === "day").value;
+  return `${y}${m}${d}`; // yyyymmdd
 }
 
-// ---------- LECTURAS DE CONFIG ----------
-async function getDailyMessage(db) {
+const chunk = (arr, n = 500) => {
+  const out = [];
+  for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+  return out;
+};
+
+async function getAllTokens() {
+  const qs = await db.collection("prestamistas").get();
+  const tokens = [];
+  qs.forEach((doc) => {
+    const meta = (doc.data() || {}).meta || {};
+    const t = meta.fcmToken;
+    if (typeof t === "string" && t.trim()) tokens.push(t.trim());
+  });
+  return tokens;
+}
+
+function pickFromArrayTZ(arr, tz = TZ) {
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  const day = Number(todayKeyTZ(tz));
+  const idx = day % arr.length;
+  return (arr[idx] || "").toString().trim() || null;
+}
+
+async function getDailyMessage() {
   const snap = await db
     .collection("config").doc("(default)")
     .collection("push_templates").doc("diarias")
     .get();
 
-  if (!snap.exists) return null;
-  const mensajes = (snap.data().mensajes || [])
-    .filter((s) => typeof s === "string" && s.trim());
-  if (mensajes.length === 0) return null;
+  const mensajes = ((snap.data() || {}).mensajes || [])
+    .filter((s) => typeof s === "string" && s.trim().length > 0);
 
-  const MS_PER_DAY = 86400000;
-  const idx = Math.floor(Date.now() / MS_PER_DAY) % mensajes.length;
-  return mensajes[idx];
+  return pickFromArrayTZ(mensajes);
 }
 
-async function getVencTemplates(db) {
+async function getVencMessage(kind /* "vencido" | "venceHoy" | "venceManana" | "venceEn2Dias" */) {
+  // En tu Firestore el doc se llama "vencido"
   const snap = await db
     .collection("config").doc("(default)")
-    .collection("push_templates").doc("vencimiento")
+    .collection("push_templates").doc("vencido")
     .get();
-  const data = snap.exists ? (snap.data() || {}) : {};
-  const clean = (x) => (Array.isArray(x) ? x.filter((s) => typeof s === "string" && s.trim()) : []);
-  return {
-    vencido: clean(data.vencido),
-    venceHoy: clean(data.venceHoy),
-    venceManana: clean(data.venceManana),
-    venceEn2Dias: clean(data.venceEn2Dias),
-  };
+
+  const data = snap.data() || {};
+  const arr = Array.isArray(data[kind]) ? data[kind] : [];
+  return pickFromArrayTZ(arr);
 }
 
-// ---------- CÁLCULO DE ESTADOS ----------
-async function contarEstadosCliente(db, uid) {
-  const base = today00();        // hoy 00:00
-  const man  = addDays(base, 1); // mañana 00:00
-  const dos  = addDays(base, 2); // pasado mañana 00:00
-  const tres = addDays(base, 3); // +2 días (exclusivo)
+/**
+ * Candado por tipo:
+ *   config/(default)/push_state/<tipo>  (tipo: "diaria" | "vencimiento")
+ *   { yyyymmdd: "20251002", source: "<tipo>", ts: serverTimestamp() }
+ */
+async function tryAcquireLockByType(tipo) {
+  const ref = db.collection("config").doc("(default)")
+               .collection("push_state").doc(tipo);
 
-  const qs = await db
-    .collection("prestamistas").doc(uid)
-    .collection("clientes")
-    .where("saldoActual", ">", 0)
-    .get();
+  const ymd = todayKeyTZ();
 
-  let vencidos = 0, hoy = 0, manana = 0, en2 = 0;
-  qs.forEach((doc) => {
-    const d = doc.data() || {};
-    const t = d.proximaFecha;
-    const f = t?.toDate ? t.toDate() : null;
-    if (!f) return;
-    if (f < base) vencidos++;
-    else if (f >= base && f < man) hoy++;
-    else if (f >= man && f < dos) manana++;
-    else if (f >= dos && f < tres) en2++;
+  return await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists ? (snap.data() || {}) : {};
+    if (snap.exists && data.yyyymmdd === ymd) return false;
+    tx.set(ref, {
+      yyyymmdd: ymd,
+      source: tipo,
+      ts: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return true;
   });
-  return { vencidos, hoy, manana, en2 };
 }
 
-// =====================================================
-// ===============   LÓGICA EJECUTABLE   ===============
-// =====================================================
-async function runDiarias() {
-  const db = admin.firestore();
-  const mensaje = await getDailyMessage(db);
-  if (!mensaje) return { sent: 0, failed: 0, note: "Sin mensajes diarios" };
-
-  const tokens = await getTodosTokens(db);
-  if (tokens.length === 0) return { sent: 0, failed: 0, note: "Sin tokens" };
-
-  const notif = {
-    notification: { title: "Mi Recibo", body: mensaje },
-    data: { type: "daily" },
-  };
-
+async function sendMulticast(tokens, payload) {
   let sent = 0, failed = 0;
-  for (const chunk of arrayChunks(tokens, CHUNK)) {
-    const res = await admin.messaging().sendEachForMulticast({ tokens: chunk, ...notif });
+  for (const part of chunk(tokens, 500)) {
+    const res = await admin.messaging().sendEachForMulticast({
+      tokens: part,
+      ...payload,
+    });
     sent += res.successCount;
     failed += res.failureCount;
   }
   return { sent, failed };
 }
 
-async function runVencimientos() {
-  const db = admin.firestore();
-  const tpl = await getVencTemplates(db);
-  const prestamistas = await getPrestamistasConToken(db);
-  if (prestamistas.length === 0) return { sent: 0, skipped: 0, note: "Sin prestamistas/token" };
+// ---------- Envíos concretos ----------
+async function sendVencimientos({ kind = "vencido", dryRun = false } = {}) {
+  // 1) Preparar (NO candado aún)
+  const body = await getVencMessage(kind);
+  if (!body) return { sent: 0, failed: 0, reason: "no-template" };
 
-  let sent = 0, skipped = 0;
-  for (const p of prestamistas) {
-    const { vencidos, hoy, manana, en2 } = await contarEstadosCliente(db, p.uid);
-    let body = null;
-    if (vencidos > 0) body = pickRandom(tpl.vencido);
-    else if (hoy > 0) body = pickRandom(tpl.venceHoy);
-    else if (manana > 0) body = pickRandom(tpl.venceManana);
-    else if (en2 > 0) body = pickRandom(tpl.venceEn2Dias);
+  const tokens = await getAllTokens();
+  if (tokens.length === 0) return { sent: 0, failed: 0, reason: "no-tokens" };
 
-    if (!body) { skipped++; continue; }
-
-    await admin.messaging().send({
-      token: p.token,
-      notification: { title: "Mi Recibo", body },
-      data: {
-        type: "due",
-        vencidos: String(vencidos),
-        hoy: String(hoy),
-        manana: String(manana),
-        en2: String(en2),
-      },
-    });
-    sent++;
+  if (dryRun) {
+    console.log(`[DRYRUN VENC] ${tokens.length} tokens, msg="${body}"`);
+    return { sent: 0, failed: 0, reason: "dryrun" };
   }
-  return { sent, skipped };
+
+  // 2) Tomar candado por tipo
+  const locked = await tryAcquireLockByType("vencimiento");
+  if (!locked) return { sent: 0, failed: 0, reason: "locked" };
+
+  // 3) Enviar
+  const payload = {
+    notification: { title: "Mi Recibo", body },
+    data: { type: "vencimiento", kind },
+  };
+  const res = await sendMulticast(tokens, payload);
+  console.log(`[VENC] Enviadas: ${res.sent}, Fallidas: ${res.failed}`);
+  return res;
 }
 
-// =====================================================
-// ==============    CRON (PRODUCCIÓN)    ==============
-// =====================================================
-exports.enviarNotificacionesDiarias = functions.pubsub
-  .schedule("0 9 * * *").timeZone("America/Santo_Domingo")
-  .onRun(async () => {
-    const r = await runDiarias();
-    console.log("Diarias →", r);
-    return null;
-  });
+async function sendDiaria({ dryRun = false } = {}) {
+  // 1) Preparar (NO candado aún)
+  const body = await getDailyMessage();
+  if (!body) return { sent: 0, failed: 0, reason: "no-template" };
 
-exports.enviarNotificacionesVencimiento = functions.pubsub
-  .schedule("30 8 * * *").timeZone("America/Santo_Domingo")
-  .onRun(async () => {
-    const r = await runVencimientos();
-    console.log("Vencimientos →", r);
-    return null;
-  });
+  const tokens = await getAllTokens();
+  if (tokens.length === 0) return { sent: 0, failed: 0, reason: "no-tokens" };
 
-// =====================================================
-// ==============   HTTP TEST (EMULADOR)   =============
-// =====================================================
-exports.testDiarias = functions.https.onRequest(async (_req, res) => {
-  const r = await runDiarias();
-  res.json({ ok: true, ...r });
+  if (dryRun) {
+    console.log(`[DRYRUN DIARIA] ${tokens.length} tokens, msg="${body}"`);
+    return { sent: 0, failed: 0, reason: "dryrun" };
+  }
+
+  // 2) Tomar candado por tipo
+  const locked = await tryAcquireLockByType("diaria");
+  if (!locked) return { sent: 0, failed: 0, reason: "locked" };
+
+  // 3) Enviar
+  const payload = {
+    notification: { title: "Mi Recibo", body },
+    data: { type: "daily" },
+  };
+  const res = await sendMulticast(tokens, payload);
+  console.log(`[DIARIA] Enviadas: ${res.sent}, Fallidas: ${res.failed}`);
+  return res;
+}
+
+// ---------- CRON (API v2) ----------
+exports.enviarNotificacionesVencimiento = onSchedule(
+  { schedule: VENC_CRON, timeZone: TZ },
+  async () => sendVencimientos({ kind: "vencido", dryRun: false })
+);
+
+exports.enviarNotificacionesDiarias = onSchedule(
+  { schedule: DAILY_CRON, timeZone: TZ },
+  async () => sendDiaria({ dryRun: false })
+);
+
+// ---------- Endpoint de prueba ----------
+/**
+ * GET /test?mode=diaria[&dry=1]
+ * GET /test?mode=vencimiento&kind=vencido|venceHoy|venceManana|venceEn2Dias[&dry=1]
+ */
+exports.test = onRequest(async (req, res) => {
+  try {
+    const mode = (req.query.mode || "diaria").toString();
+    const kind = req.query.kind ? req.query.kind.toString() : "vencido";
+    const dry  = !!req.query.dry;
+
+    const out = mode === "vencimiento"
+      ? await sendVencimientos({ kind, dryRun: dry })
+      : await sendDiaria({ dryRun: dry });
+
+    res.status(200).json({ ok: true, mode, kind, ...out });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: String(e) });
+  }
 });
 
-exports.testVencimientos = functions.https.onRequest(async (_req, res) => {
-  const r = await runVencimientos();
-  res.json({ ok: true, ...r });
-});
-
-// Ping simple
-exports.ping = functions.https.onRequest((_req, res) => res.send("OK"));
+exports.ping = onRequest((_, res) => res.send("OK"));
