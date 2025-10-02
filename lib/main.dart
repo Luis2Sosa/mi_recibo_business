@@ -221,7 +221,6 @@ class _StartGateState extends State<_StartGate> with WidgetsBindingObserver {
 }
 
 /// ========= Navegación desde PUSH =========
-/// Usa el navigatorKey global para abrir la lista con intención.
 void _routeFromPushIntent(String? intent) {
   if (intent == null || intent.isEmpty) return;
   final ctx = NotificationsPlus.navigatorKey.currentState?.context;
@@ -240,6 +239,22 @@ void _routeFromPushIntent(String? intent) {
     default:
     // ignorar intents desconocidos
       break;
+  }
+}
+
+/// 👇 NUEVO: helper para guardar/actualizar el token del usuario activo
+Future<void> _writeFcmToken(String uid) async {
+  final t = await FirebaseMessaging.instance.getToken();
+  if (t != null) {
+    await FirebaseFirestore.instance
+        .collection('prestamistas')
+        .doc(uid)
+        .set({
+      'meta': {
+        'fcmToken': t,
+        'fcmUpdatedAt': FieldValue.serverTimestamp(),
+      }
+    }, SetOptions(merge: true));
   }
 }
 
@@ -333,14 +348,21 @@ Future<void> _setupFCM() async {
       );
   });
 
-  // 👇 NUEVO: Si la app se abrió desde CERRADA por tocar la notificación
+  // 👇 NUEVO: si la app se abrió desde CERRADA por tocar la notificación
   final initialMsg = await FirebaseMessaging.instance.getInitialMessage();
   if (initialMsg != null) {
     _routeFromPushIntent(initialMsg.data['intent'] as String?);
   }
 
-  // 👇 NUEVO: Si la app estaba en background y la abren tocando la notificación
+  // 👇 NUEVO: si la app estaba en background y la abren tocando la notificación
   FirebaseMessaging.onMessageOpenedApp.listen((msg) {
     _routeFromPushIntent(msg.data['intent'] as String?);
+  });
+
+  // 👇 NUEVO: si el usuario inicia/cambia sesión después de arrancar, sube el token automáticamente
+  FirebaseAuth.instance.authStateChanges().listen((u) {
+    if (u != null) {
+      _writeFcmToken(u.uid);
+    }
   });
 }
