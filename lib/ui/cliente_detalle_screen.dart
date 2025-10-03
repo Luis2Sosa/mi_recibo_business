@@ -322,14 +322,20 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         final current = (snap.data()?['nextReciboCliente'] ?? 0) as int;
         final next = current + 1;
 
-        tx.set(clienteRef, {
+        // 👇 Actualización del cliente (solo se agregó 'venceEl')
+        final Map<String, dynamic> updates = {
           'saldoActual': saldoNuevo,
           'proximaFecha': Timestamp.fromDate(proxAlDia),
           'updatedAt': FieldValue.serverTimestamp(),
           'nextReciboCliente': next,
           'saldado': saldoNuevo <= 0,
           'estado': saldoNuevo <= 0 ? 'saldado' : 'al_dia',
-        }, SetOptions(merge: true));
+        };
+        updates['venceEl'] = (saldoNuevo <= 0)
+            ? FieldValue.delete()
+            : Timestamp.fromDate(proxAlDia);
+
+        tx.set(clienteRef, updates, SetOptions(merge: true));
 
         nextReciboFinal = next;
       });

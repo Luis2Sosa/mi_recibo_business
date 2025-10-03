@@ -91,6 +91,9 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     return '${d.day} ${meses[d.month - 1]} ${d.year}';
   }
 
+  // 👇 Normaliza a 12:00 p. m. para evitar líos de zona horaria
+  DateTime _atNoon(DateTime d) => DateTime(d.year, d.month, d.day, 12);
+
   InputDecoration _deco(String label, {IconData? icon}) => InputDecoration(
     labelText: label,
     labelStyle: const TextStyle(color: Color(0xFF64748B)),
@@ -506,6 +509,9 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     final finalTel = _formatPhoneForStorage(rawTel);
     final nota = _notaCtrl.text.trim();                              // 👈 NUEVO
 
+    // 👇 normaliza venceEl al mediodía
+    final DateTime venceElDate = _atNoon(_proximaFecha!);
+
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -543,6 +549,10 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
           'saldoActual'  : capital,
           'saldado'      : capital == 0,
           'estado'       : capital == 0 ? 'saldado' : 'al_dia',
+          // 👇 agrega/borra venceEl automáticamente
+          'venceEl'      : capital == 0
+              ? FieldValue.delete()
+              : Timestamp.fromDate(venceElDate),
         });
 
         await col.doc(docId).set(update, SetOptions(merge: true));
@@ -573,6 +583,10 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
           'tasaInteres': tasa,
           'periodo': _periodo,
           'proximaFecha': Timestamp.fromDate(_proximaFecha!),
+          // 👇 agrega/borra venceEl automáticamente
+          'venceEl': capital == 0
+              ? FieldValue.delete()
+              : Timestamp.fromDate(venceElDate),
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
