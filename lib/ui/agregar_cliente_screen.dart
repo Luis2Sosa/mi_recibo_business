@@ -170,6 +170,9 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     final bool tecladoAbierto = bottomInset > 0;
     final double h = MediaQuery.of(context).size.height;
 
+    // 👇 corrige posible padding negativo
+    final safeBottomPadding = tecladoAbierto ? (bottomInset - 25).clamp(0.0, double.infinity) : 26.0;
+
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: Container(
@@ -190,13 +193,13 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeOut,
                   padding: EdgeInsets.only(
-                    bottom: tecladoAbierto ? bottomInset + -25 : 26,
+                    bottom: safeBottomPadding,
                     left: 16,
                     right: 16,
                   ),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
-                      maxHeight: tecladoAbierto ? h * 0.75 : h * 0.92,
+                      maxHeight: tecladoAbierto ? h * 0.75 : h * 0.96,
                     ),
                     child: Container(
                       decoration: BoxDecoration(
@@ -214,9 +217,10 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                         borderRadius: BorderRadius.circular(28),
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+                          // ✅ un solo scroll (se quita el anidado)
                           child: SingleChildScrollView(
                             physics: tecladoAbierto
-                                ? const ClampingScrollPhysics()
+                                ? const AlwaysScrollableScrollPhysics()
                                 : const NeverScrollableScrollPhysics(),
                             child: _formBody(),
                           ),
@@ -363,6 +367,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                           if (x < 0 || x > 100) return 'Debe ser entre 0 y 100';
                           return null;
                         },
+                        textInputAction: TextInputAction.done,
                       ),
                     ),
                   ],
@@ -502,15 +507,25 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
 
     setState(() => _guardando = true);
 
+    // ✅ Validación y normalización profesional del teléfono ANTES de guardar
+    final rawTel = _telefonoCtrl.text.trim();
+    if (!_isValidPhone(rawTel)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Número de teléfono inválido.')),
+      );
+      setState(() => _guardando = false);
+      return;
+    }
+    final finalTel = _formatPhoneForStorage(rawTel);
+    final initialTelFormatted = _formatPhoneForStorage(widget.initTelefono ?? '');
+
     final capital = int.tryParse(_capitalCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
     final tasa = double.tryParse(_tasaCtrl.text.replaceAll(',', '.')) ?? 0.0;
-
-    final rawTel = _telefonoCtrl.text.trim();
-    final finalTel = _formatPhoneForStorage(rawTel);
     final nota = _notaCtrl.text.trim();                              // 👈 NUEVO
 
-    // 👇 normaliza venceEl al mediodía
+    // 👇 normaliza fechas al mediodía
     final DateTime venceElDate = _atNoon(_proximaFecha!);
+    final DateTime proximaDate = _atNoon(_proximaFecha!);
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
@@ -530,33 +545,37 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
       String? docId = widget.id;
 
       if (_isEdit && docId != null) {
+        // 📞 Validar duplicado si el teléfono cambió
+        if (finalTel != initialTelFormatted) {
+          final dup = await col.where('telefono', isEqualTo: finalTel).limit(1).get();
+          if (dup.docs.isNotEmpty && dup.docs.first.id != docId) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Ese teléfono ya está asignado a otro cliente.')),
+            );
+            setState(() => _guardando = false);
+            return;
+          }
+        }
+
+        // ✂️ En edición: NO sobrescribir saldos/estado/venceEl
         final Map<String, dynamic> update = {
           'nombre': _nombreCtrl.text.trim(),
           'apellido': _apellidoCtrl.text.trim(),
+          'nombreCompleto': '${_nombreCtrl.text.trim()} ${_apellidoCtrl.text.trim()}',
           'telefono': finalTel,
           'direccion': _direccionCtrl.text.trim().isEmpty ? null : _direccionCtrl.text.trim(),
-          'nota'     : nota.isEmpty ? null : nota,                   // 👈 NUEVO
+          'nota'     : nota.isEmpty ? null : nota,
           'producto' : _productoCtrl.text.trim().isEmpty ? null : _productoCtrl.text.trim(),
           'capitalInicial': capital,
           'tasaInteres': tasa,
           'periodo': _periodo,
-          'proximaFecha': Timestamp.fromDate(_proximaFecha!),
+          'proximaFecha': Timestamp.fromDate(proximaDate),
           'updatedAt': FieldValue.serverTimestamp(),
         };
 
-        update.addAll({
-          'saldoAnterior': capital,
-          'saldoActual'  : capital,
-          'saldado'      : capital == 0,
-          'estado'       : capital == 0 ? 'saldado' : 'al_dia',
-          // 👇 agrega/borra venceEl automáticamente
-          'venceEl'      : capital == 0
-              ? FieldValue.delete()
-              : Timestamp.fromDate(venceElDate),
-        });
-
         await col.doc(docId).set(update, SetOptions(merge: true));
       } else {
+        // creación: validar duplicado
         final dup = await col.where('telefono', isEqualTo: finalTel).limit(1).get();
         if (dup.docs.isNotEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -571,10 +590,11 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
         await newDoc.set({
           'nombre': _nombreCtrl.text.trim(),
           'apellido': _apellidoCtrl.text.trim(),
+          'nombreCompleto': '${_nombreCtrl.text.trim()} ${_apellidoCtrl.text.trim()}',
           'telefono': finalTel,
           'direccion': _direccionCtrl.text.trim().isEmpty ? null : _direccionCtrl.text.trim(),
           'nota'     : nota.isEmpty ? null : nota,                   // 👈 NUEVO
-          'producto': _productoCtrl.text.trim().isEmpty ? null : _productoCtrl.text.trim(),
+          'producto' : _productoCtrl.text.trim().isEmpty ? null : _productoCtrl.text.trim(),
           'capitalInicial': capital,
           'saldoActual': capital,
           'saldoAnterior': capital,
@@ -582,8 +602,8 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
           'estado': capital == 0 ? 'saldado' : 'al_dia',
           'tasaInteres': tasa,
           'periodo': _periodo,
-          'proximaFecha': Timestamp.fromDate(_proximaFecha!),
-          // 👇 agrega/borra venceEl automáticamente
+          'proximaFecha': Timestamp.fromDate(proximaDate),
+          // 👇 agrega/borra venceEl automáticamente SOLO en creación
           'venceEl': capital == 0
               ? FieldValue.delete()
               : Timestamp.fromDate(venceElDate),
@@ -603,23 +623,18 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
         }, SetOptions(merge: true));
       }
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_isEdit ? 'Cliente actualizado ✅' : 'Cliente agregado ✅')),
-      );
-
       Navigator.pop(context, {
         if (_isEdit) 'id': docId,
-        'nombre': _nombreCtrl.text,
-        'apellido': _apellidoCtrl.text,
-        'telefono': finalTel,
-        'direccion': _direccionCtrl.text,
-        'nota': nota,                                               // 👈 NUEVO
-        'producto': _productoCtrl.text,
+        'nombre': _nombreCtrl.text.trim().isEmpty ? null : _nombreCtrl.text.trim(),
+        'apellido': _apellidoCtrl.text.trim().isEmpty ? null : _apellidoCtrl.text.trim(),
+        'telefono': finalTel.isEmpty ? null : finalTel,
+        'direccion': _direccionCtrl.text.trim().isEmpty ? null : _direccionCtrl.text.trim(),
+        'nota': nota.isEmpty ? null : nota,                           // 👈 consistente con persistencia
+        'producto': _productoCtrl.text.trim().isEmpty ? null : _productoCtrl.text.trim(),
         'capital': capital,
         'tasa': tasa,
         'periodo': _periodo,
-        'proximaFecha': _proximaFecha,
+        'proximaFecha': proximaDate,
       });
     } catch (e) {
       if (!mounted) return;

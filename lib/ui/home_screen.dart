@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -6,7 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'prestamista_registro_screen.dart';
 import 'clientes_screen.dart';
-import 'pin_screen.dart'; // 👈 agregado: para el gate de PIN/huella
+import 'pin_screen.dart'; // Gate de PIN/huella
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,18 +17,50 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  // ===== Layout consts =====
   static const double logoTop = -20;
   static const double logoSize = 400;
   static const double sloganTop = 270;
   static const double buttonsTop = 500;
 
-  bool cargando = false;
+  // ===== State =====
+  bool _cargando = false;
+
+  // ===== Utils =====
+  void _showSnack(String msg) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            msg,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+      );
+  }
+
+  Future<void> _googleSignOutSilently() async {
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {
+      // No-op
+    }
+  }
 
   Future<UserCredential> _loginConGoogle() async {
-    final googleUser = await GoogleSignIn().signIn();
+    // Evita sesiones colgadas de intentos previos
+    await _googleSignOutSilently();
+
+    final google = GoogleSignIn();
+    final googleUser = await google.signIn();
     if (googleUser == null) {
-      throw Exception('Login cancelado por el usuario');
+      throw const _UiFriendlyAuthError('Inicio cancelado por el usuario');
     }
+
     final googleAuth = await googleUser.authentication;
     final credential = GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
@@ -36,31 +69,74 @@ class _HomeScreenState extends State<HomeScreen> {
     return await FirebaseAuth.instance.signInWithCredential(credential);
   }
 
+  String _mapAuthError(Object e) {
+    if (e is _UiFriendlyAuthError) return e.message;
+    if (e is FirebaseAuthException) {
+      switch (e.code) {
+        case 'network-request-failed':
+          return 'Sin conexión. Intenta de nuevo.';
+        case 'account-exists-with-different-credential':
+          return 'Tu correo ya está vinculado con otro método.';
+        case 'user-disabled':
+          return 'Tu cuenta está deshabilitada.';
+        case 'invalid-credential':
+          return 'Credenciales inválidas. Intenta de nuevo.';
+        case 'operation-not-allowed':
+          return 'Método de acceso no habilitado.';
+        default:
+          return 'No se pudo iniciar sesión. (${e.code})';
+      }
+    }
+    return 'Ocurrió un error. Intenta de nuevo.';
+  }
+
+  Future<void> _persistirDatosBasicos(User user) async {
+    final ref = FirebaseFirestore.instance.collection('prestamistas').doc(user.uid);
+    await ref.set({
+      'nombre': (user.displayName ?? '').split(' ').isNotEmpty ? user.displayName?.split(' ').first : '',
+      'apellido': (() {
+        final name = (user.displayName ?? '').trim();
+        if (name.isEmpty) return '';
+        final parts = name.split(RegExp(r'\s+'));
+        return parts.length > 1 ? parts.sublist(1).join(' ') : '';
+      })(),
+      'email': user.email ?? '',
+      'fotoUrl': user.photoURL ?? '',
+      'lastLoginAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   Future<void> _manejarLoginPrestamista() async {
-    if (cargando) return;
-    setState(() => cargando = true);
+    if (_cargando) return;
+    HapticFeedback.lightImpact();
+    setState(() => _cargando = true);
     try {
       final cred = await _loginConGoogle();
       final user = cred.user;
-      if (user == null) throw Exception('No se pudo obtener usuario');
+      if (user == null) {
+        throw const _UiFriendlyAuthError('No se pudo obtener el usuario.');
+      }
 
-      // 👉 Comprobar en Firestore si ya existe este prestamista
-      final doc = await FirebaseFirestore.instance
-          .collection('prestamistas')
-          .doc(user.uid)
-          .get();
+      final docRef =
+      FirebaseFirestore.instance.collection('prestamistas').doc(user.uid);
+      final snap = await docRef.get();
 
       if (!mounted) return;
 
-      if (doc.exists) {
-        // ✅ Ya está registrado -> chequea si seguridad está activa
-        final data = doc.data() ?? {};
+      if (snap.exists) {
+        // ✅ Ya registrado → persistimos metadatos útiles
+        await _persistirDatosBasicos(user);
+
+        // Seguridad: lockEnabled o pinEnabled + pinCode
+        final data = snap.data() ?? {};
         final settings = (data['settings'] as Map?) ?? {};
+        final bool lockEnabled = settings['lockEnabled'] == true;
         final bool pinEnabled = settings['pinEnabled'] == true;
         final String? pinCode = (settings['pinCode'] as String?)?.trim();
 
-        if (pinEnabled && (pinCode != null && pinCode.isNotEmpty)) {
-          // 🔐 Gate de PIN/huella antes de entrar a Clientes
+        final bool requiereGate = lockEnabled || (pinEnabled && (pinCode != null && pinCode.isNotEmpty));
+
+        if (requiereGate) {
           final ok = await Navigator.push<bool>(
             context,
             MaterialPageRoute(builder: (_) => const PinScreen()),
@@ -70,29 +146,26 @@ class _HomeScreenState extends State<HomeScreen> {
               context,
               MaterialPageRoute(builder: (_) => const ClientesScreen()),
             );
+          } else {
+            _showSnack('Autenticación requerida para continuar.');
           }
-          // Si ok != true, no avanzamos.
         } else {
-          // 🔓 Sin seguridad -> directo a Clientes
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const ClientesScreen()),
           );
         }
       } else {
-        // 📝 No registrado -> formulario de registro
+        // 📝 No registrado → formulario de registro con datos precargados
         final nombreCompleto = (user.displayName ?? '').trim();
         String? nombre;
         String? apellido;
         if (nombreCompleto.isNotEmpty) {
           final parts = nombreCompleto.split(RegExp(r'\s+'));
-          if (parts.length == 1) {
-            nombre = parts.first;
-          } else {
-            nombre = parts.first;
-            apellido = parts.sublist(1).join(' ');
-          }
+          nombre = parts.isNotEmpty ? parts.first : null;
+          apellido = parts.length > 1 ? parts.sublist(1).join(' ') : null;
         }
+
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -109,138 +182,153 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      _showSnack(_mapAuthError(e));
     } finally {
-      if (mounted) setState(() => cargando = false);
+      if (mounted) setState(() => _cargando = false);
     }
   }
 
   Future<void> _manejarLoginTrabajador() async {
-    if (cargando) return;
-    setState(() => cargando = true);
+    if (_cargando) return;
+    HapticFeedback.lightImpact();
+    setState(() => _cargando = true);
     try {
       final cred = await _loginConGoogle();
       final user = cred.user;
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Bienvenido, ${user?.displayName ?? 'Usuario'}'),
-        ),
-      );
+      _showSnack('Bienvenido, ${user?.displayName ?? 'Usuario'}');
 
-      // TODO: cuando tengas la pantalla de registro de Trabajador,
-      // aplica la misma lógica que con prestamista.
+      // TODO: Implementar flujo de registro de trabajador similar al de prestamista.
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      _showSnack(_mapAuthError(e));
     } finally {
-      if (mounted) setState(() => cargando = false);
+      if (mounted) setState(() => _cargando = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF2458D6),
-              Color(0xFF0A9A76),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Stack(
-            children: [
-              // ==== LOGO ====
-              const Positioned(
-                top: logoTop,
-                left: 0,
-                right: 0,
-                child: IgnorePointer(
-                  child: Center(
-                    child: Image(
-                      image: AssetImage('assets/images/logoB.png'),
-                      height: logoSize,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
+    return PopScope(
+      canPop: !_cargando, // bloquea back mientras carga
+      onPopInvoked: (_) {},
+      child: Scaffold(
+        body: Stack(
+          children: [
+            // Fondo
+            Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF2458D6), Color(0xFF0A9A76)],
                 ),
               ),
+            ),
+            SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // Ajuste simple para pantallas pequeñas
+                  final isSmall = constraints.maxHeight < 700;
+                  final topLogo = isSmall ? -40.0 : logoTop;
+                  final topSlogan = isSmall ? 220.0 : sloganTop;
+                  final topButtons = isSmall ? 420.0 : buttonsTop;
 
-              // ==== ESLOGAN ====
-              Positioned(
-                top: sloganTop,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 320),
-                    child: Text(
-                      'Más que un recibo, la gestión que tu negocio merece',
-                      style: GoogleFonts.playfair(
-                        textStyle: const TextStyle(
-                          fontSize: 25,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                          fontStyle: FontStyle.italic,
+                  return Stack(
+                    children: [
+                      // ==== LOGO ====
+                      Positioned(
+                        top: topLogo,
+                        left: 0,
+                        right: 0,
+                        child: const IgnorePointer(
+                          child: Center(
+                            child: Image(
+                              image: AssetImage('assets/images/logoB.png'),
+                              height: logoSize,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
                         ),
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-              ),
 
-              // ==== BOTONES ====
-              Positioned(
-                top: buttonsTop,
-                left: 32,
-                right: 32,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _googleButton(
-                      label:
-                      cargando ? 'Entrando...' : 'Soy Prestamista',
-                      onTap: cargando ? null : _manejarLoginPrestamista,
-                    ),
-                    const SizedBox(height: 18),
-                    _googleButton(
-                      label:
-                      cargando ? 'Entrando...' : 'Soy Trabajador',
-                      onTap: cargando ? null : _manejarLoginTrabajador,
-                    ),
-                  ],
-                ),
-              ),
+                      // ==== ESLOGAN ====
+                      Positioned(
+                        top: topSlogan,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 340),
+                            child: Text(
+                              'Más que un recibo, la gestión que tu negocio merece',
+                              style: GoogleFonts.playfair(
+                                textStyle: const TextStyle(
+                                  fontSize: 25,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                      ),
 
-              if (cargando)
-                Container(
-                  color: Colors.black.withOpacity(0.2),
-                  child: const Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                ),
-            ],
-          ),
+                      // ==== BOTONES ====
+                      Positioned(
+                        top: topButtons,
+                        left: 24,
+                        right: 24,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _googleButton(
+                              labelIdle: 'Soy Prestamista',
+                              loading: _cargando,
+                              onTap: _cargando ? null : _manejarLoginPrestamista,
+                            ),
+                            const SizedBox(height: 16),
+                            _googleButton(
+                              labelIdle: 'Soy Trabajador',
+                              loading: _cargando,
+                              onTap: _cargando ? null : _manejarLoginTrabajador,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Overlay de carga que bloquea interacción
+                      if (_cargando)
+                        Positioned.fill(
+                          child: AbsorbPointer(
+                            absorbing: true,
+                            child: Container(
+                              color: Colors.black.withOpacity(0.25),
+                              child: const Center(
+                                child: CircularProgressIndicator(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _googleButton({
-    required String label,
+    required String labelIdle,
+    required bool loading,
     required VoidCallback? onTap,
   }) {
     return SizedBox(
@@ -258,17 +346,16 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(
-              'assets/images/google_logo.png',
-              height: 24,
-              width: 24,
-            ),
+            Image.asset('assets/images/google_logo.png', height: 24, width: 24),
             const SizedBox(width: 12),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              transitionBuilder: (child, anim) =>
+                  FadeTransition(opacity: anim, child: child),
+              child: Text(
+                loading ? 'Entrando…' : labelIdle,
+                key: ValueKey(loading ? 'loading' : 'idle-$labelIdle'),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
             ),
           ],
@@ -276,4 +363,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
+
+// Error simple para UX (no expone códigos técnicos)
+class _UiFriendlyAuthError implements Exception {
+  final String message;
+  const _UiFriendlyAuthError(this.message);
 }

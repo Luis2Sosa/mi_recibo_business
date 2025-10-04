@@ -31,16 +31,16 @@ class ReciboUIConfig {
   final BorderRadius cardRadius;
   final EdgeInsets cardPadding;
 
-  // Encabezado de pantalla
+  // Encabezado flotante
   final bool showHeaderTitle;
   final String headerTitle;
   final TextStyle headerTitleStyle;
 
-  // Logo (independiente, overlay dentro de la tarjeta)
+  // Logo (overlay dentro de la tarjeta capturable)
   final String brandLogoAsset;
-  final double brandLogoHeight;   // tamaño del logo
-  final double brandLogoTop;      // distancia desde arriba (no reserva espacio)
-  final double brandLogoDx;       // desplazamiento horizontal (+ der / - izq)
+  final double brandLogoHeight;
+  final double brandLogoTop;
+  final double brandLogoDx;
 
   // Paloma
   final double checkCircleSize;
@@ -57,20 +57,20 @@ class ReciboUIConfig {
   final EdgeInsets amountPanelPadding;
   final Color amountPanelBorder;
   final TextStyle amountPrefixStyle; // “RD$”
-  final TextStyle amountNumberStyle; // “8.800”
+  final TextStyle amountNumberStyle; // “8,800”
 
-  // Paleta tipográfica
+  // Paleta
   final Color navy;
   final Color label;
   final Color line;
   final Color brandTeal;
 
-  // Bloques mint
+  // Mint blocks
   final Color mint;
   final Color mintBorder;
   final Color mintDivider;
 
-  // Textos
+  // Textos (↑ levemente)
   final TextStyle labelStyle;
   final TextStyle valueStyle;
   final TextStyle valueStrongStyle;
@@ -84,9 +84,9 @@ class ReciboUIConfig {
 
   const ReciboUIConfig({
     // Fondo
-    this.gradientBegin = Alignment.topLeft,
-    this.gradientEnd = Alignment.bottomRight,
-    this.gradientColors = const [Color(0xFF11A7A0), Color(0xFF1D60C9)],
+    this.gradientBegin = Alignment.topCenter,
+    this.gradientEnd = Alignment.bottomCenter,
+    this.gradientColors = const [AppTheme.gradTop, AppTheme.gradBottom],
 
     // Capturable (recibo)
     this.cardHeight = 600,
@@ -94,51 +94,51 @@ class ReciboUIConfig {
     this.cardRadius = const BorderRadius.all(Radius.circular(20)),
     this.cardPadding = const EdgeInsets.fromLTRB(16, 16, 16, 16),
 
-    // Header
+    // Header flotante
     this.showHeaderTitle = true,
     this.headerTitle = 'RECIBO',
     this.headerTitleStyle = const TextStyle(
       color: Colors.white,
-      fontSize: 30, // ↑ sutil
+      fontSize: 30,
       fontStyle: FontStyle.italic,
       fontWeight: FontWeight.w700,
       letterSpacing: 0.6,
     ),
 
-    // Logo independiente (overlay)
+    // Logo (overlay)
     this.brandLogoAsset = 'assets/images/logoB.png',
     this.brandLogoHeight = 190,
     this.brandLogoTop = -60,
     this.brandLogoDx = 0,
 
     // Paloma
-    this.checkCircleSize = 78,    // ↑
+    this.checkCircleSize = 78,
     this.checkBorderWidth = 5,
-    this.checkIconSize = 40,      // ↑
+    this.checkIconSize = 40,
 
     // Título
     this.recibidoTitleStyle = const TextStyle(
-      fontSize: 27, // ↑
+      fontSize: 27,
       fontWeight: FontWeight.w900,
       color: Color(0xFF0F172A),
       letterSpacing: 0.2,
     ),
-    this.titleMargin = const EdgeInsets.only(top: 10, bottom: 12), // ↑
+    this.titleMargin = const EdgeInsets.only(top: 10, bottom: 12),
 
     // Monto
     this.amountPanelGradientColors = const [Color(0xFFF3FBF7), Color(0xFFEAF5F0)],
     this.amountPanelRadius = const BorderRadius.all(Radius.circular(18)),
-    this.amountPanelPadding = const EdgeInsets.symmetric(horizontal: 14, vertical: 14), // ↑
+    this.amountPanelPadding = const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
     this.amountPanelBorder = const Color(0xFFDDE7E1),
     this.amountPrefixStyle = const TextStyle(
-      fontSize: 60, // ↑
+      fontSize: 60,
       fontWeight: FontWeight.w900,
       color: Color(0xFF10B981),
       height: 1.0,
       letterSpacing: 0.2,
     ),
     this.amountNumberStyle = const TextStyle(
-      fontSize: 68, // ↑
+      fontSize: 68,
       fontWeight: FontWeight.w900,
       letterSpacing: 0.6,
       color: Color(0xFF10B981),
@@ -156,33 +156,33 @@ class ReciboUIConfig {
     this.mintBorder = const Color(0xFFDDE7E1),
     this.mintDivider = const Color(0xFFE7F0EA),
 
-    // Textos
+    // Textos (↑ 1–2 pt debajo del monto)
     this.labelStyle = const TextStyle(
-      fontSize: 17, // antes 20
+      fontSize: 18, // 17 -> 18
       color: Color(0xFF667084),
       fontWeight: FontWeight.w600,
       letterSpacing: .1,
     ),
     this.valueStyle = const TextStyle(
-      fontSize: 18, // antes 22
+      fontSize: 19, // 18 -> 19
       color: Color(0xFF0F172A),
       fontWeight: FontWeight.w800,
       letterSpacing: .1,
     ),
     this.valueStrongStyle = const TextStyle(
-      fontSize: 19, // antes 22
+      fontSize: 20, // 19 -> 20
       color: Color(0xFF0F172A),
       fontWeight: FontWeight.w900,
       letterSpacing: .1,
     ),
     this.valueClientStyle = const TextStyle(
-      fontSize: 20, // antes 23
+      fontSize: 21, // 20 -> 21
       color: Color(0xFF0F172A),
       fontWeight: FontWeight.w900,
       letterSpacing: .2,
     ),
     this.phoneStyle = const TextStyle(
-      fontSize: 16,
+      fontSize: 17, // 16 -> 17
       color: Color(0xFF667084),
       fontWeight: FontWeight.w600,
     ),
@@ -250,7 +250,7 @@ class ReciboUIConfig {
 }
 
 /// =======================================
-/// PANTALLA (lógica intacta)
+/// PANTALLA
 /// =======================================
 class ReciboScreen extends StatefulWidget {
   final String empresa;
@@ -258,8 +258,8 @@ class ReciboScreen extends StatefulWidget {
   final String telefonoServidor;
   final String cliente;
   final String telefonoCliente;
-  final String numeroRecibo;
   final String producto;
+  final String numeroRecibo;
   final DateTime fecha;
   final int capitalInicial;
   final int pagoInteres;
@@ -296,7 +296,6 @@ class ReciboScreen extends StatefulWidget {
 }
 
 class _ReciboScreenState extends State<ReciboScreen> {
-  // Capturamos fondo+recibo centrado
   final GlobalKey _captureKey = GlobalKey();
 
   DateTime? _lastBackPress;
@@ -304,14 +303,18 @@ class _ReciboScreenState extends State<ReciboScreen> {
 
   ReciboUIConfig get cfg => widget.config;
 
-  // Formato RD$ con coma de miles
+  // RD$ con miles
   String _monedaRD(int v) {
     final s = v.toString();
     final b = StringBuffer();
     int c = 0;
     for (int i = s.length - 1; i >= 0; i--) {
-      b.write(s[i]); c++;
-      if (c == 3 && i != 0) { b.write(','); c = 0; }
+      b.write(s[i]);
+      c++;
+      if (c == 3 && i != 0) {
+        b.write(',');
+        c = 0;
+      }
     }
     return 'RD\$${b.toString().split('').reversed.join()}';
   }
@@ -333,6 +336,17 @@ class _ReciboScreenState extends State<ReciboScreen> {
     return 'REC-$trimmed';
   }
 
+  String _sanitizeToken(String s) {
+    const src = 'áéíóúüñÁÉÍÓÚÜÑ';
+    const rep = 'aeiouunAEIOUUN';
+    var out = s.trim();
+    for (int i = 0; i < src.length; i++) {
+      out = out.replaceAll(src[i], rep[i]);
+    }
+    out = out.replaceAll(RegExp(r'\s+'), '').replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '');
+    return out;
+  }
+
   String get _reciboFmt => _fmtNumReciboStr(widget.numeroRecibo);
 
   void _volverAClientes() {
@@ -342,7 +356,7 @@ class _ReciboScreenState extends State<ReciboScreen> {
 
   Future<void> _compartirWhatsApp() async {
     try {
-      // 1) Capturar el recibo como PNG (alta resolución)
+      // Capturar SOLO la capa de fondo+recibo (no incluye header/botón)
       final boundary = _captureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) return;
 
@@ -352,14 +366,10 @@ class _ReciboScreenState extends State<ReciboScreen> {
 
       final pngBytes = byteData.buffer.asUint8List();
 
-      // 2) Generar PDF nítido a partir de la captura
+      // PDF del tamaño exacto de la captura
       final pdf = pw.Document();
       final img = pw.MemoryImage(pngBytes);
-      final pageFormat = PdfPageFormat(
-        image.width.toDouble(),
-        image.height.toDouble(),
-      );
-
+      final pageFormat = PdfPageFormat(image.width.toDouble(), image.height.toDouble());
       pdf.addPage(
         pw.Page(
           pageFormat: pageFormat,
@@ -367,131 +377,115 @@ class _ReciboScreenState extends State<ReciboScreen> {
           build: (_) => pw.Image(img, fit: pw.BoxFit.cover),
         ),
       );
-
       final pdfBytes = await pdf.save();
 
-      // 3) Nombre corto y limpio (evita el “viaje” de números)
-      final fileName = 'Recibo-${_reciboFmt}.pdf';
+      // Nombre profesional
+      final clienteTok = _sanitizeToken(widget.cliente);
+      final numeroTok = _sanitizeToken(_reciboFmt);
+      final fileName = 'Recibo-$clienteTok-$numeroTok.pdf';
 
-      // 4) Guardado silencioso en Descargas (Android) / Documents (iOS)
+      // Guardado silencioso
       final savedUri = await _guardarSilencioso(pdfBytes, fileName);
       if (mounted && savedUri != null) {
         _showModernSnackBar(
           icon: Icons.download_done_rounded,
-          text: Platform.isAndroid
-              ? 'Guardado en Descargas ✅'
-              : 'Guardado en Documents ✅',
+          text: Platform.isAndroid ? 'Guardado en Descargas ✅' : 'Guardado en Documents ✅',
           bg: const Color(0xFF1F623A),
         );
       }
 
-      // 5) Guardar también en temp con el MISMO nombre (WhatsApp respeta el nombre)
+      // Compartir
       final tempDir = await getTemporaryDirectory();
       final tempPath = '${tempDir.path}/$fileName';
       await File(tempPath).writeAsBytes(pdfBytes, flush: true);
 
-      // 6) Compartir por WhatsApp usando la ruta del PDF
-      final caption = 'Recibo $_reciboFmt - ${_fmtFecha(widget.fecha)}';
+      _showModernSnackBar(
+        icon: Icons.check_circle_rounded,
+        text: 'Recibo listo para enviar 📄✅',
+        bg: const Color(0xFF2563EB),
+      );
+
+      final caption = '📄 Recibo de pago N°: $_reciboFmt • Cliente: ${widget.cliente} • Fecha: ${_fmtFecha(widget.fecha)}';
       await Share.shareXFiles(
         [XFile(tempPath, mimeType: 'application/pdf')],
         text: caption,
         subject: 'Recibo $_reciboFmt',
       );
-
-      if (mounted) {
-        _showModernSnackBar(
-          icon: Icons.send_rounded,
-          text: 'Recibo enviado por WhatsApp 📄✅',
-          bg: const Color(0xFF2563EB),
-        );
-      }
-    } catch (e) {
-      // Fallback: comparte imagen si algo falla
+    } catch (e, st) {
+      debugPrint('Error generando/compartiendo PDF: $e\n$st');
+      // Fallback a PNG
       try {
         final boundary = _captureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
         if (boundary == null) return;
-
         final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
         final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
         if (byteData == null) return;
-
         final pngBytes = byteData.buffer.asUint8List();
 
+        final caption = '📄 Recibo de pago N°: $_reciboFmt • Cliente: ${widget.cliente} • Fecha: ${_fmtFecha(widget.fecha)}';
         await Share.shareXFiles(
-          [XFile.fromData(pngBytes, name: 'recibo-$_reciboFmt.png', mimeType: 'image/png')],
-          text: 'Recibo $_reciboFmt - ${_fmtFecha(widget.fecha)}',
+          [XFile.fromData(pngBytes, name: 'Recibo-${_sanitizeToken(widget.cliente)}-${_sanitizeToken(_reciboFmt)}.png', mimeType: 'image/png')],
+          text: caption,
           subject: 'Recibo $_reciboFmt',
         );
-      } catch (_) {}
+      } catch (e2, st2) {
+        debugPrint('Fallback PNG también falló: $e2\n$st2');
+      }
     } finally {
       _volverAClientes();
     }
   }
 
-
-  // Guarda el PDF en Descargas (Android) o en Documents (iOS) SIN diálogo.
-  // Devuelve la URI (string) o null si algo falló.
-  Future<String?> _guardarSilencioso(Uint8List pdfBytes, String fileName) async {
+  Future<String?> _guardarSilencioso(Uint8List bytes, String fileName) async {
     try {
       if (Platform.isAndroid) {
-        // 1) Escribimos el PDF a un archivo temporal con el nombre deseado
         final tempDir = await getTemporaryDirectory();
         final tmpPath = '${tempDir.path}/$fileName';
         final tmpFile = File(tmpPath);
-        await tmpFile.writeAsBytes(pdfBytes, flush: true);
+        await tmpFile.writeAsBytes(bytes, flush: true);
 
-        // 2) Lo movemos a Descargas usando MediaStore (v0.1.3)
         final ms = MediaStore();
         final savedUri = await ms.saveFile(
           tempFilePath: tmpPath,
           dirType: DirType.download,
-          dirName: DirName.download, // 👈 enum, NO String
+          dirName: DirName.download,
         );
-
         return savedUri?.toString();
       } else if (Platform.isIOS) {
-        // iOS: no hay "Descargas" pública; guardamos en Documents
         final docs = await getApplicationDocumentsDirectory();
         final path = '${docs.path}/$fileName';
-        await File(path).writeAsBytes(pdfBytes, flush: true);
+        await File(path).writeAsBytes(bytes, flush: true);
         return path;
       } else {
-        // Otros (web/desktop): guarda en temporal
         final dir = await getTemporaryDirectory();
         final path = '${dir.path}/$fileName';
-        await File(path).writeAsBytes(pdfBytes, flush: true);
+        await File(path).writeAsBytes(bytes, flush: true);
         return path;
       }
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('Error guardando archivo: $e\n$st');
       return null;
     }
   }
-
 
   void _showBackBanner() {
     final messenger = ScaffoldMessenger.of(context);
     final bottomSafe = MediaQuery.of(context).padding.bottom;
 
     messenger.hideCurrentSnackBar();
-
     messenger.showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.transparent, // no mezclar con el fondo
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        // bien separado del botón de WhatsApp y del borde inferior
         margin: EdgeInsets.fromLTRB(16, 0, 16, bottomSafe + 24),
         duration: _backWindow,
         content: Container(
           decoration: BoxDecoration(
-            color: Color(0xFFFFE082),
+            color: const Color(0xFFFFE082),
             borderRadius: BorderRadius.circular(22),
             boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.12),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
-              ),
+              BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 18, offset: const Offset(0, 10)),
             ],
           ),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -502,20 +496,11 @@ class _ReciboScreenState extends State<ReciboScreen> {
                 child: Text(
                   'Atrás otra vez para ir a Clientes',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    letterSpacing: 0.2,
-                  ),
+                  style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w700, fontSize: 16, letterSpacing: 0.2),
                 ),
               ),
               SizedBox(width: 10),
-              Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: Color(0xFF0F172A),
-                size: 20,
-              ),
+              Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF0F172A), size: 20),
             ],
           ),
         ),
@@ -525,147 +510,118 @@ class _ReciboScreenState extends State<ReciboScreen> {
 
   Future<bool> _onWillPop() async {
     final now = DateTime.now();
-    // Primera pulsación: muestra banner y NO sale
     if (_lastBackPress == null || now.difference(_lastBackPress!) > _backWindow) {
       _lastBackPress = now;
       _showBackBanner();
       return false;
     }
-    // Segunda dentro de la ventana: ir a Clientes (pantalla inicial)
     _volverAClientes();
     return false;
   }
 
-  /// ************* AÑADIDO: MÉTODO build *************
   @override
   Widget build(BuildContext context) {
     final cfg = this.cfg;
+    final padding = MediaQuery.of(context).padding;
 
     return WillPopScope(
-      onWillPop: _onWillPop, // 👈 intercepta botón atrás
+      onWillPop: _onWillPop,
       child: Scaffold(
         body: AppGradientBackground(
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.max,
-              children: [
-                if (cfg.showHeaderTitle)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Center(
-                      child: Text(
-                        cfg.headerTitle,
-                        style: GoogleFonts.playfair(
-                          textStyle: cfg.headerTitleStyle,
-                        ),
-                      ),
+          child: Stack(
+            children: [
+              // ===== CAPA CAPTURABLE: fondo pantalla completa + recibo centrado =====
+              RepaintBoundary(
+                key: _captureKey,
+                child: Container(
+                  width: double.infinity,
+                  height: double.infinity,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: cfg.gradientBegin,
+                      end: cfg.gradientEnd,
+                      colors: cfg.gradientColors,
                     ),
                   ),
-
-                // ====== CAPTURABLE: Fondo + Recibo centrado ======
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    child: RepaintBoundary(
-                      key: _captureKey,
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final double maxCardH =
-                          (constraints.maxHeight * 0.82).clamp(520.0, 760.0);
-
-                          return Container(
-                            height: double.infinity,
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [AppTheme.gradTop, AppTheme.gradBottom],
-                              ),
-                            ),
-                            child: Center(
-                              child: _PlainCardShell(
-                                radius: cfg.cardRadius,
-                                height: maxCardH,
-                                padding: cfg.cardPadding,
-                                child: FittedBox(
-                                  fit: BoxFit.contain,
-                                  alignment: Alignment.topCenter,
-                                  child: SizedBox(
-                                    width: cfg.designWidth,
-                                    child: _ReceiptContent(
-                                      cfg: cfg,
-                                      empresa: widget.empresa,
-                                      servidor: widget.servidor,
-                                      telefonoServidor: widget.telefonoServidor,
-                                      cliente: widget.cliente,
-                                      telefonoCliente: widget.telefonoCliente,
-                                      producto: widget.producto,
-                                      numeroRecibo:
-                                      _fmtNumReciboStr(widget.numeroRecibo),
-                                      fecha: widget.fecha,
-                                      capitalInicial: widget.capitalInicial,
-                                      pagoInteres: widget.pagoInteres,
-                                      pagoCapital: widget.pagoCapital,
-                                      totalPagado: widget.totalPagado,
-                                      saldoAnterior: widget.saldoAnterior,
-                                      saldoActual: widget.saldoActual,
-                                      proximaFecha: widget.proximaFecha,
-                                      fmtFecha: _fmtFecha,
-                                      monedaRD: _monedaRD,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                // Botón único (no se incluye en la captura)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: Container(
-                        width: 28,
-                        height: 28,
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: Image.asset(
-                            'assets/images/logo_whatsapp.png',
-                            fit: BoxFit.contain,
+                  child: Center(
+                    child: _PlainCardShell(
+                      radius: cfg.cardRadius,
+                      height: cfg.cardHeight.clamp(520.0, 760.0),
+                      padding: cfg.cardPadding,
+                      child: FittedBox(
+                        fit: BoxFit.contain,
+                        alignment: Alignment.topCenter,
+                        child: SizedBox(
+                          width: cfg.designWidth,
+                          child: _ReceiptContent(
+                            cfg: cfg,
+                            empresa: widget.empresa,
+                            servidor: widget.servidor,
+                            telefonoServidor: widget.telefonoServidor,
+                            cliente: widget.cliente,
+                            telefonoCliente: widget.telefonoCliente,
+                            producto: widget.producto,
+                            numeroRecibo: _fmtNumReciboStr(widget.numeroRecibo),
+                            fecha: widget.fecha,
+                            capitalInicial: widget.capitalInicial,
+                            pagoInteres: widget.pagoInteres,
+                            pagoCapital: widget.pagoCapital,
+                            totalPagado: widget.totalPagado,
+                            saldoAnterior: widget.saldoAnterior,
+                            saldoActual: widget.saldoActual,
+                            proximaFecha: widget.proximaFecha,
+                            fmtFecha: _fmtFecha,
+                            monedaRD: _monedaRD,
                           ),
                         ),
                       ),
-                      label: const Text('Enviar recibo por WhatsApp'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: cfg.btnPdf, // azul
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: const StadiumBorder(),
-                      ),
-                      onPressed: _compartirWhatsApp,
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+
+              // ===== TÍTULO flotante (NO capturable) =====
+              if (cfg.showHeaderTitle)
+                Positioned(
+                  top: padding.top + 6,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Text(cfg.headerTitle, style: GoogleFonts.playfair(textStyle: cfg.headerTitleStyle)),
+                  ),
+                ),
+
+              // ===== BOTÓN flotante (NO capturable) =====
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: padding.bottom + 16,
+                child: ElevatedButton.icon(
+                  icon: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Image.asset('assets/images/logo_whatsapp.png', fit: BoxFit.contain),
+                    ),
+                  ),
+                  label: const Text('Enviar recibo por WhatsApp'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: cfg.btnPdf,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: const StadiumBorder(),
+                  ),
+                  onPressed: _compartirWhatsApp,
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
-  /// **************************************************
 
   void _showModernSnackBar({
     required IconData icon,
@@ -676,18 +632,11 @@ class _ReciboScreenState extends State<ReciboScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
-          mainAxisAlignment: MainAxisAlignment.center, // 👈 centra todo
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, color: Colors.white, size: 22),
             const SizedBox(width: 8),
-            Text(
-              text,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-              ),
-            ),
+            Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
           ],
         ),
         behavior: SnackBarBehavior.floating,
@@ -702,7 +651,7 @@ class _ReciboScreenState extends State<ReciboScreen> {
   }
 }
 
-/// Card plana SIN brillo/sombras
+/// Card plana SIN sombras
 class _PlainCardShell extends StatelessWidget {
   final Widget child;
   final double height;
@@ -724,10 +673,7 @@ class _PlainCardShell extends StatelessWidget {
         borderRadius: radius,
         border: Border.all(color: const Color(0xFFEFF1F5)),
       ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: Padding(padding: padding, child: child),
-      ),
+      child: ClipRRect(borderRadius: radius, child: Padding(padding: padding, child: child)),
     );
   }
 }
@@ -786,12 +732,22 @@ class _ReceiptContent extends StatelessWidget {
     Widget valueStrong(String t) => Text(t, style: cfg.valueStrongStyle);
     Widget valueClient(String t) => Text(t, style: cfg.valueClientStyle);
 
-    // Espacio fijo arriba (el logo es overlay independiente)
     const double fixedTopSpacer = 80;
+
+    // === Estado y cálculo correcto del próximo pago ===
+    final bool pagoFinalizado = saldoActual == 0;
+
+    // tasa del período actual (si hubo interés cobrado)
+    final double _tasa = (saldoAnterior > 0) ? (pagoInteres / saldoAnterior) : 0.0;
+
+    // interés del próximo período sobre el capital restante
+    final int _proximoInteres = (_tasa * saldoActual).round(); // usa ~/ para truncar si prefieres
+
+    // saldo próximo pago = capital restante + próximo interés
+    final int saldoProximoPago = !pagoFinalizado ? (saldoActual + _proximoInteres) : 0;
 
     return Stack(
       children: [
-        // === CONTENIDO DEL RECIBO ===
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -813,10 +769,7 @@ class _ReceiptContent extends StatelessWidget {
             Padding(
               padding: cfg.titleMargin,
               child: Center(
-                child: Text(
-                  saldoActual == 0 ? 'Pago finalizado' : 'Pago recibido',
-                  style: cfg.recibidoTitleStyle,
-                ),
+                child: Text(pagoFinalizado ? 'Pago finalizado' : 'Pago recibido', style: cfg.recibidoTitleStyle),
               ),
             ),
 
@@ -824,11 +777,7 @@ class _ReceiptContent extends StatelessWidget {
             Container(
               decoration: BoxDecoration(
                 borderRadius: cfg.amountPanelRadius,
-                gradient: LinearGradient(
-                  colors: cfg.amountPanelGradientColors,
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                gradient: LinearGradient(colors: cfg.amountPanelGradientColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
                 border: Border.all(color: cfg.amountPanelBorder),
               ),
               padding: cfg.amountPanelPadding,
@@ -846,18 +795,14 @@ class _ReceiptContent extends StatelessWidget {
 
             const SizedBox(height: 10),
 
-            // ================== PANEL ÚNICO (como la foto) ==================
+            // ================== PANEL ÚNICO ==================
             Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: cfg.line),
-              ),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: cfg.line)),
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Servidor — Recibo/Fecha
+                  // Encabezado
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -865,29 +810,22 @@ class _ReceiptContent extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            label('Nombre de la empresa'),
+                            const SizedBox(height: 4),
+                            value(empresa),
+                            const SizedBox(height: 10),
+
                             label('Nombre del servidor'),
                             const SizedBox(height: 4),
                             value(servidor),
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                Text(
-                                  'Tel:',
-                                  style: cfg.valueStyle.copyWith(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.black87,
-                                  ),
-                                ),
+                                Text('Tel:',
+                                    style: cfg.valueStyle.copyWith(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black87)),
                                 const SizedBox(width: 6),
-                                Text(
-                                  telefonoServidor,
-                                  style: cfg.valueStyle.copyWith(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black87,
-                                  ),
-                                ),
+                                Text(telefonoServidor,
+                                    style: cfg.valueStyle.copyWith(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.black87)),
                               ],
                             ),
                           ],
@@ -896,17 +834,9 @@ class _ReceiptContent extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(numeroRecibo, style: cfg.valueStrongStyle),
-                            ],
-                          ),
+                          Row(mainAxisSize: MainAxisSize.min, children: [Text(numeroRecibo, style: cfg.valueStrongStyle)]),
                           const SizedBox(height: 4),
-                          Text(
-                            fmtFecha(fecha),
-                            style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w700),
-                          ),
+                          Text(fmtFecha(fecha), style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w700)),
                         ],
                       ),
                     ],
@@ -915,22 +845,30 @@ class _ReceiptContent extends StatelessWidget {
                   const SizedBox(height: 10),
                   Divider(height: 14, thickness: 1, color: cfg.line),
 
-                  // Empresa
-                  label('Nombre de la empresa'),
+                  // Cliente
+                  label('Cliente'),
                   const SizedBox(height: 4),
-                  value(empresa),
+                  valueClient(cliente),
 
                   const SizedBox(height: 10),
 
-                  // Banda mint con filas (profesional, sin duplicados)
+                  // Bloque central (misma altura en ambos)
                   Container(
-                    decoration: BoxDecoration(
-                      color: cfg.mint,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: cfg.mintBorder),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    child: Column(
+                    constraints: const BoxConstraints(minHeight: 240),
+                    decoration: BoxDecoration(color: cfg.mint, borderRadius: BorderRadius.circular(14), border: Border.all(color: cfg.mintBorder)),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+                    child: pagoFinalizado
+                        ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.verified_rounded, color: cfg.brandTeal, size: 32),
+                        const SizedBox(height: 8),
+                        Text('Préstamo saldado', style: cfg.valueStrongStyle.copyWith(fontSize: 20), textAlign: TextAlign.center),
+                        const SizedBox(height: 4),
+                        Text('No quedan pagos pendientes', style: cfg.labelStyle, textAlign: TextAlign.center),
+                      ],
+                    )
+                        : Column(
                       children: [
                         _row('Monto adeudado', monedaRD(saldoAnterior)),
                         Divider(height: 14, thickness: 1, color: cfg.mintDivider),
@@ -939,7 +877,7 @@ class _ReceiptContent extends StatelessWidget {
                         _row('Pago a capital', monedaRD(pagoCapital)),
                         if (saldoActual > 0) ...[
                           Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-                          _row('Saldo pendiente actual', monedaRD(saldoActual)),
+                          _row('Saldo próximo pago', monedaRD(saldoProximoPago)),
                           Divider(height: 14, thickness: 1, color: cfg.mintDivider),
                           _row('Próxima fecha', fmtFecha(proximaFecha)),
                         ],
@@ -950,18 +888,6 @@ class _ReceiptContent extends StatelessWidget {
                       ],
                     ),
                   ),
-
-                  const SizedBox(height: 10),
-                  Divider(height: 14, thickness: 1, color: cfg.line),
-
-                  // Cliente
-                  Row(
-                    children: [
-                      label('Cliente'),
-                      const Spacer(),
-                      valueClient(cliente),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -969,20 +895,14 @@ class _ReceiptContent extends StatelessWidget {
           ],
         ),
 
-        // === LOGO (overlay INDEPENDIENTE) ===
+        // Logo overlay (dentro de la tarjeta capturable)
         Positioned(
           top: cfg.brandLogoTop,
           left: 0,
           right: 20,
           child: Transform.translate(
             offset: Offset(cfg.brandLogoDx, 0),
-            child: Center(
-              child: Image.asset(
-                cfg.brandLogoAsset,
-                height: cfg.brandLogoHeight,
-                fit: BoxFit.contain,
-              ),
-            ),
+            child: Center(child: Image.asset(cfg.brandLogoAsset, height: cfg.brandLogoHeight, fit: BoxFit.contain)),
           ),
         ),
       ],
@@ -1004,9 +924,9 @@ class _ReceiptContent extends StatelessWidget {
   }
 }
 
-/// ===== Monto grande “RD$ 8.800” =====
+/// ===== Monto grande “RD$ 8,800” =====
 class _MontoGrande extends StatelessWidget {
-  final String texto; // "RD$8.800" o "RD$ 8.800"
+  final String texto;
   final TextStyle prefixStyle;
   final TextStyle numberStyle;
 

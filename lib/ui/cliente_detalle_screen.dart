@@ -105,6 +105,9 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
   DateTime _soloFecha(DateTime d) => DateTime(d.year, d.month, d.day);
 
+  // 🕛 Normaliza al mediodía para evitar problemas de zona horaria
+  DateTime _atNoon(DateTime d) => DateTime(d.year, d.month, d.day, 12);
+
   bool _esHoyOAnterior(DateTime d) {
     final hoy = _soloFecha(DateTime.now());
     final dd = _soloFecha(d);
@@ -150,10 +153,19 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     bool needsUpdate = false;
     final Map<String, dynamic> updates = {};
 
+    // Caso 1: tenía "saldado" pero el saldoActual > 0 → corregir a "al_dia"
     if (_saldoActual > 0 &&
         (saldado == true || (data['estado'] ?? '') == 'saldado')) {
       updates['saldado'] = false;
       updates['estado'] = 'al_dia';
+      needsUpdate = true;
+    }
+
+    // Caso 2: saldoActual <= 0 y el doc NO está saldado → cerrar y borrar venceEl
+    if (_saldoActual <= 0 && !(saldado == true)) {
+      updates['saldado'] = true;
+      updates['estado'] = 'saldado';
+      updates['venceEl'] = FieldValue.delete();
       needsUpdate = true;
     }
 
@@ -265,8 +277,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       empresa =
       empresa.isNotEmpty ? empresa : (data['empresa'] ?? '').toString().trim();
       servidor =
-      servidor.isNotEmpty ? servidor : [nombre, apellido].where((s) =>
-      s.isNotEmpty).join(' ');
+      servidor.isNotEmpty ? servidor : [nombre, apellido].where((s) => s.isNotEmpty).join(' ');
       telefono = telefono.isNotEmpty ? telefono : (data['telefono'] ?? '')
           .toString()
           .trim();
@@ -278,33 +289,32 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     final result = await Navigator.push<Map?>(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            PagoFormScreen(
-              saldoAnterior: _saldoActual,
-              tasaInteres: widget.tasaInteres,
-              periodo: widget.periodo,
-              proximaFecha: _proximaFecha,
-            ),
+        builder: (_) => PagoFormScreen(
+          saldoAnterior: _saldoActual,
+          tasaInteres: widget.tasaInteres,
+          periodo: widget.periodo,
+          proximaFecha: _proximaFecha,
+        ),
       ),
     );
     if (result == null) return;
 
     final int pagoInteres = result['pagoInteres'] as int? ?? 0;
     final int pagoCapital = result['pagoCapital'] as int? ?? 0;
-    final int totalPagado = result['totalPagado'] as int? ??
-        (pagoInteres + pagoCapital);
+    final int totalPagado = result['totalPagado'] as int? ?? (pagoInteres + pagoCapital);
     final int saldoAnterior = result['saldoAnterior'] as int? ?? _saldoActual;
     final int saldoNuevo = result['saldoNuevo'] as int? ?? _saldoActual;
     final DateTime prox = result['proximaFecha'] as DateTime? ?? _proximaFecha;
 
+    // 🕛 Normaliza antes de usar/guardar
     final DateTime proxAlDia = _siguienteFechaAlDia(prox, widget.periodo);
+    final DateTime proxNoon = _atNoon(proxAlDia);
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Sesión expirada. Inicia sesión de nuevo.')),
+        const SnackBar(content: Text('Sesión expirada. Inicia sesión de nuevo.')),
       );
       return;
     }
@@ -322,10 +332,10 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         final current = (snap.data()?['nextReciboCliente'] ?? 0) as int;
         final next = current + 1;
 
-        // 👇 Actualización del cliente (solo se agregó 'venceEl')
+        // 👇 Actualización del cliente (proximaFecha/venceEl normalizados a mediodía)
         final Map<String, dynamic> updates = {
           'saldoActual': saldoNuevo,
-          'proximaFecha': Timestamp.fromDate(proxAlDia),
+          'proximaFecha': Timestamp.fromDate(proxNoon),
           'updatedAt': FieldValue.serverTimestamp(),
           'nextReciboCliente': next,
           'saldado': saldoNuevo <= 0,
@@ -333,7 +343,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         };
         updates['venceEl'] = (saldoNuevo <= 0)
             ? FieldValue.delete()
-            : Timestamp.fromDate(proxAlDia);
+            : Timestamp.fromDate(proxNoon);
 
         tx.set(clienteRef, updates, SetOptions(merge: true));
 
@@ -386,31 +396,30 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            ReciboScreen(
-              empresa: prest['empresa'] ?? widget.empresa,
-              servidor: prest['servidor'] ?? widget.servidor,
-              telefonoServidor: prest['telefono'] ?? widget.telefonoServidor,
-              cliente: widget.nombreCompleto,
-              telefonoCliente: widget.telefono,
-              numeroRecibo: numeroRecibo,
-              producto: widget.producto,
-              fecha: DateTime.now(),
-              capitalInicial: saldoAnterior,
-              pagoInteres: pagoInteres,
-              pagoCapital: pagoCapital,
-              totalPagado: totalPagado,
-              saldoAnterior: saldoAnterior,
-              saldoActual: saldoNuevo,
-              proximaFecha: proxAlDia,
-            ),
+        builder: (_) => ReciboScreen(
+          empresa: prest['empresa'] ?? widget.empresa,
+          servidor: prest['servidor'] ?? widget.servidor,
+          telefonoServidor: prest['telefono'] ?? widget.telefonoServidor,
+          cliente: widget.nombreCompleto,
+          telefonoCliente: widget.telefono,
+          numeroRecibo: numeroRecibo,
+          producto: widget.producto,
+          fecha: DateTime.now(),
+          capitalInicial: saldoAnterior,
+          pagoInteres: pagoInteres,
+          pagoCapital: pagoCapital,
+          totalPagado: totalPagado,
+          saldoAnterior: saldoAnterior,
+          saldoActual: saldoNuevo,
+          proximaFecha: proxNoon,
+        ),
       ),
     );
 
     if (!mounted) return;
     setState(() {
       _saldoActual = saldoNuevo;
-      _proximaFecha = proxAlDia;
+      _proximaFecha = proxNoon;
       _tieneCambios = true;
     });
   }
@@ -442,9 +451,12 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   /// - Si tiene 11 dígitos y empieza con '1': OK (NANP)
   /// - Si tiene >= 11 con otro código de país (ej. 52, 57, etc. sin el +): OK
   /// - Si tiene 7–9 dígitos: inválido (faltaría código de país)
+  /// - Si tiene >15 dígitos: inválido (límite E.164)
   String? _normalizarParaWhatsapp(String telefono) {
     final digits = _limpiarTelefono(telefono);
     if (digits.isEmpty) return null;
+
+    if (digits.length > 15) return null; // 👈 límite internacional
 
     if (digits.length == 10) {
       // 10 dígitos (RD/US/CA) → anteponer 1
@@ -464,31 +476,27 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     if (normalized == null) {
       if (!mounted) return;
       _showToastPremium(
-          'Número inválido. Agrega el código de país (ej. 1 para RD/EE.UU.).');
+          'Número inválido. Agrega el código de país (ej. 1 para RD/EE.UU.) y máximo 15 dígitos.');
       return;
     }
 
     // App normal
     final uriApp = Uri.parse(
-        'whatsapp://send?phone=$normalized&text=${Uri.encodeComponent(
-            mensaje)}');
+        'whatsapp://send?phone=$normalized&text=${Uri.encodeComponent(mensaje)}');
     // App Business (si la tienen instalada)
     final uriBiz = Uri.parse(
-        'whatsapp-business://send?phone=$normalized&text=${Uri.encodeComponent(
-            mensaje)}');
+        'whatsapp-business://send?phone=$normalized&text=${Uri.encodeComponent(mensaje)}');
     // Fallback web
     final uriWeb = Uri.parse(
         'https://wa.me/$normalized?text=${Uri.encodeComponent(mensaje)}');
 
     try {
       if (await canLaunchUrl(uriApp)) {
-        final ok = await launchUrl(
-            uriApp, mode: LaunchMode.externalApplication);
+        final ok = await launchUrl(uriApp, mode: LaunchMode.externalApplication);
         if (ok) return;
       }
       if (await canLaunchUrl(uriBiz)) {
-        final ok = await launchUrl(
-            uriBiz, mode: LaunchMode.externalApplication);
+        final ok = await launchUrl(uriBiz, mode: LaunchMode.externalApplication);
         if (ok) return;
       }
       if (await canLaunchUrl(uriWeb)) {
@@ -530,9 +538,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   int _diasHasta(DateTime d) {
     final hoy = _soloFecha(DateTime.now());
     final dd = _soloFecha(d);
-    return dd
-        .difference(hoy)
-        .inDays; // <0 vencido, 0 hoy, 1 mañana, 2 dos días, >2 al día
+    return dd.difference(hoy).inDays; // <0 vencido, 0 hoy, 1 mañana, 2 dos días, >2 al día
   }
 
   bool _permiteRecordatorio(String tipo) {
@@ -649,8 +655,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) {
-        Widget item(String title, String tipo,
-            {IconData icon = Icons.schedule}) {
+        Widget item(String title, String tipo, {IconData icon = Icons.schedule}) {
           return ListTile(
             leading: Icon(icon, color: Colors.black87, size: 26),
             title: Text(
@@ -686,8 +691,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Divider(),
-                item('Pago vencido', 'vencido',
-                    icon: Icons.warning_amber_rounded),
+                item('Pago vencido', 'vencido', icon: Icons.warning_amber_rounded),
                 const Divider(height: 0),
                 item('Vence hoy', 'hoy', icon: Icons.event_available),
                 const Divider(height: 0),
@@ -707,8 +711,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   // =======================
   @override
   Widget build(BuildContext context) {
-    final interesPeriodo = (_saldoActual * (widget.tasaInteres / 100)).round();
-
     final labelStyle = GoogleFonts.inter(
       fontSize: 15,
       color: const Color(0xFF667084),
@@ -845,9 +847,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                     ),
                                   ],
 
-                                  if (widget.producto
-                                      .trim()
-                                      .isNotEmpty) ...[
+                                  if (widget.producto.trim().isNotEmpty) ...[
                                     const SizedBox(height: 6),
                                     Text(
                                       'Producto: ${widget.producto}',
@@ -860,47 +860,30 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                   ],
 
                                   const SizedBox(height: 16),
-                                  Divider(height: 24,
-                                      thickness: 1,
-                                      color: const Color(0xFFE7E9EE)),
+                                  Divider(height: 24, thickness: 1, color: const Color(0xFFE7E9EE)),
 
                                   Container(
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFF4FAF7),
                                       borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                          color: const Color(0xFFDDE7E1)),
+                                      border: Border.all(color: const Color(0xFFDDE7E1)),
                                     ),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 12),
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                                     child: Column(
                                       children: [
-                                        _rowStyled('Total histórico',
-                                            _rd(_totalPrestado), labelInk,
-                                            valueBlue),
-                                        Divider(height: 14,
-                                            thickness: 1,
-                                            color: const Color(0xFFE7F0EA)),
+                                        _rowStyled('Total histórico', _rd(_totalPrestado), labelInk, valueBlue),
+                                        Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
 
-                                        _rowStyled('Saldo actual pendiente',
-                                            _rd(_saldoActual), labelInk,
-                                            valueSaldo),
-                                        Divider(height: 14,
-                                            thickness: 1,
-                                            color: const Color(0xFFE7F0EA)),
+                                        _rowStyled('Saldo actual pendiente', _rd(_saldoActual), labelInk, valueSaldo),
+                                        Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
 
                                         _rowStyled(
-                                          'Interés ${widget.periodo
-                                              .toLowerCase()}',
-                                          _rd((_saldoActual *
-                                              (widget.tasaInteres / 100))
-                                              .round()),
+                                          'Interés ${widget.periodo.toLowerCase()}',
+                                          _rd((_saldoActual * (widget.tasaInteres / 100)).round()),
                                           labelInk,
                                           valueGreen,
                                         ),
-                                        Divider(height: 14,
-                                            thickness: 1,
-                                            color: const Color(0xFFE7F0EA)),
+                                        Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
 
                                         _rowStyled(
                                           'Próxima fecha',
@@ -920,14 +903,11 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                     child: ElevatedButton(
                                       style: ElevatedButton.styleFrom(
                                         elevation: 2,
-                                        shadowColor: const Color(0xFF2563EB)
-                                            .withOpacity(0.35),
-                                        backgroundColor: const Color(
-                                            0xFF2563EB),
+                                        shadowColor: const Color(0xFF2563EB).withOpacity(0.35),
+                                        backgroundColor: const Color(0xFF2563EB),
                                         foregroundColor: Colors.white,
                                         shape: const StadiumBorder(),
-                                        textStyle: const TextStyle(fontSize: 16,
-                                            fontWeight: FontWeight.w700),
+                                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                                       ),
                                       onPressed: _btnPagoBusy
                                           ? null
@@ -935,8 +915,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                         HapticFeedback.lightImpact();
                                         setState(() => _btnPagoBusy = true);
                                         await _registrarPagoFlow(context);
-                                        if (mounted) setState(() =>
-                                        _btnPagoBusy = false);
+                                        if (mounted) setState(() => _btnPagoBusy = false);
                                       },
                                       child: const Text('Registrar pago'),
                                     ),
@@ -949,25 +928,21 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                     child: ElevatedButton(
                                       style: ElevatedButton.styleFrom(
                                         elevation: 0,
-                                        backgroundColor: const Color(
-                                            0xFF22C55E),
+                                        backgroundColor: const Color(0xFF22C55E),
                                         foregroundColor: Colors.white,
                                         shape: const StadiumBorder(),
-                                        textStyle: const TextStyle(fontSize: 16,
-                                            fontWeight: FontWeight.w700),
+                                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                                       ),
                                       onPressed: () {
                                         HapticFeedback.lightImpact();
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (_) =>
-                                                HistorialScreen(
-                                                  idCliente: widget.id,
-                                                  nombreCliente: widget
-                                                      .nombreCompleto,
-                                                  producto: widget.producto,
-                                                ),
+                                            builder: (_) => HistorialScreen(
+                                              idCliente: widget.id,
+                                              nombreCliente: widget.nombreCompleto,
+                                              producto: widget.producto,
+                                            ),
                                           ),
                                         );
                                       },
@@ -983,16 +958,12 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                     height: 56,
                                     child: OutlinedButton.icon(
                                       icon: _waIcon(size: 22),
-                                      label: const Text(
-                                          'Enviar recordatorio por WhatsApp'),
+                                      label: const Text('Enviar recordatorio por WhatsApp'),
                                       style: OutlinedButton.styleFrom(
-                                        side: const BorderSide(
-                                            color: Color(0xFF2563EB), width: 2),
+                                        side: const BorderSide(color: Color(0xFF2563EB), width: 2),
                                         shape: const StadiumBorder(),
-                                        foregroundColor: const Color(
-                                            0xFF2563EB),
-                                        textStyle: const TextStyle(fontSize: 16,
-                                            fontWeight: FontWeight.w800),
+                                        foregroundColor: const Color(0xFF2563EB),
+                                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                                       ),
                                       onPressed: () {
                                         HapticFeedback.selectionClick();
@@ -1022,8 +993,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                   onTap: _onBack,
                   child: const Padding(
                     padding: EdgeInsets.all(8.0),
-                    child: Icon(
-                        Icons.arrow_back, color: Colors.white, size: 28),
+                    child: Icon(Icons.arrow_back, color: Colors.white, size: 28),
                   ),
                 ),
               ),
@@ -1052,4 +1022,3 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     );
   }
 }
-

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // 👈 Firestore
 import 'package:firebase_auth/firebase_auth.dart';     // 👈 UID del usuario
+import 'package:flutter/services.dart';                // 👈 input formatters
 import 'clientes_screen.dart';
 
 class PrestamistaRegistroScreen extends StatefulWidget {
@@ -19,6 +20,7 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
   static const double _gapBelowLogo = -90; // ⬅️ marco un poco más abajo (no tapa)
 
   final _formKey = GlobalKey<FormState>();
+
   final _empresaCtrl = TextEditingController();
   final _servidorCtrl = TextEditingController(); // 👉 “Nombre y Apellido”
   final _telefonoCtrl = TextEditingController();
@@ -45,7 +47,7 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
         ].join(' ').trim();
 
         if (prefill.isNotEmpty && _servidorCtrl.text.trim().isEmpty) {
-          _servidorCtrl.text = prefill;
+          _servidorCtrl.text = _colapsarEspacios(prefill);
         }
       }
     });
@@ -58,6 +60,30 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
     _telefonoCtrl.dispose();
     _direccionCtrl.dispose();
     super.dispose();
+  }
+
+  // ========= Helpers =========
+
+  String _colapsarEspacios(String s) =>
+      s.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  String _soloDigitos(String s) => s.replaceAll(RegExp(r'[^0-9]'), '');
+
+  /// Convierte vacío a null (para guardar limpio en Firestore)
+  String? _toNullIfEmpty(String s) {
+    final t = s.trim();
+    return t.isEmpty ? null : t;
+  }
+
+  /// Separa un "Nombre y Apellido" robustamente (maneja 1 palabra, múltiples espacios)
+  (String nombre, String apellido) _splitNombreApellido(String full) {
+    final t = _colapsarEspacios(full);
+    if (t.isEmpty) return ('', '');
+    final parts = t.split(' ');
+    if (parts.length == 1) return (parts.first, '');
+    final apellido = parts.removeLast();
+    final nombre = parts.join(' ');
+    return (nombre, apellido);
   }
 
   @override
@@ -185,6 +211,8 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                 ),
                                 child: Form(
                                   key: _formKey,
+                                  autovalidateMode:
+                                  AutovalidateMode.onUserInteraction, // ✅
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
@@ -192,12 +220,14 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                         controller: _empresaCtrl,
                                         label: 'Nombre de la empresa (opcional)',
                                         icon: Icons.domain, // 🏢
+                                        textInputAction: TextInputAction.next,
                                       ),
                                       const SizedBox(height: 14),
                                       _field(
                                         controller: _servidorCtrl,
                                         label: 'Nombre y Apellido *',
                                         icon: Icons.badge, // 🪪
+                                        textInputAction: TextInputAction.next,
                                         validator: (v) =>
                                         (v == null || v.trim().isEmpty)
                                             ? 'Obligatorio'
@@ -209,12 +239,19 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                         label: 'Teléfono *',
                                         icon: Icons.call, // 📞
                                         keyboardType: TextInputType.phone,
+                                        textInputAction: TextInputAction.next,
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter
+                                              .digitsOnly, // ✅ solo dígitos
+                                        ],
                                         validator: (v) {
                                           if (v == null || v.trim().isEmpty) {
                                             return 'Obligatorio';
                                           }
-                                          final digits = v.replaceAll(RegExp(r'[^0-9]'), '');
-                                          return digits.length < 8 ? 'Teléfono inválido' : null;
+                                          final digits = _soloDigitos(v);
+                                          return digits.length < 8
+                                              ? 'Teléfono inválido'
+                                              : null;
                                         },
                                       ),
                                       const SizedBox(height: 14),
@@ -222,6 +259,7 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                         controller: _direccionCtrl,
                                         label: 'Dirección (opcional)',
                                         icon: Icons.home, // 🏠
+                                        textInputAction: TextInputAction.done,
                                       ),
                                       const SizedBox(height: 22),
 
@@ -230,7 +268,8 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                         height: 58,
                                         child: ElevatedButton(
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFF2563EB),
+                                            backgroundColor:
+                                            const Color(0xFF2563EB),
                                             foregroundColor: Colors.white,
                                             shape: const StadiumBorder(),
                                             textStyle: const TextStyle(
@@ -238,76 +277,167 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                               fontWeight: FontWeight.w700,
                                             ),
                                             elevation: 6,
-                                            shadowColor: Colors.black.withOpacity(0.25),
+                                            shadowColor:
+                                            Colors.black.withOpacity(0.25),
                                           ),
                                           onPressed: _guardando
                                               ? null
                                               : () async {
-                                            if (_formKey.currentState!.validate()) {
-                                              setState(() => _guardando = true);
+                                            if (!(_formKey.currentState
+                                                ?.validate() ??
+                                                false)) {
+                                              return;
+                                            }
+                                            setState(() =>
+                                            _guardando = true);
+                                            try {
+                                              final args = (ModalRoute.of(
+                                                  context)
+                                                  ?.settings
+                                                  .arguments
+                                              as Map?) ??
+                                                  {};
+                                              final email =
+                                              (args['email']
+                                              as String?)
+                                                  ?.trim();
+
+                                              final fullName =
+                                                  _servidorCtrl.text;
+                                              final (nombre, apellido) =
+                                              _splitNombreApellido(
+                                                  fullName);
+
+                                              // 👉 UID único del prestamista
+                                              final user = FirebaseAuth
+                                                  .instance.currentUser;
+                                              if (user == null) {
+                                                if (!mounted) return;
+                                                ScaffoldMessenger.of(
+                                                    context)
+                                                    .showSnackBar(
+                                                  const SnackBar(
+                                                      content: Text(
+                                                          'Sesión expirada. Vuelve a iniciar.')),
+                                                );
+                                                return;
+                                              }
+                                              final uid = user.uid;
+                                              final docRef =
+                                              FirebaseFirestore
+                                                  .instance
+                                                  .collection(
+                                                  'prestamistas')
+                                                  .doc(uid);
+
+                                              // Preservar createdAt si ya existe
+                                              Timestamp? createdAt;
                                               try {
-                                                final args = (ModalRoute.of(context)?.settings.arguments as Map?) ?? {};
-                                                final email = (args['email'] as String?)?.trim();
-
-                                                final full = _servidorCtrl.text.trim();
-                                                final parts = full.split(RegExp(r'\s+'));
-                                                final nombre = parts.isNotEmpty ? parts.first : '';
-                                                final apellido = parts.length > 1 ? parts.sublist(1).join(' ') : '';
-
-                                                // 👉 UID único del prestamista
-                                                final user = FirebaseAuth.instance.currentUser;
-                                                if (user == null) {
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    const SnackBar(content: Text('Sesión expirada. Vuelve a iniciar.')),
-                                                  );
-                                                  if (mounted) setState(() => _guardando = false);
-                                                  return;
+                                                final snap =
+                                                await docRef.get();
+                                                if (snap.exists) {
+                                                  final d =
+                                                      snap.data() ?? {};
+                                                  final ca =
+                                                  d['createdAt'];
+                                                  if (ca is Timestamp) {
+                                                    createdAt = ca;
+                                                  }
                                                 }
-                                                final uid = user.uid;
+                                              } catch (_) {}
 
-                                                // Guardar en Firestore con doc = UID
-                                                await FirebaseFirestore.instance
-                                                    .collection('prestamistas')
-                                                    .doc(uid) // 👈 aquí va el UID único
-                                                    .set({
-                                                  'empresa'  : _empresaCtrl.text.trim(),
-                                                  'nombre'   : nombre,
-                                                  'apellido' : apellido,
-                                                  'telefono' : _telefonoCtrl.text.trim(),
-                                                  'direccion': _direccionCtrl.text.trim(),
-                                                  'email'    : email,
-                                                  'uid'      : uid, // 👈 lo guardamos también como campo
-                                                  'updatedAt': FieldValue.serverTimestamp(),
-                                                  'createdAt': FieldValue.serverTimestamp(),
-                                                }, SetOptions(merge: true));
+                                              // Normalización de teléfono
+                                              final telRaw =
+                                                  _telefonoCtrl.text;
+                                              final telDigits =
+                                              _soloDigitos(telRaw);
 
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  const SnackBar(content: Text('Prestamista registrado ✅')),
-                                                );
+                                              final data = {
+                                                'empresa': _toNullIfEmpty(
+                                                    _empresaCtrl.text),
+                                                'nombre': nombre,
+                                                'apellido': apellido,
+                                                'telefono': telRaw.trim(),
+                                                'telefonoE164':
+                                                _toNullIfEmpty(
+                                                    telDigits),
+                                                'direccion':
+                                                _toNullIfEmpty(
+                                                    _direccionCtrl
+                                                        .text),
+                                                'email':
+                                                _toNullIfEmpty(email ?? ''),
+                                                'uid': uid,
+                                                'settings': {
+                                                  // defaults razonables
+                                                  'lockEnabled': false,
+                                                  'pinEnabled': false,
+                                                  'biometria': false,
+                                                  'backupHabilitado':
+                                                  false,
+                                                  'notifVenc': true,
+                                                },
+                                                'updatedAt': FieldValue
+                                                    .serverTimestamp(),
+                                                'createdAt': createdAt ??
+                                                    FieldValue
+                                                        .serverTimestamp(),
+                                              };
 
-                                                if (!mounted) return;
-                                                Navigator.pushAndRemoveUntil(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (_) => const ClientesScreen(),
-                                                    settings: RouteSettings(arguments: {
-                                                      'bienvenidaNombre': _servidorCtrl.text.trim(),
-                                                      'bienvenidaEmpresa': _empresaCtrl.text.trim(),
-                                                    }),
+                                              await docRef.set(
+                                                data,
+                                                SetOptions(merge: true),
+                                              );
+
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(
+                                                  context)
+                                                  .showSnackBar(
+                                                const SnackBar(
+                                                    content: Text(
+                                                        'Prestamista registrado ✅')),
+                                              );
+
+                                              Navigator
+                                                  .pushAndRemoveUntil(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) =>
+                                                  const ClientesScreen(),
+                                                  settings:
+                                                  RouteSettings(
+                                                    arguments: {
+                                                      'bienvenidaNombre':
+                                                      _colapsarEspacios(
+                                                          fullName),
+                                                      'bienvenidaEmpresa':
+                                                      _empresaCtrl.text
+                                                          .trim(),
+                                                    },
                                                   ),
-                                                      (route) => false,
-                                                );
-                                              } catch (e) {
-                                                if (!mounted) return;
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  SnackBar(content: Text('Error al guardar: $e')),
-                                                );
-                                              } finally {
-                                                if (mounted) setState(() => _guardando = false);
+                                                ),
+                                                    (route) => false,
+                                              );
+                                            } catch (e) {
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(
+                                                  context)
+                                                  .showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                      'Error al guardar: $e'),
+                                                ),
+                                              );
+                                            } finally {
+                                              if (mounted) {
+                                                setState(() =>
+                                                _guardando = false);
                                               }
                                             }
                                           },
-                                          child: Text(_guardando ? 'Guardando…' : 'Siguiente'),
+                                          child: Text(_guardando
+                                              ? 'Guardando…'
+                                              : 'Siguiente'),
                                         ),
                                       ),
                                     ],
@@ -335,18 +465,21 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
     IconData? icon,
     String? Function(String?)? validator,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
+    TextInputAction? textInputAction,
   }) {
     return TextFormField(
       controller: controller,
       validator: validator,
       keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      inputFormatters: inputFormatters,
       decoration: InputDecoration(
         labelText: label,
         filled: true,
         fillColor: const Color(0xFFF7F8FA),
-        prefixIcon: icon != null
-            ? Icon(icon, color: const Color(0xFF94A3B8))
-            : null,
+        prefixIcon:
+        icon != null ? Icon(icon, color: const Color(0xFF94A3B8)) : null,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
@@ -362,7 +495,8 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
             width: 1.5,
           ),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
     );
   }

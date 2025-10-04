@@ -113,6 +113,9 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
     return '${d.day} ${meses[d.month - 1]} ${d.year}';
   }
 
+  // Normaliza fecha al mediodía (evita saltos de día por zona horaria)
+  DateTime _atNoon(DateTime d) => DateTime(d.year, d.month, d.day, 12);
+
   // (Se deja por compatibilidad aunque ya no se usa para continuar)
   DateTime _autoNext(String periodo, DateTime base) {
     return base.add(Duration(days: periodo == 'Quincenal' ? 15 : 30));
@@ -327,10 +330,9 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                         const Text(
                                                           'Debes elegir una fecha de pago',
                                                           style: TextStyle(
-                                                            fontSize: 12.5,
-                                                            color: Color(0xFFEF4444),
-                                                            fontWeight: FontWeight.w600,
-                                                          ),
+                                                              fontSize: 12.5,
+                                                              color: Color(0xFFEF4444),
+                                                              fontWeight: FontWeight.w600),
                                                         ),
                                                     ],
                                                   ),
@@ -349,7 +351,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                       lastDate: DateTime(hoy.year + 5),
                                                     );
                                                     if (sel != null) {
-                                                      setState(() => _proxima = sel);
+                                                      setState(() => _proxima = _atNoon(sel)); // 🕛
                                                     }
                                                   }
                                                       : null,
@@ -379,6 +381,8 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                               ),
                                               onPressed: (_formOk && _proxima != null && !_btnContinuarBusy)
                                                   ? () async {
+                                                HapticFeedback.lightImpact();
+                                                FocusScope.of(context).unfocus();
                                                 setState(() => _btnContinuarBusy = true);
                                                 Navigator.pop(context, {
                                                   'pagoInteres': _pagoInteres,
@@ -386,7 +390,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                   'totalPagado': _totalPagado,
                                                   'saldoAnterior': widget.saldoAnterior,
                                                   'saldoNuevo': _saldoNuevo,
-                                                  'proximaFecha': _proxima, // 👈 manual
+                                                  'proximaFecha': _proxima, // 👈 manual (ya a mediodía)
                                                 });
                                                 if (mounted) setState(() => _btnContinuarBusy = false);
                                               }

@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:local_auth/local_auth.dart';
-import 'dart:io'; // ⬅️ para exit(0)
 
 import 'theme/app_theme.dart';
 
@@ -208,7 +207,7 @@ class _PinScreenState extends State<PinScreen> {
         backgroundColor: Colors.transparent, // no mezclar con el fondo
         elevation: 0,
         // más abajo para no chocar con botones
-        margin: EdgeInsets.fromLTRB(16, 0, 16, bottomSafe + -20),
+        margin: EdgeInsets.fromLTRB(16, 0, 16, bottomSafe + 12),
         duration: const Duration(seconds: 2),
         content: Container(
           decoration: BoxDecoration(
@@ -406,8 +405,8 @@ class _PinScreenState extends State<PinScreen> {
       _showExitBanner();   // 👈 muestra el banner premium
       return false;        // no salir todavía
     }
-    exit(0);               // 👈 segunda vez: salir COMPLETO
-    // ignore: dead_code
+    // segunda vez → cerrar app de forma segura (Android)
+    await SystemNavigator.pop();
     return false;
   }
 
@@ -487,7 +486,7 @@ class _PinScreenState extends State<PinScreen> {
                       child: AnimatedOpacity(
                         duration: const Duration(milliseconds: 220),
                         curve: Curves.easeOut,
-                        opacity: tecladoAbierto ? 1 : 1.0,
+                        opacity: 1.0,
                         child: Image.asset(
                           'assets/images/logoB.png',
                           height: _logoHeight,

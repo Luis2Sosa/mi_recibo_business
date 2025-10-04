@@ -25,6 +25,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _debounce; // para debounce del buscador
 
+  // Suscripciones
+  StreamSubscription<RemoteMessage>? _fcmSub;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _seguridadSub;
+
   // Vencimientos
   bool _resaltarVencimientos = true;
 
@@ -43,19 +47,26 @@ class _ClientesScreenState extends State<ClientesScreen> {
   String? _intent;
   bool _intentBannerMostrado = false;
 
+  // 🔒 Lee si debe mostrarse el aviso de PIN/huella/facial
+  bool _lockEnabled = false;
+
   @override
   void initState() {
     super.initState();
     _cargarPerfilPrestamista();
+    _cargarSeguridad();              // 👈 carga inicial
+    _escucharSeguridadTiempoReal();  // 👈 escucha en tiempo real
 
     // ⬇️ NUEVO: guardar token FCM y escuchar mensajes en foreground
     _guardarTokenFCM();
-    FirebaseMessaging.onMessage.listen((m) {
-      // Para confirmar que llega mientras la app está abierta
+    _fcmSub = FirebaseMessaging.onMessage.listen((m) {
       // ignore: avoid_print
       print('📩 Push (foreground): ${m.notification?.title} - ${m.notification?.body}');
     });
   }
+
+  // 🕛 Normaliza al mediodía para evitar líos de zona horaria
+  DateTime _atNoon(DateTime d) => DateTime(d.year, d.month, d.day, 12);
 
   // 👇 Lee prestamistas/<uid actual> (datos básicos del prestamista para el recibo)
   Future<void> _cargarPerfilPrestamista() async {
@@ -82,7 +93,52 @@ class _ClientesScreenState extends State<ClientesScreen> {
     }
   }
 
-  // 🔔 NUEVO: guarda el token FCM en prestamistas/{uid}/meta/fcmToken
+  // 🔒 Lee settings.lockEnabled (true = mostrar línea de PIN/huella)
+  Future<void> _cargarSeguridad() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      final snap = await FirebaseFirestore.instance
+          .collection('prestamistas')
+          .doc(uid)
+          .get();
+      final data = snap.data() ?? {};
+      final settings = (data['settings'] as Map?) ?? {};
+      final val = settings['lockEnabled'];
+      if (!mounted) return;
+      setState(() {
+        _lockEnabled = (val is bool) ? val : false;
+      });
+    } catch (_) {
+      // si falla, dejamos _lockEnabled en false
+    }
+  }
+
+  // 👂 Escucha en tiempo real los cambios del campo settings.lockEnabled
+  void _escucharSeguridadTiempoReal() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    _seguridadSub = FirebaseFirestore.instance
+        .collection('prestamistas')
+        .doc(uid)
+        .snapshots()
+        .listen((doc) {
+      if (!doc.exists) return;
+
+      final data = doc.data();
+      final settings = (data?['settings'] as Map?) ?? {};
+      final val = settings['lockEnabled'];
+
+      if (mounted) {
+        setState(() {
+          _lockEnabled = (val is bool) ? val : false;
+        });
+      }
+    });
+  }
+
+  // 🔔 NUEVO: guarda el token FCM en prestamistas/{uid}/meta.fcmToken
   Future<void> _guardarTokenFCM() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -98,12 +154,12 @@ class _ClientesScreenState extends State<ClientesScreen> {
       await FirebaseFirestore.instance
           .collection('prestamistas')
           .doc(user.uid)
-          .set({'meta': {'fcmToken': token}}, SetOptions(merge: true));
+          .set({'meta.fcmToken': token}, SetOptions(merge: true));
 
       // ignore: avoid_print
       print('✅ FCM token guardado: $token');
 
-      // (Opcional) Suscribirse a un tema común, por si luego lo usamos
+      // (Opcional) Suscribirse a un tema común
       // await FirebaseMessaging.instance.subscribeToTopic('diarias');
     } catch (e) {
       // ignore: avoid_print
@@ -151,7 +207,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
               fontSize: 16,
             ),
           ),
-
         ),
       ),
     );
@@ -161,7 +216,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
       ..clearSnackBars()
       ..showSnackBar(snack);
   }
-
 
   // ===== Banner profesional para salir (modal bloqueante) =====
   Future<void> _confirmarSalirCliente() async {
@@ -194,11 +248,15 @@ class _ClientesScreenState extends State<ClientesScreen> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF111827)),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Si sales, al volver a abrir la app entrarás con PIN, huella o reconocimiento facial.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-                ),
+
+                // 👇 Solo mostramos la línea de PIN/huella si settings.lockEnabled == true
+                if (_lockEnabled)
+                  const Text(
+                    'Si sales, al volver a abrir la app entrarás con PIN, huella o reconocimiento facial.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                  ),
+
                 const SizedBox(height: 18),
                 Row(
                   children: [
@@ -302,69 +360,88 @@ class _ClientesScreenState extends State<ClientesScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    // 👇 NUEVO: usamos el capital que vino del form para decidir estado/saldo
+    // Datos del form
+    final String nombre = (result['nombre'] as String).trim();
+    final String apellido = (result['apellido'] as String).trim();
+    final String nombreCompleto = '$nombre $apellido';
+    final String telefono = (result['telefono'] as String).trim();
+    final String? direccion = ((result['direccion'] as String?)?.trim().isEmpty ?? true)
+        ? null
+        : (result['direccion'] as String).trim();
+    final String? producto = ((result['producto'] as String?)?.trim().isEmpty ?? true)
+        ? null
+        : (result['producto'] as String).trim();
+    final String? nota = ((result['nota'] as String?)?.trim().isEmpty ?? true)
+        ? null
+        : (result['nota'] as String).trim();
+
     final int nuevoCapital = result['capital'] as int? ?? c.capitalInicial;
-    final DateTime nuevaProx = result['proximaFecha'] as DateTime? ?? c.proximaFecha;
+    final double tasa = result['tasa'] as double? ?? c.tasaInteres;
+    final String periodo = result['periodo'] as String? ?? c.periodo;
+    final DateTime nuevaProxRaw = result['proximaFecha'] as DateTime? ?? c.proximaFecha;
+    final DateTime nuevaProx = _atNoon(nuevaProxRaw); // 🕛 normaliza
 
-    // Campos base (siempre)
-    final Map<String, dynamic> update = {
-      'nombre': (result['nombre'] as String).trim(),
-      'apellido': (result['apellido'] as String).trim(),
-      'telefono': (result['telefono'] as String).trim(),
-      'direccion': ((result['direccion'] as String?)?.trim().isEmpty ?? true)
-          ? null
-          : (result['direccion'] as String).trim(),
-      'producto': ((result['producto'] as String?)?.trim().isEmpty ?? true)
-          ? null
-          : (result['producto'] as String).trim(),
-      'capitalInicial': nuevoCapital,
-      'tasaInteres': result['tasa'] as double? ?? c.tasaInteres,
-      'periodo': result['periodo'] as String? ?? c.periodo,
-      'proximaFecha': Timestamp.fromDate(nuevaProx),
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
-    // 👇 Si hay nuevo préstamo (>0), el cliente vuelve a "al día".
-    //    Si capital = 0, queda saldado.
-    if (nuevoCapital > 0) {
-      update.addAll({
-        'saldoActual': nuevoCapital,
-        'saldado': false,
-        'estado': 'al_dia',
-      });
-    } else {
-      update.addAll({
-        'saldoActual': 0,
-        'saldado': true,
-        'estado': 'saldado',
-      });
-    }
+    final docId = result['id'] ?? c.id;
+    final docRef = FirebaseFirestore.instance
+        .collection('prestamistas')
+        .doc(uid)
+        .collection('clientes')
+        .doc(docId);
 
     try {
-      await FirebaseFirestore.instance
-          .collection('prestamistas')
-          .doc(uid)
-          .collection('clientes')
-          .doc(result['id'] ?? c.id)
-          .set(update, SetOptions(merge: true));
+      // 1) Actualiza datos generales (sin tocar saldos/estado todavía)
+      final Map<String, dynamic> update = {
+        'nombre': nombre,
+        'apellido': apellido,
+        'nombreCompleto': nombreCompleto,
+        'telefono': telefono,
+        'direccion': direccion,
+        'producto': producto,
+        'nota': nota,
+        'capitalInicial': nuevoCapital,
+        'tasaInteres': tasa,
+        'periodo': periodo,
+        'proximaFecha': Timestamp.fromDate(nuevaProx),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      await docRef.set(update, SetOptions(merge: true));
 
-      // 👇 Nuevo: acumula SOLO el extra prestado en renovaciones
-      final int montoNuevo = (nuevoCapital - c.saldoActual);
-      if (montoNuevo > 0) {
-        await FirebaseFirestore.instance
-            .collection('prestamistas')
-            .doc(uid)
-            .collection('clientes')
-            .doc(result['id'] ?? c.id)
-            .set({
-          'totalPrestado': FieldValue.increment(montoNuevo),
-        }, SetOptions(merge: true));
+      // 2) LÓGICA DE RENOVACIÓN AUTOMÁTICA CUANDO APLICA
+      final bool estabaSaldado = c.saldoActual <= 0;
+      final bool capitalCambiado = nuevoCapital != c.saldoActual;
+      final bool renovarFlag = (result['renovar'] as bool?) ?? false;
+
+      // Renovar si: flag explícito, o si estaba saldado y ahora hay capital,
+      // o si el capital cambió (intención evidente de reestructurar).
+      final bool renovar = renovarFlag || (estabaSaldado && nuevoCapital > 0) || capitalCambiado;
+
+      if (renovar) {
+        final Map<String, dynamic> ren = {
+          'saldoActual': nuevoCapital,
+          'saldado': nuevoCapital <= 0,
+          'estado': nuevoCapital <= 0 ? 'saldado' : 'al_dia',
+          'proximaFecha': Timestamp.fromDate(nuevaProx),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'venceEl': nuevoCapital <= 0
+              ? FieldValue.delete()
+              : Timestamp.fromDate(nuevaProx),
+        };
+        await docRef.set(ren, SetOptions(merge: true));
+
+        // Sumar SOLO el extra prestado (si hay)
+        final int extra = nuevoCapital - c.saldoActual;
+        if (extra > 0) {
+          await docRef.set({
+            'totalPrestado': FieldValue.increment(extra),
+          }, SetOptions(merge: true));
+        }
+
+        _showBanner('Renovación aplicada ✅', color: const Color(0xFFEFFBF3), icon: Icons.check_circle);
+      } else {
+        _showBanner('Cliente actualizado ✅', color: const Color(0xFFEFFBF3), icon: Icons.check_circle);
       }
-
-      _showBanner('Cliente actualizado ✅', color: const Color(0xFFEFFBF3), icon: Icons.check_circle);
     } catch (e) {
-      _showBanner('Error al actualizar: $e',
-          color: const Color(0xFFFFF1F2), icon: Icons.error_outline);
+      _showBanner('Error al actualizar: $e', color: const Color(0xFFFFF1F2), icon: Icons.error_outline);
     }
   }
 
@@ -513,6 +590,8 @@ class _ClientesScreenState extends State<ClientesScreen> {
   void dispose() {
     _debounce?.cancel();
     _searchCtrl.dispose();
+    _fcmSub?.cancel();
+    _seguridadSub?.cancel();
     super.dispose();
   }
 
@@ -686,11 +765,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                           selectedColor: Colors.white,
                                           side: const BorderSide(color: Color(0xFFE5E7EB)),
                                           labelStyle: TextStyle(
-                                            color: _filtro == FiltroClientes.saldados
-                                                ? const Color(0xFF2563EB)
-                                                : const Color(0xFF0F172A),
-                                            fontWeight: FontWeight.w600,
-                                          ),
+                                              color: _filtro == FiltroClientes.saldados
+                                                  ? const Color(0xFF2563EB)
+                                                  : const Color(0xFF0F172A),
+                                              fontWeight: FontWeight.w600),
                                         ),
                                       ],
                                     ),
@@ -841,7 +919,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
         final bool hayClientes = lista.isNotEmpty;
         final bool hayActivos  = lista.any((c) => c.saldoActual > 0);
 
-// 👇 Auto-intent si no viene ninguno: prioridad VENCIDOS > HOY > PRONTO
+        // 👇 Auto-intent si no viene ninguno: prioridad VENCIDOS > HOY > PRONTO
         if (_intent == null) {
           if (cVencidos > 0) {
             _intent = 'vencidos';
@@ -855,7 +933,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
           _intentBannerMostrado = false; // permitir que el banner se dispare
         }
 
-// Muestra banner SOLO una vez por intención, cuando ya tenemos datos
+        // Muestra banner SOLO una vez por intención, cuando ya tenemos datos
         if (_intent != null && !_intentBannerMostrado && mounted) {
           _intentBannerMostrado = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1047,7 +1125,18 @@ class _ClientesScreenState extends State<ClientesScreen> {
     );
 
     if (result != null && result is Map && result['accion'] == 'pago') {
-      final estadoDespues = _estadoDe(c);
+      // Usa los datos devueltos para evaluar el estado después
+      final int saldoNuevo = result['saldoNuevo'] as int? ?? c.saldoActual;
+      final DateTime proximaNueva = result['proximaFecha'] as DateTime? ?? c.proximaFecha;
+      final int d = _diasHasta(proximaNueva);
+      final _EstadoVenc estadoDespues = (d < 0)
+          ? _EstadoVenc.vencido
+          : (d == 0)
+          ? _EstadoVenc.hoy
+          : (d <= 2)
+          ? _EstadoVenc.pronto
+          : _EstadoVenc.alDia;
+
       if (estadoDespues == _EstadoVenc.alDia && estadoAntes != _EstadoVenc.alDia) {
         _showBanner('Pago registrado ✅ · Ahora al día', color: const Color(0xFFEFFBF3), icon: Icons.check_circle);
       } else {

@@ -3,12 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart'; // 👈 agregado para cerrar sesión de Google
+import 'package:google_sign_in/google_sign_in.dart'; // 👈 cerrar sesión Google
 import 'home_screen.dart';
 
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:mi_recibo/ui/theme/app_theme.dart';
 import 'package:mi_recibo/ui/widgets/app_frame.dart';
 
@@ -70,7 +67,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         keyboardType: keyboard,
         style: const TextStyle(fontWeight: FontWeight.w700, color: _Brand.ink),
         decoration: InputDecoration(
-          labelText: label,  // 👈 ahora aparece arriba
+          labelText: label,  // 👈 aparece arriba
           labelStyle: const TextStyle(
             fontSize: 13,
             color: Colors.black87,  // 🔹 texto negro elegante
@@ -80,7 +77,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             color: Colors.black,    // 🔹 también negro al enfocar
             fontWeight: FontWeight.w700,
           ),
-
           prefixIcon: Icon(icon, color: _Brand.inkDim),
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
           border: OutlineInputBorder(
@@ -93,8 +89,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       ),
     );
   }
-
-
 
   // Logo
   static const double _logoTop = -48;
@@ -333,19 +327,24 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         }
 
         if (sal > 0) {
-          DateTime f = hoyOnly;
+          // ✅ NO contar clientes sin 'proximaFecha'
           final ts = m['proximaFecha'];
-          if (ts is Timestamp) {
+          if (ts is! Timestamp) {
+            // ignoramos para estados y próximo vencimiento
+          } else {
             final td = ts.toDate();
-            f = DateTime(td.year, td.month, td.day);
-          }
-          final diff = f.difference(hoyOnly).inDays;
-          if (diff < 0) vencidos++;
-          else if (diff <= 2) pagando++;
-          else alDia++;
-
-          if (!f.isBefore(hoyOnly)) {
-            if (proxVenc == null || f.isBefore(proxVenc)) proxVenc = f;
+            final f = DateTime(td.year, td.month, td.day);
+            final diff = f.difference(hoyOnly).inDays;
+            if (diff < 0) {
+              vencidos++;
+            } else if (diff <= 2) {
+              pagando++;
+            } else {
+              alDia++;
+            }
+            if (!f.isBefore(hoyOnly)) {
+              if (proxVenc == null || f.isBefore(proxVenc)) proxVenc = f;
+            }
           }
         }
 
@@ -432,7 +431,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         lifetimePagosProm  = countPagos == 0 ? 0 : (sumPagos / countPagos).round();
       }
 
-      // ⛔️ Ya no sobreescribimos lifetimeGanancia ni lifetimePagosProm aquí.
+      // ⛔️ No sobreescribimos lifetimeGanancia ni lifetimePagosProm aquí.
       histPrimerPago = firstPay == null ? '—' : _fmtFecha(firstPay!);
       histUltimoPago = lastPay == null ? '—' : _fmtFecha(lastPay!);
       histMesTop = topMesVal <= 0 ? '—' : '$topMesKey (${_rd(topMesVal)})';
@@ -575,7 +574,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         SizedBox(
           width: double.infinity,
           height: 52,
-          child: ElevatedButton(  // 👈 cámbialo de OutlinedButton a ElevatedButton
+          child: ElevatedButton(  // 👈 de Outlined a Elevated
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,          // 👈 fondo blanco
               foregroundColor: _Brand.softRed,        // 👈 texto rojo
@@ -584,7 +583,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                 fontSize: 16,
                 fontWeight: FontWeight.w900,
               ),
-              elevation: 0, // 👈 sin sombra para que parezca plano
+              elevation: 0, // 👈 sin sombra para plano
             ),
             onPressed: _confirmDeleteAccount,
             child: const Text('Eliminar cuenta'),
@@ -835,9 +834,9 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         border: Border.all(color: const Color(0xFFFFE1A8)),
       ),
       child: Row(children: const [
-        Text('✨  ', style: TextStyle(fontSize: 16)),
+        Text('✨  ', style: TextStyle(fontSize: 14)),
         Expanded(
-          child: Text('Vista histórica · Acumulado de por vida',
+          child: Text('       Vista histórica - Acumulado historico          ✨',
               style: TextStyle(fontWeight: FontWeight.w800, color: _Brand.ink)),
         ),
       ]),
@@ -1045,36 +1044,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     t,
     style: GoogleFonts.inter(textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _Brand.ink)),
   );
-
-  Widget _input(String label, TextEditingController c, {TextInputType keyboard = TextInputType.text}) {
-    return TextField(
-        controller: c,
-        keyboardType: keyboard,
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: const TextStyle(
-            fontSize: 13,
-            color: Colors.black87,       // 👈 Negro elegante
-            fontWeight: FontWeight.w600, // 👈 Más premium
-          ),
-          floatingLabelStyle: const TextStyle(
-            color: Color(0xFF2563EB),    // 👈 Azul corporativo al enfocar
-            fontWeight: FontWeight.w700,
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 18,                // 👈 Un poco más de aire
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none, // 👈 Sin borde por defecto
-          ),
-        )
-    );
-
-  }
 
   Widget _kpi(String title, String value, {required Color bg, required Color accent}) {
     return Container(
@@ -1364,7 +1333,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     ),
   );
 
-  // ======= NUEVO: Navegación a la pantalla de Ganancia por cliente =======
+  // ======= Navegación a la pantalla de Ganancia por cliente =======
   void _openGananciaClientes() {
     if (_docPrest == null) {
       _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
@@ -1742,9 +1711,9 @@ class _HeaderBar extends StatelessWidget {
         IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           style: ButtonStyle(
-            backgroundColor: WidgetStateProperty.all(AppTheme.gradTop.withOpacity(.9)),
-            shape: WidgetStateProperty.all(const CircleBorder()),
-            padding: WidgetStateProperty.all(const EdgeInsets.all(8)),
+            backgroundColor: MaterialStateProperty.all(AppTheme.gradTop.withOpacity(.9)),
+            shape: MaterialStateProperty.all(const CircleBorder()),
+            padding: MaterialStateProperty.all(const EdgeInsets.all(8)),
           ),
           onPressed: () => Navigator.pop(context),
         ),
@@ -1763,7 +1732,6 @@ class _HeaderBar extends StatelessWidget {
     );
   }
 }
-
 
 class _Colors {
   static const ink = Color(0xFF111827);
