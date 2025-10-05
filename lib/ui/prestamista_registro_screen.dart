@@ -15,9 +15,9 @@ class PrestamistaRegistroScreen extends StatefulWidget {
 
 class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
   // Logo independiente (no empuja el contenido)
-  static const double _logoTop = -20;
+  static const double _logoTop = -80;
   static const double _logoHeight = 400;
-  static const double _gapBelowLogo = -90; // ⬅️ marco un poco más abajo (no tapa)
+  static const double _gapBelowLogo = -60; // ⬅️ marco un poco más abajo (no tapa)
 
   final _formKey = GlobalKey<FormState>();
 
@@ -180,7 +180,7 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                 child: Center(
                                   child: Text(
                                     'Registro Prestamista',
-                                    style: GoogleFonts.playfair(
+                                    style: GoogleFonts.playfairDisplay( // ✅ corregido
                                       textStyle: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 28,
@@ -240,9 +240,11 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                         icon: Icons.call, // 📞
                                         keyboardType: TextInputType.phone,
                                         textInputAction: TextInputAction.next,
+                                        // 👇 Permitir números y guion (antes bloqueaba el guion)
                                         inputFormatters: [
-                                          FilteringTextInputFormatter
-                                              .digitsOnly, // ✅ solo dígitos
+                                          FilteringTextInputFormatter.allow(
+                                            RegExp(r'[0-9\-]'),
+                                          ),
                                         ],
                                         validator: (v) {
                                           if (v == null || v.trim().isEmpty) {

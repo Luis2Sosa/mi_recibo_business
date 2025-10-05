@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart'; // 👈 cerrar sesión Google
+import 'package:google_sign_in/google_sign_in.dart'; // 👈 cerrar sesión / reautenticación Google
 import 'home_screen.dart';
 
 import 'package:mi_recibo/ui/theme/app_theme.dart';
@@ -70,11 +70,11 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
           labelText: label,  // 👈 aparece arriba
           labelStyle: const TextStyle(
             fontSize: 13,
-            color: Colors.black87,  // 🔹 texto negro elegante
+            color: Colors.black87,
             fontWeight: FontWeight.w600,
           ),
           floatingLabelStyle: const TextStyle(
-            color: Colors.black,    // 🔹 también negro al enfocar
+            color: Colors.black,
             fontWeight: FontWeight.w700,
           ),
           prefixIcon: Icon(icon, color: _Brand.inkDim),
@@ -127,7 +127,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   int lifetimeRecuperado = 0;
 
   // NUEVO: métricas históricas solicitadas
-  int lifetimeGanancia = 0;     // suma de pagoInteres
+  int lifetimeGanancia = 0;     // suma de pagoInteres (histórico)
   int lifetimePagosProm = 0;    // promedio de totalPagado
 
   String histPrimerPago = '—';
@@ -416,8 +416,8 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         if (data != null) {
           lifetimePrestado   = (data['lifetimePrestado']   ?? totalPrestado) as int;
           lifetimeRecuperado = (data['lifetimeRecuperado'] ?? totalRecuperado) as int;
-          lifetimeGanancia   = (data['lifetimeGanancia']   ?? baseGanancia) as int; // NUEVO
-          lifetimePagosProm  = (data['lifetimePagosProm']  ?? basePromedio) as int; // NUEVO
+          lifetimeGanancia   = (data['lifetimeGanancia']   ?? baseGanancia) as int; // histórico
+          lifetimePagosProm  = (data['lifetimePagosProm']  ?? basePromedio) as int;
         } else {
           lifetimePrestado   = totalPrestado;
           lifetimeRecuperado = totalRecuperado;
@@ -609,6 +609,22 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     await _deleteAccount();
   }
 
+  // ========= Reautenticación Google (NECESARIA para poder borrar el usuario) =========
+  Future<void> _reauthWithGoogleIfNeeded(User user) async {
+    final google = GoogleSignIn();
+    final current = await google.signInSilently();
+    final acct = current ?? await google.signIn();
+    if (acct == null) {
+      throw FirebaseAuthException(code: 'aborted-by-user', message: 'Reautenticación cancelada');
+    }
+    final auth = await acct.authentication;
+    final credential = GoogleAuthProvider.credential(
+      idToken: auth.idToken,
+      accessToken: auth.accessToken,
+    );
+    await user.reauthenticateWithCredential(credential);
+  }
+
   Future<void> _deleteAccount() async {
     if (_docPrest == null || _user == null) return;
     try {
@@ -626,25 +642,47 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         }
       }
 
+      // Borrar datos del usuario en Firestore (clientes y subcolecciones)
       final clientes = await _docPrest!.collection('clientes').get();
       for (final c in clientes.docs) {
         await _wipeCollection(c.reference.collection('pagos'));
+        // 🔽 Si manejas otras subcolecciones por cliente, descomenta:
+        // await _wipeCollection(c.reference.collection('recibos'));
+        // await _wipeCollection(c.reference.collection('tokens'));
         await c.reference.delete();
       }
 
+      // Borrar subcolecciones del prestamista
       await _wipeCollection(_docPrest!.collection('backups'));
       await _wipeCollection(_docPrest!.collection('historial'));
       await _wipeCollection(_docPrest!.collection('metrics'));
+      // 🔽 Si añadiste otras subcolecciones al doc del prestamista, descomenta:
+      // await _wipeCollection(_docPrest!.collection('notificaciones'));
+      // await _wipeCollection(_docPrest!.collection('tokens'));
 
+      // Borrar documento del prestamista
       await _docPrest!.delete();
+
+      // Reautenticar ANTES de eliminar el usuario (evita requires-recent-login)
+      await _reauthWithGoogleIfNeeded(_user!);
+
+      // Borrar usuario Auth
       await _user!.delete();
 
       _toast('Cuenta eliminada', color: _Brand.softRed, icon: Icons.delete_forever);
       if (mounted) {
         Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (r) => false);
       }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        _toast('Por seguridad, vuelve a autenticarte e intenta de nuevo.', color: _Brand.softRed, icon: Icons.lock_outline);
+      } else if (e.code == 'aborted-by-user') {
+        _toast('Reautenticación cancelada', color: _Brand.softRed, icon: Icons.error_outline);
+      } else {
+        _toast('No se pudo eliminar: ${e.code}', color: _Brand.softRed, icon: Icons.error_outline);
+      }
     } catch (e) {
-      _toast('No se pudo eliminar. Vuelve a iniciar sesión y reintenta.', color: _Brand.softRed, icon: Icons.error_outline);
+      _toast('No se pudo eliminar. Reintenta.', color: _Brand.softRed, icon: Icons.error_outline);
     }
   }
 
@@ -697,7 +735,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
               _title('Seguridad'),
               const SizedBox(height: 8),
               _switchRow(
-                title: 'Bloqueo con PIN o Biometría (rostro/huella)',
+                title: 'Bloqueo con seguridad del dispositivo',
                 value: _lockEnabled,
                 onChanged: (v) async {
                   _lockEnabled = v;
@@ -859,11 +897,30 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       mainAxisSpacing: 12,
       children: _historico
           ? [
-        _kpi('Prestado histórico', _rd(displayPrestado), bg: _Brand.kpiPurple, accent: _Brand.purple),
-        _kpi('Recuperado histórico', _rd(displayRecuperado), bg: _Brand.kpiGreen, accent: _Brand.successDark),
-        _kpi('Ganancia', _rd(lifetimeGanancia), bg: _Brand.kpiGray, accent: _Brand.ink),
-
-        // === KPI tappable
+        // ✅ Ganancias totales (tappable) — “Toca para ver” en VERDE
+        InkWell(
+          onTap: _openGanancias,
+          borderRadius: BorderRadius.circular(18),
+          child: _kpi(
+            'Ganancias totales',
+            'Toca para ver',
+            bg: const Color(0xFFF2F6FD),
+            accent: _Brand.success, // verde
+          ),
+        ),
+        _kpi(
+          'Recuperado histórico',
+          _rd(displayRecuperado),
+          bg: _Brand.kpiGreen,
+          accent: _Brand.successDark,
+        ),
+        _kpi(
+          'Prestado histórico',
+          _rd(displayPrestado),
+          bg: _Brand.kpiPurple,
+          accent: _Brand.purple,
+        ),
+        // 🔹 Ganancia por cliente (se queda en azul para diferenciar)
         InkWell(
           onTap: _openGananciaClientes,
           borderRadius: BorderRadius.circular(18),
@@ -871,7 +928,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             'Ganancia por cliente',
             'Toca para ver',
             bg: const Color(0xFFF2F6FD),
-            accent: _Brand.primary,
+            accent: _Brand.primary, // azul
           ),
         ),
       ]
@@ -879,10 +936,15 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         _kpi('Total prestado', _rd(displayPrestado), bg: _Brand.kpiGray, accent: _Brand.ink),
         _kpi('Total recuperado', _rd(displayRecuperado), bg: _Brand.kpiGreen, accent: _Brand.successDark),
         _kpi('Total pendiente', _rd(totalPendiente), bg: _Brand.kpiBlue, accent: _Brand.primary),
-        _kpi('Recuperación', displayPrestado > 0 ? '${recRate.toStringAsFixed(0)}%' : '—',
-            bg: const Color(0xFFF2F6FD), accent: recColor),
+        _kpi(
+          'Recuperación',
+          displayPrestado > 0 ? '${recRate.toStringAsFixed(0)}%' : '—',
+          bg: const Color(0xFFF2F6FD),
+          accent: recColor,
+        ),
       ],
     );
+
 
     // Gráficos
     final chartsCard = _card(
@@ -1012,7 +1074,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     } catch (_) {
       // si no existe, ignorar
     }
-    // reset de los mostrados en pantalla
     setState(() {
       lifetimePrestado = 0;
       lifetimeRecuperado = 0;
@@ -1194,7 +1255,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                                 decoration: BoxDecoration(
                                   color: _Brand.primary,
                                   borderRadius: BorderRadius.circular(10),
-                                  boxShadow: [BoxShadow(color: _Brand.primary.withOpacity(.18), blurRadius: 10, offset: Offset(0, 4))],
+                                  boxShadow: [BoxShadow(color: _Brand.primary.withOpacity(.18), blurRadius: 10, offset: const Offset(0, 4))],
                                 ),
                               );
                             }),
@@ -1333,7 +1394,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     ),
   );
 
-  // ======= Navegación a la pantalla de Ganancia por cliente =======
+  // ======= Navegación a pantallas =======
   void _openGananciaClientes() {
     if (_docPrest == null) {
       _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
@@ -1343,6 +1404,19 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => GananciaClientesScreen(docPrest: _docPrest!),
+      ),
+    );
+  }
+
+  void _openGanancias() {
+    if (_docPrest == null) {
+      _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GananciasScreen(docPrest: _docPrest!),
       ),
     );
   }
@@ -1399,7 +1473,7 @@ class _DonutPainter extends CustomPainter {
   bool shouldRepaint(covariant _DonutPainter old) => old.slices != slices;
 }
 
-// ===================== NUEVA PANTALLA (adaptada a AppTheme + AppFrame) =====================
+// ===================== NUEVA PANTALLA (en el mismo archivo): Ganancia por cliente =====================
 class GananciaClientesScreen extends StatefulWidget {
   final DocumentReference<Map<String, dynamic>> docPrest;
   const GananciaClientesScreen({super.key, required this.docPrest});
@@ -1591,7 +1665,6 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 👤 Ícono pequeño al lado del nombre
                     Row(
                       children: [
                         const Icon(Icons.person, size: 18, color: Color(0xFF0F172A)),
@@ -1614,7 +1687,6 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
                         ),
                       ],
                     ),
-
                     _textoMonto('Total histórico:', _rd(it.capitalInicial), AppTheme.gradTop),
                     const SizedBox(height: 6),
                     _textoMonto('Pendiente:', _rd(it.saldo), it.saldo > 0 ? Colors.red : Colors.green),
@@ -1679,6 +1751,428 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
       child: Text('No hay clientes activos con ganancias',
           style: TextStyle(fontWeight: FontWeight.w800, color: _Colors.inkDim)),
     ),
+  );
+}
+
+// ===================== NUEVA PANTALLA (en el mismo archivo): Ganancias (total activos) =====================
+class GananciasScreen extends StatefulWidget {
+  final DocumentReference<Map<String, dynamic>> docPrest;
+  const GananciasScreen({super.key, required this.docPrest});
+
+  @override
+  State<GananciasScreen> createState() => _GananciasScreenState();
+}
+
+class _GananciasScreenState extends State<GananciasScreen> {
+  late Future<_GananciasResumen> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _cargarGananciasGlobal();
+  }
+
+  // Suma premium: solo la ganancia (pagoInteres) de clientes activos
+  Future<_GananciasResumen> _cargarGananciasGlobal() async {
+    final cs = await widget.docPrest.collection('clientes').get();
+
+    int clientesActivos = 0;
+    int gananciaActiva = 0;
+    int pagosContados = 0;
+
+    for (final c in cs.docs) {
+      final data = c.data();
+      final int saldo = (data['saldoActual'] ?? 0) as int;
+      if (saldo <= 0) continue; // solo activos
+      clientesActivos++;
+
+      final pagos = await c.reference.collection('pagos').get();
+      for (final p in pagos.docs) {
+        final m = p.data();
+        gananciaActiva += (m['pagoInteres'] ?? 0) as int;
+        pagosContados++;
+      }
+    }
+
+    return _GananciasResumen(
+      clientesActivos: clientesActivos,
+      gananciaActiva: gananciaActiva,
+      pagosContados: pagosContados,
+    );
+  }
+
+  // Historial: últimos pagos con interés de clientes activos (máx N)
+  Future<List<_HistRow>> _cargarHistorial({int maxItems = 8}) async {
+    final cs = await widget.docPrest.collection('clientes').get();
+    final List<_HistRow> rows = [];
+
+    for (final c in cs.docs) {
+      final data = c.data();
+      final int saldo = (data['saldoActual'] ?? 0) as int;
+      if (saldo <= 0) continue; // solo activos
+
+      final nombre = '${(data['nombre'] ?? '').toString().trim()} ${(data['apellido'] ?? '').toString().trim()}'.trim();
+      final display = nombre.isEmpty ? (data['telefono'] ?? 'Cliente') : nombre;
+
+      final pagos = await c.reference.collection('pagos').get();
+      for (final p in pagos.docs) {
+        final m = p.data();
+        final int interes = (m['pagoInteres'] ?? 0) as int;
+        if (interes <= 0) continue;
+        DateTime fecha;
+        final ts = m['fecha'];
+        if (ts is Timestamp) {
+          fecha = ts.toDate();
+        } else {
+          continue;
+        }
+        rows.add(_HistRow(cliente: display, interes: interes, fecha: fecha));
+      }
+    }
+
+    rows.sort((a, b) => b.fecha.compareTo(a.fecha));
+    if (rows.length > maxItems) return rows.sublist(0, maxItems);
+    return rows;
+  }
+
+  String _rd(int v) {
+    if (v <= 0) return 'RD\$0';
+    final s = v.toString();
+    final b = StringBuffer();
+    int c = 0;
+    for (int i = s.length - 1; i >= 0; i--) {
+      b.write(s[i]);
+      c++;
+      if (c == 3 && i != 0) {
+        b.write('.');
+        c = 0;
+      }
+    }
+    return 'RD\$${b.toString().split('').reversed.join()}';
+  }
+
+  // Helpers de fecha (la fecha se "actualiza" tomando DateTime.now() cada build)
+  String _two(int n) => n.toString().padLeft(2, '0');
+  String _fmtFecha(DateTime d) => '${_two(d.day)} ${[
+    'ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'
+  ][d.month-1]} ${d.year}';
+
+  Future<void> _refresh() async {
+    setState(() {
+      _future = _cargarGananciasGlobal();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: AppGradientBackground(
+        child: AppFrame(
+          // Título ajustado
+          header: const _HeaderBar(title: 'Ganancias totales'),
+          child: FutureBuilder<_GananciasResumen>(
+            future: _future,
+            builder: (context, snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return const Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5)),
+                      SizedBox(width: 10),
+                      Text('Cargando…', style: TextStyle(fontWeight: FontWeight.w800)),
+                    ],
+                  ),
+                );
+              }
+              final res = snap.data ?? _GananciasResumen.empty();
+
+              // Datos de certificado
+              final String serial = widget.docPrest.id.toUpperCase().padRight(6, '0').substring(0, 6);
+              final String fecha = _fmtFecha(DateTime.now());
+
+              return RefreshIndicator(
+                onRefresh: _refresh,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+                  children: [
+                    // ======== TARJETA PREMIUM / CERTIFICADO ========
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(.96),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: const Color(0xFFE1E8F5), width: 1.2),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 16, offset: const Offset(0, 8)),
+                        ],
+                      ),
+                      padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Header certificado + sello
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(999),
+                                  gradient: LinearGradient(
+                                    colors: [AppTheme.gradTop, AppTheme.gradBottom],
+                                  ),
+                                ),
+                                child: const Text(
+                                  'DATOS VERIFICADOS',
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: .6),
+                                ),
+                              ),
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: LinearGradient(colors: [AppTheme.gradBottom, AppTheme.gradTop]),
+                                  boxShadow: [
+                                    BoxShadow(color: AppTheme.gradTop.withOpacity(.25), blurRadius: 10, offset: const Offset(0, 4)),
+                                  ],
+                                ),
+                                child: const Icon(Icons.verified_rounded, color: Colors.white, size: 22),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Título corregido
+                          Text(
+                            'Ganancias totales (activos)',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
+                              textStyle: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: _Brand.inkDim,
+                                fontSize: 14.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Monto premium
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.trending_up_rounded, color: AppTheme.gradBottom.withOpacity(.95), size: 28),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _rd(res.gananciaActiva),
+                                  style: GoogleFonts.inter(
+                                    textStyle: TextStyle(
+                                      fontSize: 44,
+                                      fontWeight: FontWeight.w900,
+                                      height: 1,
+                                      letterSpacing: 0.2,
+                                      color: AppTheme.gradBottom,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Divider decorativo
+                          Container(
+                            height: 1.2,
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFFEAF0FA), Color(0xFFDDE6F6), Color(0xFFEAF0FA)],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+
+                          // Metadatos (SERIAL + FECHA)
+                          Row(
+                            children: [
+                              Expanded(child: _metaChip(label: 'SERIAL', value: '#$serial')),
+                              const SizedBox(width: 10),
+                              Expanded(child: _metaChip(label: 'FECHA', value: fecha)),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+
+                          // Botón actualizar (refresca fecha y datos)
+                          SizedBox(
+                            width: double.infinity,
+                            height: 44,
+                            child: OutlinedButton.icon(
+                              onPressed: _refresh,
+                              icon: const Icon(Icons.refresh_rounded),
+                              label: const Text('Actualizar'),
+                              style: OutlinedButton.styleFrom(
+                                shape: const StadiumBorder(),
+                                side: BorderSide(color: AppTheme.gradTop),
+                                foregroundColor: AppTheme.gradTop,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // ======== HISTORIAL (llena el espacio con info útil) ========
+                    FutureBuilder<List<_HistRow>>(
+                      future: _cargarHistorial(maxItems: 8),
+                      builder: (context, h) {
+                        if (h.connectionState != ConnectionState.done) {
+                          return Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF6F8FB),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: const Color(0xFFE9EEF5)),
+                            ),
+                            child: const Center(
+                              child: SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5)),
+                            ),
+                          );
+                        }
+                        final items = h.data ?? const <_HistRow>[];
+                        if (items.isEmpty) {
+                          return Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF6F8FB),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: const Color(0xFFE9EEF5)),
+                            ),
+                            child: const Center(
+                              child: Text('Sin historial de ganancias aún',
+                                  style: TextStyle(fontWeight: FontWeight.w800, color: _Colors.inkDim)),
+                            ),
+                          );
+                        }
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF6F8FB),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: const Color(0xFFE9EEF5)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Historial de ganancias', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                              const SizedBox(height: 10),
+                              ...items.map((e) => Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.payments_rounded, size: 18, color: _Brand.inkDim),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        e.cliente,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontWeight: FontWeight.w700, color: _Brand.ink),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(_fmtFecha(e.fecha),
+                                        style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
+                                    const SizedBox(width: 10),
+                                    Text(_rd(e.interes),
+                                        style: TextStyle(color: AppTheme.gradBottom, fontWeight: FontWeight.w900)),
+                                  ],
+                                ),
+                              )),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // ======== CTA: Ver detalle por cliente (ocupa el fondo si queda espacio) ========
+                    SizedBox(
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => GananciaClientesScreen(docPrest: widget.docPrest),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.people_alt_rounded),
+                        label: const Text('Ver ganancia por cliente', style: TextStyle(fontWeight: FontWeight.w900)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.gradTop,
+                          foregroundColor: Colors.white,
+                          shape: const StadiumBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _metaChip({required String label, required String value}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE7EEF8)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.03), blurRadius: 6, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w700, fontSize: 12)),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(color: _Brand.ink, fontWeight: FontWeight.w900, fontSize: 14)),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistRow {
+  final String cliente;
+  final int interes;
+  final DateTime fecha;
+  const _HistRow({required this.cliente, required this.interes, required this.fecha});
+}
+
+
+class _GananciasResumen {
+  final int clientesActivos;
+  final int gananciaActiva;
+  final int pagosContados;
+
+  const _GananciasResumen({
+    required this.clientesActivos,
+    required this.gananciaActiva,
+    required this.pagosContados,
+  });
+
+  factory _GananciasResumen.empty() => const _GananciasResumen(
+    clientesActivos: 0,
+    gananciaActiva: 0,
+    pagosContados: 0,
   );
 }
 

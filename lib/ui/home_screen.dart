@@ -106,6 +106,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }, SetOptions(merge: true));
   }
 
+  // ✔ Regla de navegación:
+  // - Si el doc NO existe -> Registro
+  // - Si el doc existe PERO está incompleto (e.g. sin teléfono) -> Registro
+  // - Si el doc existe y está completo -> Clientes (con gate PIN si aplica)
   Future<void> _manejarLoginPrestamista() async {
     if (_cargando) return;
     HapticFeedback.lightImpact();
@@ -117,46 +121,14 @@ class _HomeScreenState extends State<HomeScreen> {
         throw const _UiFriendlyAuthError('No se pudo obtener el usuario.');
       }
 
-      final docRef =
-      FirebaseFirestore.instance.collection('prestamistas').doc(user.uid);
-      final snap = await docRef.get();
+      final docRef = FirebaseFirestore.instance.collection('prestamistas').doc(user.uid);
+      // 🔒 Lee SIEMPRE del servidor para evitar cache después de borrar cuenta
+      final snap = await docRef.get(const GetOptions(source: Source.server));
 
       if (!mounted) return;
 
-      if (snap.exists) {
-        // ✅ Ya registrado → persistimos metadatos útiles
-        await _persistirDatosBasicos(user);
-
-        // Seguridad: lockEnabled o pinEnabled + pinCode
-        final data = snap.data() ?? {};
-        final settings = (data['settings'] as Map?) ?? {};
-        final bool lockEnabled = settings['lockEnabled'] == true;
-        final bool pinEnabled = settings['pinEnabled'] == true;
-        final String? pinCode = (settings['pinCode'] as String?)?.trim();
-
-        final bool requiereGate = lockEnabled || (pinEnabled && (pinCode != null && pinCode.isNotEmpty));
-
-        if (requiereGate) {
-          final ok = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(builder: (_) => const PinScreen()),
-          );
-          if (ok == true && mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const ClientesScreen()),
-            );
-          } else {
-            _showSnack('Autenticación requerida para continuar.');
-          }
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const ClientesScreen()),
-          );
-        }
-      } else {
-        // 📝 No registrado → formulario de registro con datos precargados
+      if (!snap.exists) {
+        // 📝 No registrado (p.ej. la cuenta fue eliminada) → ir a REGISTRO
         final nombreCompleto = (user.displayName ?? '').trim();
         String? nombre;
         String? apellido;
@@ -178,6 +150,71 @@ class _HomeScreenState extends State<HomeScreen> {
               'fotoUrl': user.photoURL,
             }),
           ),
+        );
+        return;
+      }
+
+      // ✅ Doc existe. Chequeo de "perfil completo".
+      final data = snap.data() ?? {};
+      final settings = (data['settings'] as Map?) ?? {};
+      final String telefono = (data['telefono'] ?? '').toString().trim();
+
+      final bool perfilIncompleto = telefono.isEmpty; // puedes añadir más campos obligatorios si quieres
+
+      if (perfilIncompleto) {
+        // El doc existe pero falta info esencial -> Registro
+        final nombreCompleto = (user.displayName ?? '').trim();
+        String? nombre;
+        String? apellido;
+        if (nombreCompleto.isNotEmpty) {
+          final parts = nombreCompleto.split(RegExp(r'\s+'));
+          nombre = parts.isNotEmpty ? parts.first : null;
+          apellido = parts.length > 1 ? parts.sublist(1).join(' ') : null;
+        }
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const PrestamistaRegistroScreen(),
+            settings: RouteSettings(arguments: {
+              'nombreCompleto': nombreCompleto,
+              'nombre': nombre,
+              'apellido': apellido,
+              'email': user.email,
+              'fotoUrl': user.photoURL,
+            }),
+          ),
+        );
+        return;
+      }
+
+      // ✔ Ya registrado y completo → persistimos metadatos útiles
+      await _persistirDatosBasicos(user);
+
+      // Seguridad: lockEnabled o pinEnabled + pinCode
+      final bool lockEnabled = settings['lockEnabled'] == true;
+      final bool pinEnabled = settings['pinEnabled'] == true;
+      final String? pinCode = (settings['pinCode'] as String?)?.trim();
+
+      final bool requiereGate = lockEnabled || (pinEnabled && (pinCode != null && pinCode.isNotEmpty));
+
+      if (requiereGate) {
+        final ok = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(builder: (_) => const PinScreen()),
+        );
+        if (ok == true && mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const ClientesScreen()),
+          );
+        } else {
+          _showSnack('Autenticación requerida para continuar.');
+        }
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const ClientesScreen()),
         );
       }
     } catch (e) {
@@ -265,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             constraints: const BoxConstraints(maxWidth: 340),
                             child: Text(
                               'Más que un recibo, la gestión que tu negocio merece',
-                              style: GoogleFonts.playfair(
+                              style: GoogleFonts.playfairDisplay(
                                 textStyle: const TextStyle(
                                   fontSize: 25,
                                   fontWeight: FontWeight.w600,

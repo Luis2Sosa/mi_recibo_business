@@ -42,8 +42,7 @@ class MiReciboApp extends StatelessWidget {
       scaffoldMessengerKey: NotificationsPlus.messengerKey,
       navigatorKey: NotificationsPlus.navigatorKey,
 
-      // ✅ Español (incluye DatePicker/calendario en español)
-      locale: const Locale('es'), // fuerza español; quítalo si quieres seguir el idioma del sistema
+      // ✅ Localización: soporta ES/EN y respeta el idioma del sistema
       supportedLocales: const [
         Locale('es', 'DO'),
         Locale('es', 'ES'),
@@ -56,6 +55,15 @@ class MiReciboApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      localeResolutionCallback: (deviceLocale, supported) {
+        if (deviceLocale == null) return const Locale('es', 'DO');
+        for (final l in supported) {
+          if (l.languageCode == deviceLocale.languageCode) {
+            return deviceLocale;
+          }
+        }
+        return const Locale('es', 'DO');
+      },
 
       home: const _StartGate(), // 👈 decide a dónde entrar según sesión + lockEnabled
     );
@@ -199,7 +207,7 @@ class _StartGateState extends State<_StartGate> with WidgetsBindingObserver {
         MaterialPageRoute(builder: (_) => page),
             (r) => false,
       );
-      setState(() => _checking = false);
+      // (El setState para _checking=false es redundante aquí porque esta vista se reemplaza)
     });
   }
 
@@ -265,36 +273,17 @@ Future<void> _setupFCM() async {
   // Permiso (Android 13 requiere POST_NOTIFICATIONS en manifest)
   await messaging.requestPermission(alert: true, badge: true, sound: true);
 
-  // Token actual
-  final token = await messaging.getToken();
-
-  // Guarda token si ya hay sesión
+  // Guarda token si ya hay sesión (centralizado)
   final uid = FirebaseAuth.instance.currentUser?.uid;
-  if (uid != null && token != null) {
-    await FirebaseFirestore.instance
-        .collection('prestamistas')
-        .doc(uid)
-        .set({
-      'meta': {
-        'fcmToken': token,
-        'fcmUpdatedAt': FieldValue.serverTimestamp(),
-      }
-    }, SetOptions(merge: true));
+  if (uid != null) {
+    await _writeFcmToken(uid);
   }
 
-  // Si el token cambia
+  // Si el token cambia (centralizado)
   FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
     final u = FirebaseAuth.instance.currentUser;
     if (u != null) {
-      await FirebaseFirestore.instance
-          .collection('prestamistas')
-          .doc(u.uid)
-          .set({
-        'meta': {
-          'fcmToken': newToken,
-          'fcmUpdatedAt': FieldValue.serverTimestamp(),
-        }
-      }, SetOptions(merge: true));
+      await _writeFcmToken(u.uid);
     }
   });
 

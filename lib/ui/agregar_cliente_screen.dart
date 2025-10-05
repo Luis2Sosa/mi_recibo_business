@@ -254,7 +254,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
         Center(
           child: Text(
             _isEdit ? 'Editar Cliente' : 'Agregar Cliente',
-            style: GoogleFonts.playfair(
+            style: GoogleFonts.playfairDisplay(
               textStyle: const TextStyle(
                 color: Colors.white,
                 fontSize: 26,
@@ -502,6 +502,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Selecciona la próxima fecha de pago.')),
       );
+      setState(() => _guardando = false);
       return;
     }
 

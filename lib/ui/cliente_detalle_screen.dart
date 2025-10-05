@@ -1,3 +1,4 @@
+import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -204,7 +205,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       } else {
         total = capitalInicial > 0 ? capitalInicial : fallbackSaldoAnterior;
         await ref.set(
-            {'totalPrestado': total, 'updatedAt': FieldValue.serverTimestamp()},
+            {'totalPrestado': total, 'updatedAt': FieldValue.serverTimestamp() },
             SetOptions(merge: true));
       }
 
@@ -763,7 +764,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                 header: Center(
                   child: Text(
                     'Detalle del Cliente',
-                    style: GoogleFonts.playfair(
+                    style: GoogleFonts.playfairDisplay(
                       textStyle: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,

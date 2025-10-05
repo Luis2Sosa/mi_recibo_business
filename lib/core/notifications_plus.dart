@@ -22,8 +22,7 @@ class NotificationsPlus {
     'resumen_mes': Duration(days: 30),
   };
 
-  static Future<void> trigger(String intent,
-      {Map<String, dynamic>? payload}) async {
+  static Future<void> trigger(String intent, {Map<String, dynamic>? payload}) async {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
     final key = 'last_$intent';
@@ -52,8 +51,7 @@ class NotificationsPlus {
 
     final lastOpenIso = prefs.getString('last_app_open');
     final lastOpen = DateTime.tryParse(lastOpenIso ?? '');
-    if (lastOpen != null &&
-        now.difference(lastOpen) >= const Duration(days: 3)) {
+    if (lastOpen != null && now.difference(lastOpen) >= const Duration(days: 3)) {
       trigger('inactividad_cobro');
     }
     await prefs.setString('last_app_open', now.toIso8601String());
@@ -61,9 +59,7 @@ class NotificationsPlus {
     final lastMonthIso = prefs.getString('last_resumen_mes');
     final lastMonth = DateTime.tryParse(lastMonthIso ?? '');
     final monthChanged =
-        lastMonth == null ||
-            lastMonth.month != now.month ||
-            lastMonth.year != now.year;
+        lastMonth == null || lastMonth.month != now.month || lastMonth.year != now.year;
     if (monthChanged) {
       await prefs.setString('last_resumen_mes', now.toIso8601String());
       trigger('resumen_mes', payload: {
@@ -76,8 +72,7 @@ class NotificationsPlus {
   static void _show(String intent, Map payload) {
     switch (intent) {
       case 'pago_ok':
-        _showBanner('📊 Pago confirmado',
-            color: const Color(0xFF22C55E), intent: intent);
+        _showBanner('📊 Pago confirmado', color: const Color(0xFF22C55E), intent: intent);
         break;
       case 'deuda_finalizada':
         _showBanner('📊 El cliente saldó su deuda',
@@ -96,15 +91,13 @@ class NotificationsPlus {
             color: const Color(0xFF2563EB), intent: intent);
         break;
       case 'inactividad_cobro':
-        _showBanner(
-            '🔔 Han pasado varios días sin actividad. Revisa tus cobros pendientes.',
+        _showBanner('🔔 Han pasado varios días sin actividad. Revisa tus cobros pendientes.',
             color: const Color(0xFFFFB020), intent: intent);
         break;
       case 'resumen_mes':
         final prestado = payload['montoPrestado'] ?? 0;
         final cobrado = payload['montoCobrado'] ?? 0;
-        _showBanner(
-            '📚 Resumen mensual: Prestaste RD\$${prestado} y cobraste RD\$${cobrado}.',
+        _showBanner('📚 Resumen mensual: Prestaste RD\$$prestado y cobraste RD\$$cobrado.',
             color: const Color(0xFF2563EB), intent: intent);
         break;
       default:
@@ -115,21 +108,22 @@ class NotificationsPlus {
     }
   }
 
-  static void _showBanner(String text,
-      {required Color color, required String intent}) {
+  /// Muestra un banner modal “seguro” y lo cierra removiendo *esa* ruta,
+  /// sin hacer `pop()` del stack general.
+  static void _showBanner(String text, {required Color color, required String intent}) {
     void showNow() {
-      final ctx = navigatorKey.currentState?.overlay?.context ??
-          messengerKey.currentContext;
-      if (ctx == null) {
-        WidgetsBinding.instance.addPostFrameCallback(
-                (_) => _showBanner(text, color: color, intent: intent));
+      final nav = navigatorKey.currentState;
+      final ctx = nav?.overlay?.context ?? messengerKey.currentContext;
+      if (nav == null || ctx == null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showBanner(text, color: color, intent: intent);
+        });
         return;
       }
 
       Widget _card() => Container(
         constraints: const BoxConstraints(minWidth: 240, maxWidth: 340),
-        padding:
-        const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         decoration: intent == 'deuda_finalizada'
             ? BoxDecoration(
           color: const Color(0xFF16A34A),
@@ -142,8 +136,7 @@ class NotificationsPlus {
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(26),
-          border: Border.all(
-              color: const Color(0xFFE5E7EB), width: 1.2),
+          border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.22),
@@ -168,8 +161,7 @@ class NotificationsPlus {
               child: Icon(
                 Icons.check_circle_rounded,
                 size: 30,
-                color:
-                intent == 'deuda_finalizada' ? Colors.white : color,
+                color: intent == 'deuda_finalizada' ? Colors.white : color,
               ),
             ),
             const SizedBox(height: 14),
@@ -177,9 +169,8 @@ class NotificationsPlus {
               text,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: intent == 'deuda_finalizada'
-                    ? Colors.white
-                    : const Color(0xFF0F172A),
+                color:
+                intent == 'deuda_finalizada' ? Colors.white : const Color(0xFF0F172A),
                 fontSize: 17,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0.2,
@@ -192,14 +183,15 @@ class NotificationsPlus {
         ),
       );
 
-      showGeneralDialog(
-        context: ctx,
-        barrierLabel: 'notifications_plus_banner',
-        barrierDismissible: false,
+      // 🚫 Nada de showGeneralDialog + nav.pop()
+      // ✅ Empujamos una ruta propia y la removemos explícitamente.
+      final route = PageRouteBuilder(
+        opaque: false,
         barrierColor: Colors.black.withOpacity(0.40),
+        barrierDismissible: false,
         transitionDuration: const Duration(milliseconds: 220),
         pageBuilder: (_, __, ___) => const SizedBox.shrink(),
-        transitionBuilder: (_, anim, __, ___) {
+        transitionsBuilder: (_, anim, __, ___) {
           final t = Curves.easeOutCubic.transform(anim.value);
           return Stack(
             fit: StackFit.expand,
@@ -224,9 +216,14 @@ class NotificationsPlus {
         },
       );
 
+      nav.push(route);
+
+      // Cerrar SOLO esta ruta (no afecta otras pantallas)
       Future.delayed(const Duration(milliseconds: 1500), () {
-        final nav = navigatorKey.currentState;
-        if (nav != null && nav.canPop()) nav.pop();
+        if (route.isActive) {
+          // removeRoute no toca las demás rutas del stack
+          nav.removeRoute(route);
+        }
       });
     }
 

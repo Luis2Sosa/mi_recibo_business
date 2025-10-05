@@ -222,7 +222,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                     Center(
                                       child: Text(
                                         'Registrar Pago',
-                                        style: GoogleFonts.playfair(
+                                        style: GoogleFonts.playfairDisplay(
                                           textStyle: const TextStyle(
                                             color: Colors.white,
                                             fontSize: 26,

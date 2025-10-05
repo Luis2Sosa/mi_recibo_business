@@ -7,6 +7,7 @@ import 'agregar_cliente_screen.dart';
 import 'package:flutter/services.dart';
 import 'dart:io' show exit, Platform;
 
+
 // 🔥 Firestore + Auth
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -49,6 +50,9 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
   // 🔒 Lee si debe mostrarse el aviso de PIN/huella/facial
   bool _lockEnabled = false;
+
+  // 👇 NUEVO: detecta si venimos de un registro recién completado
+  bool _esRecienRegistrado = false;
 
   @override
   void initState() {
@@ -154,7 +158,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
       await FirebaseFirestore.instance
           .collection('prestamistas')
           .doc(user.uid)
-          .set({'meta.fcmToken': token}, SetOptions(merge: true));
+          .set({'meta': {'fcmToken': token}}, SetOptions(merge: true));
 
       // ignore: avoid_print
       print('✅ FCM token guardado: $token');
@@ -252,7 +256,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 // 👇 Solo mostramos la línea de PIN/huella si settings.lockEnabled == true
                 if (_lockEnabled)
                   const Text(
-                    'Si sales, al volver a abrir la app entrarás con PIN, huella o reconocimiento facial.',
+                    'Al reabrir, validaremos tu identidad con el desbloqueo de tu dispositivo.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
                   ),
@@ -542,12 +546,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
     );
   }
 
-  String _fmtFechaCorta(DateTime d) {
-    final dd = d.day.toString().padLeft(2, '0');
-    final mm = d.month.toString().padLeft(2, '0');
-    return '$dd/$mm';
-  }
-
   String _fmtFecha(DateTime d) {
     const meses = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sept.', 'oct.', 'nov.', 'dic.'];
     return '${d.day} ${meses[d.month - 1]} ${d.year}';
@@ -563,6 +561,15 @@ class _ClientesScreenState extends State<ClientesScreen> {
       if (args is Map) {
         final nombre = (args['bienvenidaNombre'] as String?)?.trim();
         final empresa = (args['bienvenidaEmpresa'] as String?)?.trim();
+
+        // 👇 Marca que venimos de un registro recién completado (usa tus mismos argumentos)
+        final recien = (args['recienRegistrado'] == true) ||
+            ((nombre != null && nombre.isNotEmpty));
+
+        if (recien) {
+          _esRecienRegistrado = true;
+        }
+
         if (nombre != null && nombre.isNotEmpty) {
           _bienvenidaMostrada = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -651,7 +658,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                     child: Text(
                                       'CLIENTES',
                                       textAlign: TextAlign.center,
-                                      style: GoogleFonts.playfair(
+                                      style: GoogleFonts.playfairDisplay(
                                         color: Colors.white,
                                         fontSize: 24,
                                         fontWeight: FontWeight.w600,
@@ -957,14 +964,14 @@ class _ClientesScreenState extends State<ClientesScreen> {
                   icon: Icons.warning_amber_rounded,
                 );
               } else {
-                // ✅ Ajuste: mensajes según estado real de los datos
-                if (!hayClientes) {
+                // ✅ Ajuste: NO mostrar "Aún no has agregado clientes" si viene de registro nuevo
+                if (!hayClientes && !_esRecienRegistrado) {
                   _showBanner('Aún no has agregado clientes.',
                       color: const Color(0xFFEFFBF3), icon: Icons.info_outline);
-                } else if (!hayActivos) {
+                } else if (hayClientes && !hayActivos) {
                   _showBanner('No tienes clientes activos.',
                       color: const Color(0xFFEFFBF3), icon: Icons.info_outline);
-                } else {
+                } else if (hayClientes && hayActivos) {
                   _showBanner('✅ No hay pagos vencidos ahora mismo.',
                       color: const Color(0xFFEFFBF3), icon: Icons.check_circle);
                 }
@@ -987,14 +994,14 @@ class _ClientesScreenState extends State<ClientesScreen> {
                   //icon: Icons.event_available,
                 );
               } else {
-                // ✅ Ajuste: mensajes según estado real de los datos
-                if (!hayClientes) {
+                // ✅ Ajuste: NO mostrar "Aún no has agregado clientes" si viene de registro nuevo
+                if (!hayClientes && !_esRecienRegistrado) {
                   _showBanner('Aún no has agregado clientes.',
                       color: const Color(0xFFEFFBF3), icon: Icons.info_outline);
-                } else if (!hayActivos) {
+                } else if (hayClientes && !hayActivos) {
                   _showBanner('No tienes clientes activos.',
                       color: const Color(0xFFEFFBF3), icon: Icons.info_outline);
-                } else {
+                } else if (hayClientes && hayActivos) {
                   _showBanner('✅ Nadie vence hoy.',
                       color: const Color(0xFFEFFBF3), icon: Icons.check_circle);
                 }
@@ -1046,14 +1053,14 @@ class _ClientesScreenState extends State<ClientesScreen> {
                   );
                 }
               } else {
-                // ✅ Ajuste: mensajes según estado real de los datos
-                if (!hayClientes) {
+                // ✅ Ajuste: NO mostrar "Aún no has agregado clientes" si viene de registro nuevo
+                if (!hayClientes && !_esRecienRegistrado) {
                   _showBanner('Aún no has agregado clientes.',
                       color: const Color(0xFFEFFBF3), icon: Icons.info_outline);
-                } else if (!hayActivos) {
+                } else if (hayClientes && !hayActivos) {
                   _showBanner('No tienes clientes activos.',
                       color: const Color(0xFFEFFBF3), icon: Icons.info_outline);
-                } else {
+                } else if (hayClientes && hayActivos) {
                   _showBanner('✅ No hay vencimientos en 1–2 días.',
                       color: const Color(0xFFEFFBF3), icon: Icons.check_circle);
                 }

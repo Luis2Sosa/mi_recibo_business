@@ -16,6 +16,9 @@ import 'package:media_store_plus/media_store_plus.dart';
 import 'package:mi_recibo/ui/theme/app_theme.dart';
 import 'package:mi_recibo/ui/widgets/app_frame.dart';
 
+// 👇 Banner premium
+import '../core/notifications_plus.dart';
+
 /// ==============================
 /// CONFIGURACIÓN VISUAL AJUSTABLE
 /// ==============================
@@ -158,31 +161,31 @@ class ReciboUIConfig {
 
     // Textos (↑ 1–2 pt debajo del monto)
     this.labelStyle = const TextStyle(
-      fontSize: 18, // 17 -> 18
+      fontSize: 18,
       color: Color(0xFF667084),
       fontWeight: FontWeight.w600,
       letterSpacing: .1,
     ),
     this.valueStyle = const TextStyle(
-      fontSize: 19, // 18 -> 19
+      fontSize: 19,
       color: Color(0xFF0F172A),
       fontWeight: FontWeight.w800,
       letterSpacing: .1,
     ),
     this.valueStrongStyle = const TextStyle(
-      fontSize: 20, // 19 -> 20
+      fontSize: 20,
       color: Color(0xFF0F172A),
       fontWeight: FontWeight.w900,
       letterSpacing: .1,
     ),
     this.valueClientStyle = const TextStyle(
-      fontSize: 21, // 20 -> 21
+      fontSize: 21,
       color: Color(0xFF0F172A),
       fontWeight: FontWeight.w900,
       letterSpacing: .2,
     ),
     this.phoneStyle = const TextStyle(
-      fontSize: 17, // 16 -> 17
+      fontSize: 17,
       color: Color(0xFF667084),
       fontWeight: FontWeight.w600,
     ),
@@ -302,6 +305,20 @@ class _ReciboScreenState extends State<ReciboScreen> {
   static const Duration _backWindow = Duration(seconds: 2);
 
   ReciboUIConfig get cfg => widget.config;
+
+  @override
+  void initState() {
+    super.initState();
+    // Mostrar banner premium al entrar (2s). “Pago finalizado” si se saldó; si no, “Pago confirmado”
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (widget.saldoActual <= 0) {
+        NotificationsPlus.trigger('deuda_finalizada');
+      } else {
+        NotificationsPlus.trigger('pago_ok');
+      }
+    });
+  }
 
   // RD$ con miles
   String _monedaRD(int v) {
@@ -432,6 +449,7 @@ class _ReciboScreenState extends State<ReciboScreen> {
         debugPrint('Fallback PNG también falló: $e2\n$st2');
       }
     } finally {
+      // 👉 Después de compartir, volver al cliente (como antes)
       _volverAClientes();
     }
   }
@@ -734,16 +752,10 @@ class _ReceiptContent extends StatelessWidget {
 
     const double fixedTopSpacer = 80;
 
-    // === Estado y cálculo correcto del próximo pago ===
+    // Estado y cálculo del próximo pago (se mantiene)
     final bool pagoFinalizado = saldoActual == 0;
-
-    // tasa del período actual (si hubo interés cobrado)
     final double _tasa = (saldoAnterior > 0) ? (pagoInteres / saldoAnterior) : 0.0;
-
-    // interés del próximo período sobre el capital restante
-    final int _proximoInteres = (_tasa * saldoActual).round(); // usa ~/ para truncar si prefieres
-
-    // saldo próximo pago = capital restante + próximo interés
+    final int _proximoInteres = (_tasa * saldoActual).round();
     final int saldoProximoPago = !pagoFinalizado ? (saldoActual + _proximoInteres) : 0;
 
     return Stack(
@@ -753,7 +765,6 @@ class _ReceiptContent extends StatelessWidget {
           children: [
             const SizedBox(height: fixedTopSpacer),
 
-            // Paloma
             Center(
               child: Container(
                 width: cfg.checkCircleSize,
@@ -773,7 +784,6 @@ class _ReceiptContent extends StatelessWidget {
               ),
             ),
 
-            // Panel del monto
             Container(
               decoration: BoxDecoration(
                 borderRadius: cfg.amountPanelRadius,
@@ -795,14 +805,12 @@ class _ReceiptContent extends StatelessWidget {
 
             const SizedBox(height: 10),
 
-            // ================== PANEL ÚNICO ==================
             Container(
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: cfg.line)),
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Encabezado
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -821,11 +829,9 @@ class _ReceiptContent extends StatelessWidget {
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                Text('Tel:',
-                                    style: cfg.valueStyle.copyWith(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black87)),
+                                Text('Tel:', style: cfg.valueStyle.copyWith(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black87)),
                                 const SizedBox(width: 6),
-                                Text(telefonoServidor,
-                                    style: cfg.valueStyle.copyWith(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.black87)),
+                                Text(telefonoServidor, style: cfg.valueStyle.copyWith(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.black87)),
                               ],
                             ),
                           ],
@@ -845,14 +851,12 @@ class _ReceiptContent extends StatelessWidget {
                   const SizedBox(height: 10),
                   Divider(height: 14, thickness: 1, color: cfg.line),
 
-                  // Cliente
                   label('Cliente'),
                   const SizedBox(height: 4),
                   valueClient(cliente),
 
                   const SizedBox(height: 10),
 
-                  // Bloque central (misma altura en ambos)
                   Container(
                     constraints: const BoxConstraints(minHeight: 240),
                     decoration: BoxDecoration(color: cfg.mint, borderRadius: BorderRadius.circular(14), border: Border.all(color: cfg.mintBorder)),
@@ -891,11 +895,9 @@ class _ReceiptContent extends StatelessWidget {
                 ],
               ),
             ),
-            // ================== / PANEL ÚNICO ==================
           ],
         ),
 
-        // Logo overlay (dentro de la tarjeta capturable)
         Positioned(
           top: cfg.brandLogoTop,
           left: 0,

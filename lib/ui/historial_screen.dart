@@ -43,7 +43,7 @@ class HistorialScreen extends StatelessWidget {
     return DateTime.now();
   }
 
-  TextStyle get _titleStyle => GoogleFonts.playfair(
+  TextStyle get _titleStyle => GoogleFonts.playfairDisplay(
     textStyle: const TextStyle(
       color: Colors.white,
       fontSize: 22,
@@ -133,11 +133,11 @@ class HistorialScreen extends StatelessWidget {
           child: Stack(
             children: [
               // Logo decorativo
-              const Positioned(
+              Positioned(
                 top: _logoTop,
                 left: 0,
                 right: 0,
-                child: IgnorePointer(
+                child: const IgnorePointer(
                   child: Center(
                     child: Image(
                       image: AssetImage('assets/images/logoB.png'),
