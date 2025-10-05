@@ -77,6 +77,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   // ✅ Nota opcional (leída de Firestore SIN tocar el constructor)
   String? _nota;
 
+  bool get _estaSaldado => _saldoActual <= 0;
+
   @override
   void initState() {
     super.initState();
@@ -263,8 +265,9 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     }
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null)
+    if (uid == null) {
       return {'empresa': empresa, 'servidor': servidor, 'telefono': telefono};
+    }
 
     try {
       final snap = await FirebaseFirestore.instance
@@ -609,6 +612,52 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     );
   }
 
+  // 🔒 Banner premium para clientes saldados
+  void _showSaldadoBanner() {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+        duration: const Duration(seconds: 2),
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF6FF),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFDBEAFE)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.10),
+                blurRadius: 14,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: const [
+              Icon(Icons.verified_rounded, color: Color(0xFF2563EB)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Este cliente está saldado. No se pueden registrar pagos ni enviar recordatorios.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // Mini toast premium reutilizable
   void _showToastPremium(String text) {
     final messenger = ScaffoldMessenger.of(context);
@@ -651,57 +700,155 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   void _abrirMenuRecordatorio() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFFF9FAFB),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      isScrollControlled: false,
+      backgroundColor: Colors.transparent, // 👈 para sombra/gradiente premium
       builder: (_) {
-        Widget item(String title, String tipo, {IconData icon = Icons.schedule}) {
-          return ListTile(
-            leading: Icon(icon, color: Colors.black87, size: 26),
-            title: Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+        // Helper: chip de WhatsApp (activo/inactivo)
+        Widget _waChip(bool enabled) {
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: enabled ? const Color(0xFF22C55E) : const Color(0xFF98A2B3),
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: enabled
+                  ? [BoxShadow(color: const Color(0xFF22C55E).withOpacity(.28), blurRadius: 10, offset: const Offset(0, 4))]
+                  : [],
             ),
-            trailing: _waIcon(size: 24),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _waIcon(size: 18),
+                const SizedBox(width: 6),
+                const Text(
+                  'WhatsApp',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Helper: ítem premium (se desactiva visualmente si no corresponde)
+        Widget _premiumItem(String title, String tipo, IconData icon) {
+          final enabled = _permiteRecordatorio(tipo);
+
+          return InkWell(
             onTap: () async {
               Navigator.pop(context);
-
-              // ✅ Bloqueo inteligente: solo permite si corresponde al estado real
-              if (!_permiteRecordatorio(tipo)) {
+              if (!enabled) {
                 _avisoNoCorresponde();
                 return;
               }
-
               final msg = _mensajeRecordatorio(tipo);
               await _enviarPorWhatsApp(widget.telefono, msg);
             },
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF4FF),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFDCE7FF)),
+                    ),
+                    child: Icon(icon, size: 22, color: const Color(0xFF2563EB)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Opacity(
+                      opacity: enabled ? 1 : .48,
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                  ),
+                  _waChip(enabled),
+                ],
+              ),
+            ),
           );
         }
 
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 4),
-                const Text(
-                  'Enviar recordatorio',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFFDFEFF), Color(0xFFF6F8FB)],
                 ),
-                const SizedBox(height: 6),
-                const Divider(),
-                item('Pago vencido', 'vencido', icon: Icons.warning_amber_rounded),
-                const Divider(height: 0),
-                item('Vence hoy', 'hoy', icon: Icons.event_available),
-                const Divider(height: 0),
-                item('Vence mañana', 'manana', icon: Icons.access_time),
-                const Divider(height: 0),
-                item('Vence en 2 días', 'dos_dias', icon: Icons.schedule),
-                const Divider(height: 0),
-                item('Al día', 'aldia', icon: Icons.check_circle),
-              ],
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border.all(color: const Color(0xFFE9EEF5)),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(.18), blurRadius: 22, offset: const Offset(0, -6)),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 8),
+                  // handle
+                  Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // título premium
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: Row(
+                      children: const [
+                        Icon(Icons.sms_rounded, color: Color(0xFF0F172A)),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Enviar recordatorio',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+                  const Divider(height: 1, color: Color(0xFFE9EEF5)),
+
+                  // ítems
+                  _premiumItem('Pago vencido', 'vencido', Icons.warning_amber_rounded),
+                  const Divider(height: 1, color: Color(0xFFE9EEF5)),
+                  _premiumItem('Vence hoy', 'hoy', Icons.event_available),
+                  const Divider(height: 1, color: Color(0xFFE9EEF5)),
+                  _premiumItem('Vence mañana', 'manana', Icons.access_time),
+                  const Divider(height: 1, color: Color(0xFFE9EEF5)),
+                  _premiumItem('Vence en 2 días', 'dos_dias', Icons.schedule),
+                  const Divider(height: 1, color: Color(0xFFE9EEF5)),
+                  _premiumItem('Al día', 'aldia', Icons.check_circle),
+
+                  const SizedBox(height: 12),
+                ],
+              ),
             ),
           ),
         );
@@ -737,6 +884,29 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     final valueSaldo = valueStyle.copyWith(color: saldoColor);
     final valueGreen = valueStyle.copyWith(color: const Color(0xFF22C55E));
     final valueInk = valueStyle.copyWith(color: const Color(0xFF0F172A));
+
+    // 🎛️ Estilos "premium desactivados" (visuales) pero con onTap para banner
+    final bool saldado = _estaSaldado;
+
+    final registrarPagoStyle = ElevatedButton.styleFrom(
+      elevation: saldado ? 0 : 2,
+      shadowColor: const Color(0xFF2563EB).withOpacity(saldado ? 0.0 : 0.35),
+      backgroundColor: saldado ? const Color(0xFF2563EB).withOpacity(0.55) : const Color(0xFF2563EB),
+      foregroundColor: Colors.white,
+      shape: const StadiumBorder(),
+      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+    );
+
+    final waButtonStyle = OutlinedButton.styleFrom(
+      side: BorderSide(
+        color: saldado ? const Color(0xFF94A3B8) : const Color(0xFF2563EB),
+        width: 2,
+      ),
+      shape: const StadiumBorder(),
+      foregroundColor: saldado ? const Color(0xFF64748B) : const Color(0xFF2563EB),
+      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+      backgroundColor: saldado ? Colors.white.withOpacity(0.92) : Colors.white,
+    );
 
     return Scaffold(
       body: AppGradientBackground(
@@ -789,7 +959,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(22),
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                       // 👇 Ajuste para que el marco se adapte al contenido
                       child: LayoutBuilder(
                         builder: (context, constraints) {
@@ -804,64 +974,209 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(
-                                    widget.nombreCompleto,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w800,
-                                      color: const Color(0xFF0F172A),
-                                    ),
+                                  // ===== Encabezado premium con íconos y labels grises + valores negros =====
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // Fila: Avatar + Nombre
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.center,
+                                        children: [
+                                          SizedBox(
+                                            width: 38,
+                                            child: Container(
+                                              width: 38,
+                                              height: 38,
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFFEFF6FF),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: const Icon(Icons.person, color: Color(0xFF2563EB)),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              widget.nombreCompleto,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.w800,
+                                                color: const Color(0xFF0F172A),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+
+                                      // Fila: Tel:
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.center,
+                                        children: [
+                                          const SizedBox(
+                                            width: 38,
+                                            child: Align(
+                                              alignment: Alignment.center,
+                                              child: Icon(Icons.phone_rounded, size: 18, color: Color(0xFF16A34A)),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: RichText(
+                                              text: TextSpan(
+                                                style: GoogleFonts.inter(fontSize: 15, height: 1.25),
+                                                children: [
+                                                  const TextSpan(
+                                                    text: 'Tel: ',
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.w700,
+                                                      color: Color(0xFF6B7280), // gris del label
+                                                    ),
+                                                  ),
+                                                  TextSpan(
+                                                    text: widget.telefono,
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.w800,
+                                                      color: Color(0xFF0F172A), // negro del valor
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+
+                                      // Fila: Dirección: (si existe)
+                                      if (widget.direccion != null && widget.direccion!.trim().isNotEmpty) ...[
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          children: [
+                                            const SizedBox(
+                                              width: 38,
+                                              child: Align(
+                                                alignment: Alignment.center,
+                                                child: Icon(Icons.location_on_rounded, size: 18, color: Color(0xFFDC2626)),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: RichText(
+                                                text: TextSpan(
+                                                  style: GoogleFonts.inter(fontSize: 15, height: 1.25),
+                                                  children: [
+                                                    const TextSpan(
+                                                      text: 'Dirección: ',
+                                                      style: TextStyle(
+                                                        fontWeight: FontWeight.w700,
+                                                        color: Color(0xFF6B7280),
+                                                      ),
+                                                    ),
+                                                    TextSpan(
+                                                      text: widget.direccion!,
+                                                      style: const TextStyle(
+                                                        fontWeight: FontWeight.w800,
+                                                        color: Color(0xFF0F172A),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+
+                                      // Fila: Nota: (si existe)
+                                      if ((_nota ?? '').isNotEmpty) ...[
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          children: [
+                                            const SizedBox(
+                                              width: 38,
+                                              child: Align(
+                                                alignment: Alignment.center,
+                                                child: Icon(Icons.sticky_note_2_rounded, size: 18, color: Color(0xFFF59E0B)),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: RichText(
+                                                text: TextSpan(
+                                                  style: GoogleFonts.inter(fontSize: 15, height: 1.25),
+                                                  children: [
+                                                    const TextSpan(
+                                                      text: 'Nota: ',
+                                                      style: TextStyle(
+                                                        fontWeight: FontWeight.w700,
+                                                        color: Color(0xFF6B7280),
+                                                      ),
+                                                    ),
+                                                    TextSpan(
+                                                      text: _nota!,
+                                                      style: const TextStyle(
+                                                        fontWeight: FontWeight.w800,
+                                                        color: Color(0xFF0F172A),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+
+                                      // Fila: Producto: (si existe)
+                                      if (widget.producto.trim().isNotEmpty) ...[
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          children: [
+                                            const SizedBox(
+                                              width: 38,
+                                              child: Align(
+                                                alignment: Alignment.center,
+                                                child: Icon(Icons.shopping_bag_rounded, size: 18, color: Color(0xFF7C3AED)),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: RichText(
+                                                text: TextSpan(
+                                                  style: GoogleFonts.inter(fontSize: 15, height: 1.25),
+                                                  children: [
+                                                    const TextSpan(
+                                                      text: 'Producto: ',
+                                                      style: TextStyle(
+                                                        fontWeight: FontWeight.w700,
+                                                        color: Color(0xFF6B7280),
+                                                      ),
+                                                    ),
+                                                    TextSpan(
+                                                      text: widget.producto,
+                                                      style: const TextStyle(
+                                                        fontWeight: FontWeight.w800,
+                                                        color: Color(0xFF0F172A),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+
+                                      const SizedBox(height: 16),
+                                    ],
                                   ),
-                                  const SizedBox(height: 6),
 
-                                  Text(
-                                    'Tel: ${widget.telefono}',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFF000000),
-                                    ),
-                                  ),
-                                  if (widget.direccion != null &&
-                                      widget.direccion!.trim().isNotEmpty) ...[
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'Dirección: ${widget.direccion}',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF000000),
-                                      ),
-                                    ),
-                                  ],
 
-                                  // ✅ Nota opcional (si existe en Firestore)
-                                  if ((_nota ?? '').isNotEmpty) ...[
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'Nota: $_nota',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF000000),
-                                      ),
-                                    ),
-                                  ],
-
-                                  if (widget.producto.trim().isNotEmpty) ...[
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'Producto: ${widget.producto}',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF000000),
-                                      ),
-                                    ),
-                                  ],
-
-                                  const SizedBox(height: 16),
-                                  Divider(height: 24, thickness: 1, color: const Color(0xFFE7E9EE)),
+                                  const Divider(height: 24, thickness: 1, color: Color(0xFFE7E9EE)),
 
                                   Container(
                                     decoration: BoxDecoration(
@@ -872,47 +1187,73 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                                     child: Column(
                                       children: [
-                                        _rowStyled('Total histórico', _rd(_totalPrestado), labelInk, valueBlue),
-                                        Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
-
-                                        _rowStyled('Saldo actual pendiente', _rd(_saldoActual), labelInk, valueSaldo),
-                                        Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
+                                        _rowStyled(
+                                          'Total histórico',
+                                          _rd(_totalPrestado),
+                                          labelInk,
+                                          valueBlue,
+                                        ),
+                                        const Divider(
+                                          height: 14,
+                                          thickness: 1,
+                                          color: Color(0xFFE7F0EA),
+                                        ),
 
                                         _rowStyled(
-                                          'Interés ${widget.periodo.toLowerCase()}',
-                                          _rd((_saldoActual * (widget.tasaInteres / 100)).round()),
+                                          'Saldo actual pendiente',
+                                          _rd(_saldoActual),
                                           labelInk,
-                                          valueGreen,
+                                          valueSaldo,
                                         ),
-                                        Divider(height: 14, thickness: 1, color: const Color(0xFFE7F0EA)),
 
-                                        _rowStyled(
-                                          'Próxima fecha',
-                                          _fmtFecha(_proximaFecha),
-                                          labelInk,
-                                          valueInk,
-                                        ),
+                                        // 👇 Solo mostrar “Interés” si hay deuda (para que no cante al estar saldado)
+                                        if (_saldoActual > 0) ...[
+                                          const Divider(
+                                            height: 14,
+                                            thickness: 1,
+                                            color: Color(0xFFE7F0EA),
+                                          ),
+                                          _rowStyled(
+                                            'Interés ${widget.periodo.toLowerCase()}',
+                                            _rd((_saldoActual * (widget.tasaInteres / 100)).round()),
+                                            labelInk,
+                                            valueGreen,
+                                          ),
+                                        ],
+
+                                        // 👇 Solo se muestra si el cliente NO está saldado
+                                        if (_saldoActual > 0) ...[
+                                          const Divider(
+                                            height: 14,
+                                            thickness: 1,
+                                            color: Color(0xFFE7F0EA),
+                                          ),
+                                          _rowStyled(
+                                            'Próxima fecha',
+                                            _fmtFecha(_proximaFecha),
+                                            labelInk,
+                                            valueInk,
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),
 
                                   const SizedBox(height: 20),
 
+                                  // ===== Botón Registrar pago (premium desactivado si saldado, pero con banner al tocar) =====
                                   SizedBox(
                                     width: double.infinity,
                                     height: 56,
                                     child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        elevation: 2,
-                                        shadowColor: const Color(0xFF2563EB).withOpacity(0.35),
-                                        backgroundColor: const Color(0xFF2563EB),
-                                        foregroundColor: Colors.white,
-                                        shape: const StadiumBorder(),
-                                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                                      ),
-                                      onPressed: _btnPagoBusy
-                                          ? null
-                                          : () async {
+                                      style: registrarPagoStyle,
+                                      onPressed: () async {
+                                        if (saldado) {
+                                          HapticFeedback.selectionClick();
+                                          _showSaldadoBanner();
+                                          return;
+                                        }
+                                        if (_btnPagoBusy) return;
                                         HapticFeedback.lightImpact();
                                         setState(() => _btnPagoBusy = true);
                                         await _registrarPagoFlow(context);
@@ -923,6 +1264,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                   ),
                                   const SizedBox(height: 14),
 
+                                  // ===== Botón Ver historial (siempre habilitado) =====
                                   SizedBox(
                                     width: double.infinity,
                                     height: 56,
@@ -953,21 +1295,29 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
                                   const SizedBox(height: 14),
 
-                                  // 🚀 Enviar recordatorio (WhatsApp only)
+                                  // 🚀 Enviar recordatorio (WhatsApp) — premium desactivado si saldado, pero con banner al tocar
                                   SizedBox(
                                     width: double.infinity,
                                     height: 56,
                                     child: OutlinedButton.icon(
-                                      icon: _waIcon(size: 22),
-                                      label: const Text('Enviar recordatorio por WhatsApp'),
-                                      style: OutlinedButton.styleFrom(
-                                        side: const BorderSide(color: Color(0xFF2563EB), width: 2),
-                                        shape: const StadiumBorder(),
-                                        foregroundColor: const Color(0xFF2563EB),
-                                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                                      icon: Opacity(
+                                        opacity: saldado ? 0.55 : 1,
+                                        child: _waIcon(size: 22),
                                       ),
+                                      label: Text(
+                                        'Enviar recordatorio por WhatsApp',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          color: saldado ? const Color(0xFF64748B) : const Color(0xFF2563EB),
+                                        ),
+                                      ),
+                                      style: waButtonStyle,
                                       onPressed: () {
                                         HapticFeedback.selectionClick();
+                                        if (saldado) {
+                                          _showSaldadoBanner();
+                                          return;
+                                        }
                                         _abrirMenuRecordatorio();
                                       },
                                     ),

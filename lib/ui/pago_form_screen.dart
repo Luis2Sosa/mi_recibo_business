@@ -24,7 +24,7 @@ class PagoFormScreen extends StatefulWidget {
 
 class _PagoFormScreenState extends State<PagoFormScreen> {
   // Logo (decoración al fondo)
-  static const double _logoTop = -20;
+  static const double _logoTop = -80;
   static const double _logoHeight = 350;
 
   final _interesCtrl = TextEditingController();
@@ -123,26 +123,21 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Levantar la tarjeta con el teclado (más suave y sin alargar el marco)
+    // 👉 Datos del teclado
     final kb = MediaQuery.of(context).viewInsets.bottom; // double
-    final bool tecladoAbierto = kb > 0;
+    final bool tecladoAbierto = kb > 0.0;
+
+    // 👉 Posición vertical estable (sin rebote)
     const double baseDown = 240.0;
-    final double lift = kb > 0 ? kb.clamp(0.0, 320.0) : 0.0;
+    final double translateY = tecladoAbierto ? 60.0 : baseDown;
 
-    // Sube la tarjeta cuando hay teclado, pero sin estirarla
-    double translateY = (baseDown - lift * 0.65).clamp(16.0, baseDown);
+    // 👉 Altura estable: resta el teclado del alto útil
+    final size = MediaQuery.of(context).size;
+    final double usableH = size.height - (tecladoAbierto ? kb : 0.0) - 24.0;
+    final double maxCardH = tecladoAbierto ? 500.0 : 580.0;
+    final double availableHeight = usableH.clamp(260.0, maxCardH);
 
-    // ⚙️ Alto disponible controlado (compacto con teclado)
-    final screenH = MediaQuery.of(context).size.height;
-    const double baseMaxH = 580.0; // sin teclado
-    const double kbMaxH   = 500.0; // con teclado
-    final double maxCardH = tecladoAbierto ? kbMaxH : baseMaxH;
-
-    // ⬅️ calcula en base al espacio real y respeta un mínimo (corregido)
-    final double availableHeight =
-    (screenH - translateY - 24.0).clamp(260.0, maxCardH).toDouble();
-
-    // No empujes el contenido por el teclado (evita que “baje mucho” al hacer scroll)
+    // 👉 No empujes el contenido por el teclado (margen mínimo al final)
     final double bottomPad = tecladoAbierto ? 12.0 : 0.0;
 
     final glassWhite = Colors.white.withOpacity(0.12);
@@ -161,19 +156,23 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              // === LOGO (fondo) ===
+              // === LOGO (fondo) con animación suave ===
               Positioned(
                 top: _logoTop,
                 left: 0,
                 right: 0,
                 child: IgnorePointer(
                   child: Center(
-                    child: Image.asset(
-                      'assets/images/logoB.png',
-                      height: _logoHeight,
-                      fit: BoxFit.contain,
-                      color: Colors.white.withOpacity(0.0),
-                      colorBlendMode: BlendMode.srcATop,
+                    child: AnimatedOpacity(
+                      opacity: tecladoAbierto ? 0.0 : 1.0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Image.asset(
+                        'assets/images/logoB.png',
+                        height: _logoHeight,
+                        fit: BoxFit.contain,
+                        color: Colors.white.withOpacity(0.0),
+                        colorBlendMode: BlendMode.srcATop,
+                      ),
                     ),
                   ),
                 ),
@@ -188,7 +187,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: SizedBox(
-                        // ⬅️ Limita el alto máximo del marco
+                        // ⬅️ Altura estable (según alto útil real)
                         height: availableHeight,
                         child: Container(
                           decoration: BoxDecoration(
@@ -211,9 +210,8 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                             child: Padding(
                               padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
                               child: SingleChildScrollView(
-                                physics: tecladoAbierto
-                                    ? const ClampingScrollPhysics()
-                                    : const NeverScrollableScrollPhysics(), // 👈 sin scroll con teclado abajo
+                                // 🔒 Fijo: evita cambios de física mientras escribes
+                                physics: const ClampingScrollPhysics(),
                                 padding: EdgeInsets.only(bottom: bottomPad),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min, // ✅
@@ -222,7 +220,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                     Center(
                                       child: Text(
                                         'Registrar Pago',
-                                        style: GoogleFonts.playfairDisplay(
+                                        style: GoogleFonts.playfair(
                                           textStyle: const TextStyle(
                                             color: Colors.white,
                                             fontSize: 26,

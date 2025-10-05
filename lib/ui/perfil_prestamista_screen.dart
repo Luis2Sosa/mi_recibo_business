@@ -843,14 +843,21 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
 
   // ===== ESTADÍSTICAS =====
   Widget _statsContent() {
-    // Toggle Actual / Histórico
+    // Toggle Actual / Histórico (más contraste y profundidad)
     final toggle = Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: const Color(0xFFF2F6FD),
+        color: const Color(0xFFEFF4FF), // antes: 0xFFF2F6FD
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE1E8F5)),
+        border: Border.all(color: const Color(0xFFD6E1F2)), // antes: 0xFFE1E8F5
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -887,26 +894,27 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     final recRate = displayPrestado > 0 ? (displayRecuperado * 100 / displayPrestado) : 0.0;
     final recColor = recRate >= 50 ? _Brand.successDark : _Brand.softRed;
 
-    // KPIs
+    // ===== KPIs =====
+
     final kpis = GridView.count(
       shrinkWrap: true,
       crossAxisCount: 2,
-      childAspectRatio: 1.7,
+      childAspectRatio: 1.55, // ← antes 1.7 (un poco más alto = más espacio vertical)
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: 12,
       mainAxisSpacing: 12,
       children: _historico
           ? [
-        // ✅ Ganancias totales (tappable) — “Toca para ver” en VERDE
-        InkWell(
+        // ⭐️ PREMIUM TAP – GANANCIAS TOTALES
+        _kpiPremiumTappable(
           onTap: _openGanancias,
-          borderRadius: BorderRadius.circular(18),
-          child: _kpi(
-            'Ganancias totales',
-            'Toca para ver',
-            bg: const Color(0xFFF2F6FD),
-            accent: _Brand.success, // verde
-          ),
+          title: 'Ganancias totales',
+          subtitle: 'Toca para ver',
+          gradient: const [Color(0xFFDFFCEF), Color(0xFFC5F5FF)],
+          accent: _Brand.success,
+          centerAll: true, // 👈 Título centrado completo
+          bigTitle: true,  // 👈 Más grande
+          leadingIcon: Icons.trending_up_rounded,
         ),
         _kpi(
           'Recuperado histórico',
@@ -920,16 +928,16 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
           bg: _Brand.kpiPurple,
           accent: _Brand.purple,
         ),
-        // 🔹 Ganancia por cliente (se queda en azul para diferenciar)
-        InkWell(
+        // ⭐️ PREMIUM TAP – GANANCIA POR CLIENTE
+        _kpiPremiumTappable(
           onTap: _openGananciaClientes,
-          borderRadius: BorderRadius.circular(18),
-          child: _kpi(
-            'Ganancia por cliente',
-            'Toca para ver',
-            bg: const Color(0xFFF2F6FD),
-            accent: _Brand.primary, // azul
-          ),
+          title: 'Ganancia por cliente',
+          subtitle: 'Toca para ver',
+          gradient: const [Color(0xFFE7EAFF), Color(0xFFDDEBFF)],
+          accent: _Brand.primary,
+          centerAll: true,  // centrado
+          bigTitle: false,  // un poco menor que el anterior
+          leadingIcon: Icons.people_alt_rounded,
         ),
       ]
           : [
@@ -1038,6 +1046,95 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       ],
     );
   }
+
+  // ===== PREMIUM KPI (tappable) =====
+  Widget _kpiPremiumTappable({
+    required VoidCallback onTap,
+    required String title,
+    required String subtitle,
+    required List<Color> gradient,
+    required Color accent,
+    bool centerAll = true,
+    bool bigTitle = false,
+    IconData? leadingIcon,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.all(12), // ← antes 16
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: gradient,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(.65), width: 1.4),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(.10), blurRadius: 16, offset: const Offset(0, 6)),
+            BoxShadow(color: accent.withOpacity(.20), blurRadius: 24, offset: const Offset(0, 8)),
+          ],
+        ),
+        child: Center(
+          // ← Auto-escala todo el contenido si el alto es justo (evita overflow)
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: centerAll ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+              children: [
+                if (leadingIcon != null)
+                  Icon(leadingIcon, size: 18, color: accent.withOpacity(.95)), // ← 20 → 18
+                if (leadingIcon != null) const SizedBox(height: 4),
+                Text(
+                  title,
+                  textAlign: centerAll ? TextAlign.center : TextAlign.start,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    textStyle: TextStyle(
+                      color: _Brand.ink,
+                      fontWeight: FontWeight.w900,
+                      fontSize: bigTitle ? 17.5 : 16, // ← un toque más pequeño
+                      letterSpacing: .2,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), // ← 6 → 4
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(.85),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: accent.withOpacity(.35)),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 6, offset: const Offset(0, 2))],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.touch_app_rounded, size: 14, color: _Brand.inkDim), // ← 16 → 14
+                      const SizedBox(width: 6),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: accent,
+                          fontSize: 12.5, // ← 13.5 → 12.5
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
 
   Future<void> _confirmBorrarHistorico() async {
     final ok = await showDialog<bool>(
@@ -1361,18 +1458,37 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? Colors.white : Colors.transparent,
+          color: selected ? Colors.white : const Color(0xFFE9F0FF), // fondo más visible al inactivo
           borderRadius: BorderRadius.circular(12),
-          boxShadow: selected ? [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 8, offset: const Offset(0, 3))] : null,
+          border: Border.all(
+            color: selected ? const Color(0xFFBFD4FA) : const Color(0xFFD6E1F2),
+            width: selected ? 1.6 : 1.2,
+          ),
+          boxShadow: selected
+              ? [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.12),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ]
+              : [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Center(
           child: Text(
             label,
             style: TextStyle(
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .2,
               color: selected ? _Brand.ink : _Brand.inkDim,
             ),
           ),

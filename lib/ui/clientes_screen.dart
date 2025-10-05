@@ -501,50 +501,163 @@ class _ClientesScreenState extends State<ClientesScreen> {
   }
 
   void _mostrarOpcionesCliente(_Cliente c) {
+    bool _cerrado = false; // para no cerrar si ya se cerró manualmente
+
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (_) {
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(0.55), // 🔆 un poco más oscuro
+      isScrollControlled: false,  // no altura full-screen
+      isDismissible: true,        // tocar fuera lo cierra
+      enableDrag: false,          // sin drag/scroll del sheet
+      builder: (sheetCtx) {
+        // ⏱️ Autocierre tras N segundos si no hay interacción
+        const int autoCloseSeconds = 6; // cambia a 5 o 7 si prefieres
+        Future.delayed(const Duration(seconds: autoCloseSeconds), () {
+          if (!_cerrado && Navigator.of(sheetCtx).canPop()) {
+            Navigator.of(sheetCtx).pop(); // cierra solo el sheet
+          }
+        });
+
+        // Ítem premium (mismo helper tuyo)
+        Widget _actionItem({
+          required String title,
+          required IconData icon,
+          required Color color,
+          required VoidCallback onTap,
+          bool destructive = false,
+        }) {
+          final Color capsuleBg = color.withOpacity(0.12);
+          return InkWell(
+            onTap: () { HapticFeedback.selectionClick(); onTap(); },
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      color: capsuleBg,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: color.withOpacity(0.18)),
+                    ),
+                    child: Icon(icon, color: color, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: destructive ? const Color(0xFFDC2626) : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
+                ],
+              ),
+            ),
+          );
+        }
+
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Padding(
-                padding: EdgeInsets.only(top: 6, bottom: 4),
-                child: Text('Acciones', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+          top: false, bottom: true, // respeta el home indicator
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.20),
+                      blurRadius: 24,
+                      offset: const Offset(0, -8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 8),
+                    Container(
+                      width: 44, height: 5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 14),
+                      child: Text(
+                        'Acciones',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Divider(height: 1, color: Color(0xFFE5E7EB)),
+
+                    _actionItem(
+                      title: 'Editar',
+                      icon: Icons.edit_rounded,
+                      color: const Color(0xFF2563EB),
+                      onTap: () {
+                        _cerrado = true;
+                        Navigator.pop(sheetCtx);
+                        _abrirEditarCliente(c);
+                      },
+                    ),
+                    const Divider(height: 1, color: Color(0xFFEFF1F5)),
+
+                    _actionItem(
+                      title: 'Eliminar',
+                      icon: Icons.delete_rounded,
+                      color: const Color(0xFFDC2626),
+                      destructive: true,
+                      onTap: () {
+                        _cerrado = true;
+                        Navigator.pop(sheetCtx);
+                        _confirmarEliminar(c);
+                      },
+                    ),
+                    const Divider(height: 1, color: Color(0xFFEFF1F5)),
+
+                    _actionItem(
+                      title: 'Cancelar',
+                      icon: Icons.close_rounded,
+                      color: const Color(0xFF64748B),
+                      onTap: () {
+                        _cerrado = true;
+                        Navigator.pop(sheetCtx);
+                      },
+                    ),
+
+                    const SizedBox(height: 8),
+                  ],
+                ),
               ),
-              const Divider(height: 0, color: Color(0xFFE5E7EB)),
-              ListTile(
-                leading: const Icon(Icons.edit, color: Color(0xFF2563EB)),
-                title: const Text('Editar'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _abrirEditarCliente(c);
-                },
-              ),
-              const Divider(height: 0, color: Color(0xFFE5E7EB)),
-              ListTile(
-                leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text('Eliminar', style: TextStyle(color: Colors.red)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _confirmarEliminar(c);
-                },
-              ),
-              const Divider(height: 0, color: Color(0xFFE5E7EB)),
-              ListTile(
-                leading: const Icon(Icons.close),
-                title: const Text('Cancelar'),
-                onTap: () => Navigator.pop(context),
-              ),
-            ],
+            ),
           ),
         );
       },
-    );
+    ).whenComplete(() {
+      // si el usuario lo cerró manualmente, marcamos como cerrado para que el timer no actúe
+      _cerrado = true;
+    });
   }
+
+
 
   String _fmtFecha(DateTime d) {
     const meses = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sept.', 'oct.', 'nov.', 'dic.'];
