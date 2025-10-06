@@ -8,6 +8,8 @@ import 'home_screen.dart';
 
 import 'package:mi_recibo/ui/theme/app_theme.dart';
 import 'package:mi_recibo/ui/widgets/app_frame.dart';
+import 'package:url_launcher/url_launcher.dart'; // ✅ para abrir WhatsApp
+
 
 class PerfilPrestamistaScreen extends StatefulWidget {
   const PerfilPrestamistaScreen({super.key});
@@ -140,6 +142,40 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     super.initState();
     _cargarTodo();
   }
+
+  Future<void> _abrirWhatsAppConTexto(String texto) async {
+    final encoded = Uri.encodeComponent(texto);
+    final uriApp = Uri.parse('whatsapp://send?text=$encoded');
+    final uriBiz = Uri.parse('whatsapp-business://send?text=$encoded');
+    final uriWeb = Uri.parse('https://wa.me/?text=$encoded');
+    try {
+      if (await canLaunchUrl(uriApp)) {
+        final ok = await launchUrl(uriApp, mode: LaunchMode.externalApplication);
+        if (ok) return;
+      }
+      if (await canLaunchUrl(uriBiz)) {
+        final ok = await launchUrl(uriBiz, mode: LaunchMode.externalApplication);
+        if (ok) return;
+      }
+      await launchUrl(uriWeb, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      _toast('No se pudo abrir WhatsApp', color: _Brand.softRed, icon: Icons.error_outline);
+    }
+  }
+
+  Future<void> _compartirDireccionNegocio() async {
+    final dir = _dirCtrl.text.trim();
+    if (dir.isEmpty) {
+      _toast('No tienes dirección guardada', color: _Brand.softRed, icon: Icons.location_off_rounded);
+      return;
+    }
+    final empresa = _empCtrl.text.trim();
+    final nombre = _nombreCtrl.text.trim();
+    final header = empresa.isNotEmpty ? empresa : (nombre.isNotEmpty ? nombre : 'Mi negocio');
+    final mensaje = '📍 Dirección del negocio ($header):\n$dir';
+    await _abrirWhatsAppConTexto(mensaje);
+  }
+
 
   Future<void> _cargarTodo() async {
     await Future.wait([_loadProfile(), _loadStats()]);
@@ -700,6 +736,32 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
               _inputPremium(icon: Icons.business, label: 'Nombre de la Empresa (opcional)', controller: _empCtrl),
               const SizedBox(height: 12),
               _inputPremium(icon: Icons.home, label: 'Dirección (opcional)', controller: _dirCtrl),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: OutlinedButton.icon(
+                  icon: Image.asset(
+                    'assets/images/logo_whatsapp.png',
+                    width: 18,
+                    height: 18,
+                    fit: BoxFit.contain,
+                  ),
+                  label: const Text(
+                    'Compartir dirección del negocio',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    shape: const StadiumBorder(),
+                    side: const BorderSide(color: _Brand.primary),
+                    foregroundColor: _Brand.primary,
+                    backgroundColor: Colors.white,
+                  ),
+                  onPressed: _compartirDireccionNegocio,
+                ),
+              ),
+              const SizedBox(height: 12),
+
 
               const SizedBox(height: 18),
               SizedBox(

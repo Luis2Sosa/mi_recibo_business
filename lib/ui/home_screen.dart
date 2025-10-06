@@ -331,7 +331,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             const SizedBox(height: 16),
                             _googleButton(
-                              labelIdle: 'Soy Trabajador',
+                              labelIdle: 'Soy Trabajador Independiente',
                               loading: _cargando,
                               onTap: _cargando ? null : _manejarLoginTrabajador,
                             ),
