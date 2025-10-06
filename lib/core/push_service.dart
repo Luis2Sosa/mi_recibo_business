@@ -23,11 +23,11 @@ class PushService {
     // Permisos (Android 13 requiere POST_NOTIFICATIONS en el Manifest)
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
 
-    // Token actual
-    await _saveToken(await _messaging.getToken());
+    // Token actual + guardar offset/TZ
+    await _saveTokenAndLocalZone(await _messaging.getToken());
 
-    // Token refresh
-    _messaging.onTokenRefresh.listen(_saveToken);
+    // Token refresh (multi-dispositivo)
+    _messaging.onTokenRefresh.listen(_saveTokenAndLocalZone);
 
     // Mensaje con app en foreground
     FirebaseMessaging.onMessage.listen((msg) {
@@ -51,20 +51,38 @@ class PushService {
       // Igual que arriba: navegar o mostrar algo si quieres
       // NotificationsPlus.showForeground('Notificación inicial');
     }
+
+    // Guardar al menos la zona local aunque el token no cambie
+    await _saveTokenAndLocalZone(null);
   }
 
-  static Future<void> _saveToken(String? token) async {
-    if (token == null) return;
+  /// Guarda el token FCM (si viene) y SIEMPRE la zona local del dispositivo:
+  /// - utcOffsetMin (ej: -240 para UTC-4)
+  /// - tzAbbr (abreviatura ej: "AST", "CET")
+  static Future<void> _saveTokenAndLocalZone(String? token) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
+
+    final now = DateTime.now();
+    final int utcOffsetMin = now.timeZoneOffset.inMinutes;
+    final String tzAbbr = now.timeZoneName;
+
+    final Map<String, dynamic> metaUpdate = {
+      'utcOffsetMin': utcOffsetMin,
+      'tzAbbr': tzAbbr,
+      'fcmUpdatedAt': FieldValue.serverTimestamp(),
+    };
+
+    // Compat + multi-dispositivo
+    if (token != null && token.trim().isNotEmpty) {
+      final t = token.trim();
+      metaUpdate['fcmToken'] = t;
+      metaUpdate['fcmTokens'] = FieldValue.arrayUnion([t]);
+    }
+
     await FirebaseFirestore.instance
         .collection('prestamistas')
         .doc(uid)
-        .set({
-      'meta': {
-        'fcmToken': token,
-        'fcmUpdatedAt': FieldValue.serverTimestamp(),
-      }
-    }, SetOptions(merge: true));
+        .set({'meta': metaUpdate}, SetOptions(merge: true));
   }
 }

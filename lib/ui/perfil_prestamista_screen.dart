@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -114,6 +115,10 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   bool _lockEnabled = false, _backup = false, _notif = true; // 👈 ÚNICO SWITCH
   DateTime? _lastBackup;
 
+  // 🔴 NUEVO: listener realtime del perfil
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _perfilSub;
+  bool _syncingFromFirestore = false;
+
   // Stats (actual)
   bool _loadingProfile = true, _loadingStats = true;
   int totalPrestado = 0, totalPendiente = 0, totalRecuperado = 0;
@@ -141,6 +146,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   void initState() {
     super.initState();
     _cargarTodo();
+    _listenPerfilRealtime(); // 👈 NUEVO: actualiza inputs al vuelo si el perfil cambia
   }
 
   Future<void> _abrirWhatsAppConTexto(String texto) async {
@@ -183,6 +189,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
 
   @override
   void dispose() {
+    _perfilSub?.cancel(); // 👈 NUEVO
     _nombreCtrl.dispose();
     _telCtrl.dispose();
     _empCtrl.dispose();
@@ -259,6 +266,53 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     }
   }
 
+  // 🔴 NUEVO: escuchar perfil en tiempo real para reflejar cambios al instante
+  void _listenPerfilRealtime() {
+    final ref = _docPrest;
+    if (ref == null) return;
+
+    _perfilSub = ref.snapshots().listen((snap) {
+      if (!snap.exists) return;
+      final d = snap.data() ?? {};
+
+      if (_syncingFromFirestore) return;
+      _syncingFromFirestore = true;
+
+      final nombre = ([d['nombre'], d['apellido']]
+          .where((e) => (e ?? '').toString().trim().isNotEmpty)
+          .map((e) => e.toString().trim()))
+          .join(' ');
+      final tel = (d['telefono'] ?? '').toString().trim();
+      final emp = (d['empresa'] ?? '').toString().trim();
+      final dir = (d['direccion'] ?? '').toString().trim();
+
+      if (_nombreCtrl.text.trim() != nombre) _nombreCtrl.text = nombre;
+      if (_telCtrl.text.trim()    != tel)    _telCtrl.text = tel;
+      if (_empCtrl.text.trim()    != emp)    _empCtrl.text = emp;
+      if (_dirCtrl.text.trim()    != dir)    _dirCtrl.text = dir;
+
+      final s = (d['settings'] as Map?) ?? {};
+      final newLock   = (s['lockEnabled'] == true) || (s['pinEnabled'] == true) || (s['biometria'] == true);
+      final newBackup = s['backupHabilitado'] == true;
+      final newNotif  = (s['notifVenc'] ?? true) as bool;
+
+      bool needSetState = false;
+      if (_lockEnabled != newLock)   { _lockEnabled = newLock;   needSetState = true; }
+      if (_backup      != newBackup) { _backup      = newBackup; needSetState = true; }
+      if (_notif       != newNotif)  { _notif       = newNotif;  needSetState = true; }
+
+      final lb = d['lastBackupAt'];
+      final newLB = lb is Timestamp ? lb.toDate() : null;
+      if (newLB?.toIso8601String() != _lastBackup?.toIso8601String()) {
+        _lastBackup = newLB;
+        needSetState = true;
+      }
+
+      if (needSetState && mounted) setState(() {});
+      _syncingFromFirestore = false;
+    });
+  }
+
   Future<void> _saveProfile() async {
     if (_docPrest == null) return;
 
@@ -277,6 +331,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     await _docPrest!.set({
       'nombre': nombre,
       'apellido': apellido,
+      'nombreCompleto': full.isEmpty ? null : full, // 👈 NUEVO
       'telefono': _telCtrl.text.trim(),
       'empresa': _empCtrl.text.trim().isEmpty ? null : _empCtrl.text.trim(),
       'direccion': _dirCtrl.text.trim().isEmpty ? null : _dirCtrl.text.trim(),
@@ -636,8 +691,11 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         title: const Text('Eliminar cuenta'),
         content: const Text('Esto borrará tus datos y tu usuario. Esta acción no se puede deshacer. ¿Deseas continuar?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
-          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Eliminar', style: TextStyle(color: _Brand.softRed))),
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Eliminar', style: TextStyle(color: _Brand.softRed)),
+          ),
         ],
       ),
     );
@@ -1932,7 +1990,7 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
   );
 }
 
-// ===================== NUEVA PANTALLA (en el mismo archivo): Ganancias (total activos) =====================
+// ===================== NUEVA PANTALLA (en el mismo archivo): Ganancias (total histórico) =====================
 class GananciasScreen extends StatefulWidget {
   final DocumentReference<Map<String, dynamic>> docPrest;
   const GananciasScreen({super.key, required this.docPrest});
@@ -1950,67 +2008,18 @@ class _GananciasScreenState extends State<GananciasScreen> {
     _future = _cargarGananciasGlobal();
   }
 
-  // Suma premium: solo la ganancia (pagoInteres) de clientes activos
+  // ✅ Lee la ganancia histórica persistente desde metrics/summary
   Future<_GananciasResumen> _cargarGananciasGlobal() async {
-    final cs = await widget.docPrest.collection('clientes').get();
+    final doc = await widget.docPrest.collection('metrics').doc('summary').get();
+    final data = doc.data() ?? const <String, dynamic>{};
 
-    int clientesActivos = 0;
-    int gananciaActiva = 0;
-    int pagosContados = 0;
-
-    for (final c in cs.docs) {
-      final data = c.data();
-      final int saldo = (data['saldoActual'] ?? 0) as int;
-      if (saldo <= 0) continue; // solo activos
-      clientesActivos++;
-
-      final pagos = await c.reference.collection('pagos').get();
-      for (final p in pagos.docs) {
-        final m = p.data();
-        gananciaActiva += (m['pagoInteres'] ?? 0) as int;
-        pagosContados++;
-      }
-    }
+    final int lifetimeGanancia = (data['lifetimeGanancia'] ?? 0) as int;
 
     return _GananciasResumen(
-      clientesActivos: clientesActivos,
-      gananciaActiva: gananciaActiva,
-      pagosContados: pagosContados,
+      clientesActivos: 0,
+      gananciaActiva: lifetimeGanancia,
+      pagosContados: 0,
     );
-  }
-
-  // Historial: últimos pagos con interés de clientes activos (máx N)
-  Future<List<_HistRow>> _cargarHistorial({int maxItems = 8}) async {
-    final cs = await widget.docPrest.collection('clientes').get();
-    final List<_HistRow> rows = [];
-
-    for (final c in cs.docs) {
-      final data = c.data();
-      final int saldo = (data['saldoActual'] ?? 0) as int;
-      if (saldo <= 0) continue; // solo activos
-
-      final nombre = '${(data['nombre'] ?? '').toString().trim()} ${(data['apellido'] ?? '').toString().trim()}'.trim();
-      final display = nombre.isEmpty ? (data['telefono'] ?? 'Cliente') : nombre;
-
-      final pagos = await c.reference.collection('pagos').get();
-      for (final p in pagos.docs) {
-        final m = p.data();
-        final int interes = (m['pagoInteres'] ?? 0) as int;
-        if (interes <= 0) continue;
-        DateTime fecha;
-        final ts = m['fecha'];
-        if (ts is Timestamp) {
-          fecha = ts.toDate();
-        } else {
-          continue;
-        }
-        rows.add(_HistRow(cliente: display, interes: interes, fecha: fecha));
-      }
-    }
-
-    rows.sort((a, b) => b.fecha.compareTo(a.fecha));
-    if (rows.length > maxItems) return rows.sublist(0, maxItems);
-    return rows;
   }
 
   String _rd(int v) {
@@ -2029,11 +2038,10 @@ class _GananciasScreenState extends State<GananciasScreen> {
     return 'RD\$${b.toString().split('').reversed.join()}';
   }
 
-  // Helpers de fecha (la fecha se "actualiza" tomando DateTime.now() cada build)
   String _two(int n) => n.toString().padLeft(2, '0');
   String _fmtFecha(DateTime d) => '${_two(d.day)} ${[
     'ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'
-  ][d.month-1]} ${d.year}';
+  ][d.month - 1]} ${d.year}';
 
   Future<void> _refresh() async {
     setState(() {
@@ -2041,12 +2049,162 @@ class _GananciasScreenState extends State<GananciasScreen> {
     });
   }
 
+  // ====== PREMIUM: abrir pantalla tras anuncio recompensado ======
+  Future<void> _openPremium() async {
+    // TODO: integrar anuncio recompensado real aquí (google_mobile_ads).
+    // final ok = await Ads.showRewarded();
+    // if (!ok) return;
+
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PremiumBoostsScreen(docPrest: widget.docPrest),
+      ),
+    );
+  }
+
+  // Tarjeta Premium (versión pro: sin overflow, ocupando más espacio, diseño limpio y elegante)
+  Widget _premiumCard() {
+    return Container(
+      margin: const EdgeInsets.only(top: 20),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppTheme.gradTop.withOpacity(0.98),
+            AppTheme.gradBottom.withOpacity(0.98),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.gradTop.withOpacity(.28),
+            blurRadius: 25,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 🏅 Ícono premium arriba izquierda
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(.15),
+                  border: Border.all(color: Colors.white.withOpacity(.45), width: 1.3),
+                ),
+                child: const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Text(
+                  'Potenciador Premium',
+                  style: GoogleFonts.inter(
+                    textStyle: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                      letterSpacing: .8,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // 📌 Contenido vertical elegante
+          _bullet('QEDU del día'),
+          const SizedBox(height: 10),
+          _bullet('Estadística avanzada'),
+          const SizedBox(height:10),
+          _bullet('Consejo pro'),
+          const SizedBox(height: 16),
+
+          Text(
+            'Contenido exclusivo que rota automáticamente cada día para maximizar tus ganancias.',
+            style: TextStyle(
+              color: Colors.white.withOpacity(.9),
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              height: 1.4,
+            ),
+          ),
+
+          const SizedBox(height: 15),
+
+          // 🎯 Botón Ver abajo derecha
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              onPressed: _openPremium,
+              icon: const Icon(Icons.play_circle_fill_rounded, size: 20),
+              label: const Text('Ver ahora'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: AppTheme.gradTop,
+                shape: const StadiumBorder(),
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                elevation: 2,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+// ✅ Helper para bullets estilizados
+  Widget _bullet(String text) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 16.5,
+              letterSpacing: .1,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: AppGradientBackground(
         child: AppFrame(
-          // Título ajustado
           header: const _HeaderBar(title: 'Ganancias totales'),
           child: FutureBuilder<_GananciasResumen>(
             future: _future,
@@ -2065,16 +2223,16 @@ class _GananciasScreenState extends State<GananciasScreen> {
               }
               final res = snap.data ?? _GananciasResumen.empty();
 
-              // Datos de certificado
               final String serial = widget.docPrest.id.toUpperCase().padRight(6, '0').substring(0, 6);
               final String fecha = _fmtFecha(DateTime.now());
 
               return RefreshIndicator(
                 onRefresh: _refresh,
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
                   children: [
-                    // ======== TARJETA PREMIUM / CERTIFICADO ========
+                    // ======== TARJETA DE GANANCIAS HISTÓRICAS ========
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(.96),
@@ -2088,16 +2246,13 @@ class _GananciasScreenState extends State<GananciasScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // Header certificado + sello
                           Row(
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(999),
-                                  gradient: LinearGradient(
-                                    colors: [AppTheme.gradTop, AppTheme.gradBottom],
-                                  ),
+                                  gradient: LinearGradient(colors: [AppTheme.gradTop, AppTheme.gradBottom]),
                                 ),
                                 child: const Text(
                                   'DATOS VERIFICADOS',
@@ -2120,9 +2275,9 @@ class _GananciasScreenState extends State<GananciasScreen> {
                           ),
                           const SizedBox(height: 14),
 
-                          // Título corregido
+                          // ✅ Título
                           Text(
-                            'Ganancias totales (activos)',
+                            'Ganancias totales históricas',
                             textAlign: TextAlign.center,
                             style: GoogleFonts.inter(
                               textStyle: const TextStyle(
@@ -2134,7 +2289,7 @@ class _GananciasScreenState extends State<GananciasScreen> {
                           ),
                           const SizedBox(height: 8),
 
-                          // Monto premium
+                          // Monto histórico
                           FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Row(
@@ -2159,7 +2314,6 @@ class _GananciasScreenState extends State<GananciasScreen> {
                           ),
                           const SizedBox(height: 14),
 
-                          // Divider decorativo
                           Container(
                             height: 1.2,
                             decoration: const BoxDecoration(
@@ -2170,7 +2324,6 @@ class _GananciasScreenState extends State<GananciasScreen> {
                           ),
                           const SizedBox(height: 10),
 
-                          // Metadatos (SERIAL + FECHA)
                           Row(
                             children: [
                               Expanded(child: _metaChip(label: 'SERIAL', value: '#$serial')),
@@ -2180,105 +2333,19 @@ class _GananciasScreenState extends State<GananciasScreen> {
                           ),
                           const SizedBox(height: 10),
 
-                          // Botón actualizar (refresca fecha y datos)
-                          SizedBox(
-                            width: double.infinity,
-                            height: 44,
-                            child: OutlinedButton.icon(
-                              onPressed: _refresh,
-                              icon: const Icon(Icons.refresh_rounded),
-                              label: const Text('Actualizar'),
-                              style: OutlinedButton.styleFrom(
-                                shape: const StadiumBorder(),
-                                side: BorderSide(color: AppTheme.gradTop),
-                                foregroundColor: AppTheme.gradTop,
-                              ),
-                            ),
-                          ),
+
                         ],
                       ),
                     ),
 
-                    const SizedBox(height: 16),
-
-                    // ======== HISTORIAL (llena el espacio con info útil) ========
-                    FutureBuilder<List<_HistRow>>(
-                      future: _cargarHistorial(maxItems: 8),
-                      builder: (context, h) {
-                        if (h.connectionState != ConnectionState.done) {
-                          return Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF6F8FB),
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: const Color(0xFFE9EEF5)),
-                            ),
-                            child: const Center(
-                              child: SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5)),
-                            ),
-                          );
-                        }
-                        final items = h.data ?? const <_HistRow>[];
-                        if (items.isEmpty) {
-                          return Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF6F8FB),
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: const Color(0xFFE9EEF5)),
-                            ),
-                            child: const Center(
-                              child: Text('Sin historial de ganancias aún',
-                                  style: TextStyle(fontWeight: FontWeight.w800, color: _Colors.inkDim)),
-                            ),
-                          );
-                        }
-                        return Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF6F8FB),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: const Color(0xFFE9EEF5)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Historial de ganancias', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                              const SizedBox(height: 10),
-                              ...items.map((e) => Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 6),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.payments_rounded, size: 18, color: _Brand.inkDim),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        e.cliente,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(fontWeight: FontWeight.w700, color: _Brand.ink),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(_fmtFecha(e.fecha),
-                                        style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w600)),
-                                    const SizedBox(width: 10),
-                                    Text(_rd(e.interes),
-                                        style: TextStyle(color: AppTheme.gradBottom, fontWeight: FontWeight.w900)),
-                                  ],
-                                ),
-                              )),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+                    // ======== TARJETA PREMIUM (atractiva) ========
+                    _premiumCard(),
 
                     const SizedBox(height: 16),
 
-                    // ======== CTA: Ver detalle por cliente (ocupa el fondo si queda espacio) ========
+                    // ======== BOTÓN: Ver ganancia por cliente (AL FINAL) ========
                     SizedBox(
-                      height: 48,
+                      height: 52,
                       child: ElevatedButton.icon(
                         onPressed: () {
                           Navigator.push(
@@ -2289,7 +2356,10 @@ class _GananciasScreenState extends State<GananciasScreen> {
                           );
                         },
                         icon: const Icon(Icons.people_alt_rounded),
-                        label: const Text('Ver ganancia por cliente', style: TextStyle(fontWeight: FontWeight.w900)),
+                        label: const Text(
+                          'Ver ganancia por cliente',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.gradTop,
                           foregroundColor: Colors.white,
@@ -2327,6 +2397,436 @@ class _GananciasScreenState extends State<GananciasScreen> {
     );
   }
 }
+
+// Pill para chips de la tarjeta premium
+class _ChipPill extends StatelessWidget {
+  final String text;
+  const _ChipPill({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.16),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withOpacity(.35)),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w900,
+          fontSize: 12.5,
+          letterSpacing: .2,
+        ),
+      ),
+    );
+  }
+}
+
+
+// ===================== NUEVA PANTALLA: Premium Boosts =====================
+class PremiumBoostsScreen extends StatefulWidget {
+  final DocumentReference<Map<String, dynamic>> docPrest;
+  const PremiumBoostsScreen({super.key, required this.docPrest});
+
+  @override
+  State<PremiumBoostsScreen> createState() => _PremiumBoostsScreenState();
+}
+
+class _PremiumBoostsScreenState extends State<PremiumBoostsScreen> {
+  // Contenido local (fallback) con rotación diaria
+  static const List<String> _qedu = [
+    'Sube el interés solo a clientes puntuales (riesgo bajo).',
+    'Reinviértelos pagos de interés en nuevos préstamos pequeños.',
+    'Ofrece descuento por pago adelantado para acelerar recuperaciones.',
+    'Automatiza recordatorios 72/24/6 horas antes del vencimiento.',
+    'Segmenta por riesgo y asigna tasas por perfil, no por persona.',
+  ];
+  static const List<String> _finance = [
+    'Nunca prestes más del 10% de tu capital a un solo cliente.',
+    'Lleva un colchón de liquidez del 15% para imprevistos.',
+    'Prioriza recuperar capital antes que maximizar interés.',
+    'Evita renovaciones automáticas con clientes atrasados.',
+    'Registra cada pago el mismo día. Disciplina = datos precisos.',
+  ];
+
+  // 🔥 NUEVO: contenido del día desde Firestore
+  _PotContent? _qeduDoc;
+  _PotContent? _financeDoc;
+  _PotContent? _statsDoc;
+
+  int _qIndex = 0, _fIndex = 0;
+  bool _loading = true;
+
+  // Serie para mini-chart (últimos 6 meses)
+  List<int> _vals = [];
+  List<String> _labs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _initAll();
+  }
+
+  Future<void> _initAll() async {
+    await _rotateDailyIndices();
+    await _loadMiniStats();
+    await _loadPotenciadorFromFirestore(); // 👈 carga QEDU / Estadística / Consejo desde Firestore
+    if (mounted) setState(() => _loading = false);
+  }
+
+  // ================= Firestore: potenciador_contenido =================
+  String _norm(String s) => s
+      .toLowerCase()
+      .replaceAll('á','a')
+      .replaceAll('é','e')
+      .replaceAll('í','i')
+      .replaceAll('ó','o')
+      .replaceAll('ú','u');
+
+  Future<_PotContent?> _pickByTypeFromQuery(QuerySnapshot<Map<String, dynamic>> qs, String wanted) async {
+    final w = _norm(wanted);
+    for (final d in qs.docs) {
+      final tipo = _norm((d['tipo'] ?? '').toString());
+      if (tipo == w) {
+        return _PotContent(
+          tipo: (d['tipo'] ?? '').toString(),
+          titulo: (d['titulo'] ?? '').toString(),
+          contenido: (d['contenido'] ?? '').toString(),
+        );
+      }
+    }
+    return null;
+  }
+
+  Future<_PotContent?> _getDocForToday(String tipo) async {
+    final base = FirebaseFirestore.instance
+        .collection('config')
+        .doc('(default)')
+        .collection('potenciador_contenido');
+
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    final end = start.add(const Duration(days: 1));
+
+    // del día
+    try {
+      final day = await base
+          .where('activo', isEqualTo: true)
+          .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('fecha', isLessThan: Timestamp.fromDate(end))
+          .orderBy('fecha')
+          .get();
+      final hit = await _pickByTypeFromQuery(day, tipo);
+      if (hit != null) return hit;
+    } catch (_) {
+      // si falta índice, seguimos al fallback
+    }
+
+    // último activo
+    try {
+      final last = await base
+          .where('activo', isEqualTo: true)
+          .orderBy('fecha', descending: true)
+          .limit(12)
+          .get();
+      return await _pickByTypeFromQuery(last, tipo);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _loadPotenciadorFromFirestore() async {
+    final q = await _getDocForToday('qedu');
+    final e = await _getDocForToday('estadistica'); // admite "estadística/estadistico"
+    final c = await _getDocForToday('consejo');
+
+    _qeduDoc = q;
+    _statsDoc = e;
+    _financeDoc = c;
+  }
+  // ===============================================================
+
+  // Rota 1 tip por día y persiste en Firestore (para fallback local)
+  Future<void> _rotateDailyIndices() async {
+    final dailyRef = widget.docPrest.collection('metrics').doc('daily');
+    final snap = await dailyRef.get();
+    final data = snap.data() ?? {};
+    final last = (data['lastDate'] ?? '') as String;
+    final today = DateTime.now();
+    final todayKey = '${today.year}-${today.month}-${today.day}';
+
+    int q = (data['qeduIndex'] ?? 0) as int;
+    int f = (data['financeIndex'] ?? 0) as int;
+
+    if (last != todayKey) {
+      q = (q + 1) % _qedu.length;
+      f = (f + 1) % _finance.length;
+      await dailyRef.set({'qeduIndex': q, 'financeIndex': f, 'lastDate': todayKey}, SetOptions(merge: true));
+    }
+
+    _qIndex = q;
+    _fIndex = f;
+  }
+
+  // Mini estadística: suma de pagos por mes (últimos 6 meses)
+  Future<void> _loadMiniStats() async {
+    final mesesTxt = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    final now = DateTime.now();
+    final months = List.generate(6, (i) => DateTime(now.year, now.month - (5 - i), 1));
+    final Map<String, int> porMes = {
+      for (final m in months) '${m.year}-${m.month.toString().padLeft(2, '0')}': 0
+    };
+
+    final cs = await widget.docPrest.collection('clientes').get();
+    for (final c in cs.docs) {
+      final pagos = await c.reference.collection('pagos').get();
+      for (final p in pagos.docs) {
+        final mp = p.data();
+        final ts = mp['fecha'];
+        final total = (mp['totalPagado'] ?? 0) as int;
+        if (ts is Timestamp) {
+          final d = ts.toDate();
+          final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
+          if (porMes.containsKey(key)) porMes[key] = (porMes[key] ?? 0) + total;
+        }
+      }
+    }
+
+    _vals = [];
+    _labs = [];
+    for (final m in months) {
+      _labs.add(mesesTxt[m.month - 1]);
+      _vals.add(porMes['${m.year}-${m.month.toString().padLeft(2, '0')}'] ?? 0);
+    }
+  }
+
+  String _rd(int v) {
+    if (v <= 0) return 'RD\$0';
+    final s = v.toString();
+    final b = StringBuffer();
+    int c = 0;
+    for (int i = s.length - 1; i >= 0; i--) {
+      b.write(s[i]);
+      c++;
+      if (c == 3 && i != 0) {
+        b.write('.');
+        c = 0;
+      }
+    }
+    return 'RD\$${b.toString().split('').reversed.join()}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: AppGradientBackground(
+        child: AppFrame(
+          header: const _HeaderBar(title: 'Potenciadores Pro'),
+          child: _loading
+              ? const Center(
+            child: SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5)),
+          )
+              : ListView(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+            children: [
+              _proBadge(),
+              const SizedBox(height: 12),
+              _cardQEDU(),
+              const SizedBox(height: 12),
+              _cardChart(),
+              const SizedBox(height: 12),
+              _cardFinance(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _proBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(colors: [AppTheme.gradTop.withOpacity(.95), AppTheme.gradBottom.withOpacity(.95)]),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.12), blurRadius: 16, offset: const Offset(0, 6))],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.workspace_premium_rounded, color: Colors.white),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text('Contenido premium desbloqueado', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text('PRO', style: TextStyle(color: AppTheme.gradTop, fontWeight: FontWeight.w900)),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _cardQEDU() {
+    final titulo = (_qeduDoc?.titulo?.trim().isNotEmpty ?? false) ? _qeduDoc!.titulo : 'QEDU del día';
+    final text = (_qeduDoc?.contenido?.trim().isNotEmpty ?? false) ? _qeduDoc!.contenido : _qedu[_qIndex];
+    return _glassCard(
+      leading: Icons.bolt_rounded,
+      title: titulo,
+      subtitle: 'Cómo mejorar tu rendimiento',
+      child: Text(text, style: const TextStyle(fontWeight: FontWeight.w800, color: _Brand.ink)),
+      footer: const Text('Se actualiza cada día', style: TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w700)),
+    );
+  }
+
+  Widget _cardFinance() {
+    final titulo = (_financeDoc?.titulo?.trim().isNotEmpty ?? false) ? _financeDoc!.titulo : 'Consejo financiero';
+    final text = (_financeDoc?.contenido?.trim().isNotEmpty ?? false) ? _financeDoc!.contenido : _finance[_fIndex];
+    return _glassCard(
+      leading: Icons.account_balance_wallet_rounded,
+      title: titulo,
+      subtitle: 'Gestión de riesgo y capital',
+      child: Text(text, style: const TextStyle(fontWeight: FontWeight.w800, color: _Brand.ink)),
+      footer: const Text('Nuevo consejo cada día', style: TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w700)),
+    );
+  }
+
+  Widget _cardChart() {
+    final int total = _vals.fold(0, (p, v) => p + v);
+    return _glassCard(
+      leading: Icons.insights_rounded,
+      title: _statsDoc?.titulo?.trim().isNotEmpty == true ? _statsDoc!.titulo : 'Estadística avanzada',
+      subtitle: 'Pagos últimos 6 meses',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_statsDoc?.contenido?.trim().isNotEmpty == true) ...[
+            Text(_statsDoc!.contenido, style: const TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+          ],
+          _miniBar(values: _vals, labels: _labs),
+          const SizedBox(height: 8),
+          Text('Total recibido: ${_rd(total)}',
+              style: const TextStyle(fontWeight: FontWeight.w900, color: _Brand.ink)),
+        ],
+      ),
+      footer: const Text('Tendencia mensual agregada', style: TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w700)),
+    );
+  }
+
+  // ---- helpers UI ----
+  Widget _glassCard({
+    required IconData leading,
+    required String title,
+    required String subtitle,
+    required Widget child,
+    Widget? footer,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.96),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE1E8F5)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.08), blurRadius: 14, offset: const Offset(0, 6))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFF2F6FD),
+                border: Border.all(color: const Color(0xFFE1E8F5)),
+              ),
+              child: Icon(leading, color: AppTheme.gradTop),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _Brand.ink)),
+                const SizedBox(height: 2),
+                Text(subtitle, style: const TextStyle(fontWeight: FontWeight.w700, color: _Brand.inkDim)),
+              ]),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          child,
+          if (footer != null) ...[
+            const SizedBox(height: 8),
+            footer,
+          ],
+        ],
+      ),
+    );
+  }
+
+  // Mini bar chart simple
+  Widget _miniBar({required List<int> values, required List<String> labels}) {
+    if (values.isEmpty) {
+      return Container(
+        height: 140,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF6F8FB),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE9EEF5)),
+        ),
+        child: const Text('Sin datos', style: TextStyle(color: _Brand.inkDim, fontWeight: FontWeight.w700)),
+      );
+    }
+
+    const double h = 160;
+    final maxV = values.reduce((a,b)=>a>b?a:b).toDouble().clamp(1.0, 999999.0);
+    return SizedBox(
+      height: h,
+      child: LayoutBuilder(builder: (c, cs) {
+        final barW = (cs.maxWidth / (values.length * 2)).clamp(16, 26);
+        return Column(
+          children: [
+            Expanded(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: List.generate(values.length, (i) {
+                    final bh = (values[i] / maxV) * (h - 40);
+                    return Container(
+                      width: barW.toDouble(),
+                      height: bh,
+                      decoration: BoxDecoration(
+                        color: AppTheme.gradTop,
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [BoxShadow(color: AppTheme.gradTop.withOpacity(.18), blurRadius: 8, offset: const Offset(0, 4))],
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(labels.length, (i) =>
+                  SizedBox(width: barW.toDouble()+8, child: Text(labels[i], textAlign: TextAlign.center, style: const TextStyle(color: _Brand.inkDim)))),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+}
+
 
 class _HistRow {
   final String cliente;
@@ -2370,6 +2870,13 @@ class _ClienteGanancia {
     required this.totalPagado,
     required this.capitalInicial,
   });
+}
+
+class _PotContent {
+  final String tipo;
+  final String titulo;
+  final String contenido;
+  const _PotContent({required this.tipo, required this.titulo, required this.contenido});
 }
 
 class _HeaderBar extends StatelessWidget {

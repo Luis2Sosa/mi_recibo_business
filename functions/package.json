@@ -1,11 +1,13 @@
 {
   "name": "functions",
+  "private": true,
   "main": "index.js",
-  "engines": { "node": "22" },
+  "engines": { "node": "20" },
   "scripts": {
     "build": "echo \"(JS plano)\"",
     "serve": "firebase emulators:start --only functions,firestore",
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions",
+    "start": "npm run serve"
   },
   "dependencies": {
     "firebase-admin": "^12.6.0",
