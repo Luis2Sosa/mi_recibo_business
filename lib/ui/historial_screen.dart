@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart'; // Formato RD$
+import 'package:intl/intl.dart'; // Formato moneda automático
 
 class HistorialScreen extends StatelessWidget {
   final String idCliente;
@@ -28,18 +28,17 @@ class HistorialScreen extends StatelessWidget {
     return '${d.day} ${meses[d.month - 1]} ${d.year}';
   }
 
+  // ✅ moneda automática según país del dispositivo
   String _rd(num v) {
-    return NumberFormat.currency(
-      locale: 'es_DO',
-      symbol: 'RD\$',
-      decimalDigits: 0,
-    ).format(v);
+    final format = NumberFormat.simpleCurrency(
+      locale: Intl.getCurrentLocale(),
+    );
+    return format.format(v);
   }
 
   DateTime _parseFecha(dynamic ts) {
     if (ts is Timestamp) return ts.toDate();
     if (ts is DateTime) return ts;
-    // Fallback: ahora mismo, pero marcamos visualmente como "pendiente"
     return DateTime.now();
   }
 
@@ -52,10 +51,6 @@ class HistorialScreen extends StatelessWidget {
     ),
   );
 
-  // =======================
-  // Build
-  // =======================
-
   @override
   Widget build(BuildContext context) {
     const double _logoTop = -90;
@@ -64,7 +59,6 @@ class HistorialScreen extends StatelessWidget {
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
-    // Manejo profesional si no hay sesión
     if (uid == null) {
       return Scaffold(
         body: Container(
@@ -109,7 +103,6 @@ class HistorialScreen extends StatelessWidget {
       );
     }
 
-    // Consulta de pagos (ordenados por fecha desc) + límite saludable
     final pagosQuery = FirebaseFirestore.instance
         .collection('prestamistas')
         .doc(uid)
@@ -132,7 +125,6 @@ class HistorialScreen extends StatelessWidget {
         child: SafeArea(
           child: Stack(
             children: [
-              // Logo decorativo
               Positioned(
                 top: _logoTop,
                 left: 0,
@@ -147,8 +139,6 @@ class HistorialScreen extends StatelessWidget {
                   ),
                 ),
               ),
-
-              // Contenido principal
               Positioned.fill(
                 top: _contentTop,
                 child: Center(
@@ -174,11 +164,8 @@ class HistorialScreen extends StatelessWidget {
                             padding: const EdgeInsets.all(16),
                             child: Column(
                               children: [
-                                // Título
                                 Center(child: Text('Historial de Pagos', style: _titleStyle)),
                                 const SizedBox(height: 12),
-
-                                // Tarjeta blanca con cabecera + lista
                                 Expanded(
                                   child: Container(
                                     decoration: BoxDecoration(
@@ -195,7 +182,6 @@ class HistorialScreen extends StatelessWidget {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        // Cabecera
                                         Padding(
                                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
                                           child: Column(
@@ -232,8 +218,6 @@ class HistorialScreen extends StatelessWidget {
                                           ),
                                         ),
                                         const Divider(height: 1, color: Color(0xFFE5E7EB)),
-
-                                        // Lista (solo esta parte hace scroll)
                                         Expanded(
                                           child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                                             stream: pagosQuery.snapshots(),
@@ -243,7 +227,7 @@ class HistorialScreen extends StatelessWidget {
                                               }
                                               if (snapshot.hasError) {
                                                 return _ErrorState(
-                                                  onRetry: () => {}, // El stream reintenta solo
+                                                  onRetry: () => {},
                                                 );
                                               }
 
@@ -252,7 +236,6 @@ class HistorialScreen extends StatelessWidget {
                                                 return const _EmptyState();
                                               }
 
-                                              // Resumen rápido (profesional)
                                               num sumInteres = 0;
                                               num sumCapital = 0;
                                               for (final e in docs) {
@@ -307,7 +290,6 @@ class HistorialScreen extends StatelessWidget {
                                                         final saldoNuevo =
                                                             (d['saldoNuevo'] as num?)?.toInt() ?? saldoAnterior;
 
-                                                        // Si la fecha no venía correcta, lo marcamos
                                                         final bool fechaPendiente =
                                                             d['fecha'] == null || d['fecha'] is! Timestamp;
 
@@ -334,10 +316,7 @@ class HistorialScreen extends StatelessWidget {
                                     ),
                                   ),
                                 ),
-
                                 const SizedBox(height: 12),
-
-                                // Botón Volver (fijo)
                                 SizedBox(
                                   width: double.infinity,
                                   height: 52,
@@ -365,8 +344,6 @@ class HistorialScreen extends StatelessWidget {
                   ),
                 ),
               ),
-
-              // Back minimalista flotante
               Positioned(
                 top: 8,
                 left: 8,
@@ -408,7 +385,7 @@ class _ChipStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 72, // alto suficiente para label arriba y monto abajo
+      height: 72,
       decoration: BoxDecoration(
         color: color.withOpacity(0.08),
         borderRadius: BorderRadius.circular(12),
@@ -417,8 +394,8 @@ class _ChipStat extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,   // centra vertical
-          crossAxisAlignment: CrossAxisAlignment.center, // centra horizontal
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
               label,
@@ -572,10 +549,6 @@ class _ShimmerCard extends StatelessWidget {
   }
 }
 
-// =======================
-// Ítem de pago
-// =======================
-
 class _PagoCard extends StatelessWidget {
   final String fecha;
   final bool fechaPendiente;
@@ -600,18 +573,16 @@ class _PagoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Colores consistentes con Detalles del cliente
     const azul = Color(0xFF2563EB);
     const verde = Color(0xFF22C55E);
     final rojo = Colors.red.shade600;
     const ink = Color(0xFF0F172A);
 
-    // Lógica de colores de saldo
     final bool saldoBaja = saldoDespues <= saldoAntes;
     final Color colorAntes = saldoAntes > 0 ? rojo : verde;
     final Color colorDespues = saldoDespues == 0
         ? verde
-        : (saldoBaja ? ink : rojo); // si subió raro → rojo, si bajó → negro elegante
+        : (saldoBaja ? ink : rojo);
 
     return Container(
       decoration: BoxDecoration(
@@ -630,7 +601,6 @@ class _PagoCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icono
           Container(
             width: 36,
             height: 36,
@@ -642,13 +612,10 @@ class _PagoCard extends StatelessWidget {
             child: const Icon(Icons.event_note, color: azul, size: 20),
           ),
           const SizedBox(width: 12),
-
-          // Contenido
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Fila principal: fecha + total (azul)
                 Row(
                   children: [
                     Expanded(
@@ -668,7 +635,7 @@ class _PagoCard extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFFF3C7),
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: const Color(0xFFFDE68A)),
+                                border: Border.all(color: Color(0xFFFDE68A)),
                               ),
                               child: const Text(
                                 'pendiente de servidor',
@@ -693,13 +660,11 @@ class _PagoCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 6),
-
-                // Detalles secundarios: Interés (verde), Capital (azul)
                 Row(
                   children: [
-                    Text(
+                    const Text(
                       'I: ',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: verde,
                         fontWeight: FontWeight.w800,
                       ),
@@ -729,8 +694,6 @@ class _PagoCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 2),
-
-                // Saldos con colores (antes rojo si debía, después verde si quedó en 0)
                 Row(
                   children: [
                     Text(

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'cliente_detalle_screen.dart';
-import 'perfil_prestamista_screen.dart';
+import 'perfil_prestamista/perfil_prestamista_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'agregar_cliente_screen.dart';
 import 'package:flutter/services.dart';
@@ -1293,7 +1293,7 @@ class _ClienteCard extends StatelessWidget {
     super.key,
   });
 
-  String _monedaRD(int v) {
+  String _moneda(int v) {
     final s = v.toString();
     final buf = StringBuffer();
     int count = 0;
@@ -1301,12 +1301,14 @@ class _ClienteCard extends StatelessWidget {
       buf.write(s[i]);
       count++;
       if (count == 3 && i != 0) {
-        buf.write('.');
+        buf.write(',');
         count = 0;
       }
     }
-    return 'RD\$${buf.toString().split('').reversed.join()}';
+    return '\$${buf.toString().split('').reversed.join()}';
   }
+
+
 
   // Colores según pedido (saldado: banda GRIS)
   Color _headerColor() {
@@ -1412,7 +1414,7 @@ class _ClienteCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Interés ${cliente.periodo.toLowerCase()}: ${_monedaRD(interesPeriodo)}',
+                          'Interés ${cliente.periodo.toLowerCase()}: ${_moneda(interesPeriodo)}',
                           style: const TextStyle(
                             fontSize: 12,
                             color: Color(0xDE000000),
@@ -1423,7 +1425,7 @@ class _ClienteCard extends StatelessWidget {
                   ),
                   // Derecha
                   Text(
-                    'Saldo: ${_monedaRD(cliente.saldoActual)}',
+                    'Saldo: ${_moneda(cliente.saldoActual)}',
                     style: const TextStyle(
                       fontSize: 14,
                       color: Colors.black87,

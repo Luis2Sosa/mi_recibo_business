@@ -55,14 +55,13 @@ class MiReciboApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      // 🔧 Corregido: siempre devolvemos un Locale dentro de supportedLocales
       localeResolutionCallback: (deviceLocale, supported) {
         if (deviceLocale == null) return const Locale('es', 'DO');
-        for (final l in supported) {
-          if (l.languageCode == deviceLocale.languageCode) {
-            return deviceLocale;
-          }
-        }
-        return const Locale('es', 'DO');
+        return supported.firstWhere(
+              (l) => l.languageCode == deviceLocale.languageCode,
+          orElse: () => const Locale('es', 'DO'),
+        );
       },
 
       home: const _StartGate(), // 👈 decide a dónde entrar según sesión + lockEnabled
@@ -151,27 +150,30 @@ class _StartGateState extends State<_StartGate> with WidgetsBindingObserver {
 
   Future<void> _routeAccordingToState() async {
     setState(() => _checking = true);
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        _unlocked = false;
+        _replace(const HomeScreen());
+        return;
+      }
 
-    final user = _auth.currentUser;
-    if (user == null) {
-      _unlocked = false;
-      _replace(const HomeScreen());
-      return;
+      final s = await _readSettings(user);
+      _lockEnabled = s['lockEnabled'] == true;
+
+      if (!_lockEnabled) {
+        _unlocked = true;
+        // 🔔 Notificaciones Plus: app abierta sin PIN -> dispara recordatorios
+        NotificationsPlus.onAppOpen(user.uid);
+        // Sin intención especial al entrar normal
+        _replace(const ClientesScreen());
+        return;
+      }
+
+      await _guardedUnlock();
+    } finally {
+      if (mounted) setState(() => _checking = false);
     }
-
-    final s = await _readSettings(user);
-    _lockEnabled = s['lockEnabled'] == true;
-
-    if (!_lockEnabled) {
-      _unlocked = true;
-      // 🔔 Notificaciones Plus: app abierta sin PIN -> dispara recordatorios
-      NotificationsPlus.onAppOpen(user.uid);
-      // Sin intención especial al entrar normal
-      _replace(const ClientesScreen());
-      return;
-    }
-
-    await _guardedUnlock();
   }
 
   /// Muestra PinScreen. Si valida (PIN o huella), va a ClientesScreen; si falla/cancela, a Home.

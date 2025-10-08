@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // 👈 Firestore
 import 'package:firebase_auth/firebase_auth.dart';     // 👈 UID del usuario
 import 'package:flutter/services.dart';                // 👈 input formatters
 import 'clientes_screen.dart';
+import 'package:mi_recibo/ui/theme/currency_utils.dart'; // 🌍 util de moneda automática
+
 
 class PrestamistaRegistroScreen extends StatefulWidget {
   const PrestamistaRegistroScreen({super.key});

@@ -2,7 +2,7 @@ import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart'; // 👈 moneda RD$
+import 'package:intl/intl.dart'; // 🌍 formato de moneda automático
 
 class PagoFormScreen extends StatefulWidget {
   final int saldoAnterior;      // RD$
@@ -23,20 +23,15 @@ class PagoFormScreen extends StatefulWidget {
 }
 
 class _PagoFormScreenState extends State<PagoFormScreen> {
-  // Logo (decoración al fondo)
   static const double _logoTop = -80;
   static const double _logoHeight = 350;
 
   final _interesCtrl = TextEditingController();
   final _capitalCtrl = TextEditingController();
 
-  // ⬇️ Fecha SIEMPRE manual: arranca null
   DateTime? _proxima;
-
   int _pagoInteres = 0;
   int _pagoCapital = 0;
-
-  // evita doble toque en Continuar
   bool _btnContinuarBusy = false;
 
   int get _interesMax =>
@@ -51,8 +46,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   @override
   void initState() {
     super.initState();
-    _proxima = null; // ❌ ya no: fecha debe elegirse manual
-    // Interés sugerido
+    _proxima = null;
     _interesCtrl.text = _interesMax.toString();
     _pagoInteres = _interesMax;
 
@@ -76,11 +70,10 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
     super.dispose();
   }
 
-  // ======== Validaciones (lógica intacta) ========
   String? get _errorInteres {
     if (_pagoInteres < 0) return 'No puede ser negativo';
     if (_pagoInteres > _interesMax) {
-      return 'Máximo ${_rd(_interesMax)}';
+      return 'Máximo ${_formatCurrency(_interesMax)}';
     }
     return null;
   }
@@ -88,18 +81,18 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   String? get _errorCapital {
     if (_pagoCapital <= 0) return 'Requerido: ingresa capital > 0';
     if (_pagoCapital > widget.saldoAnterior) {
-      return 'Máximo ${_rd(widget.saldoAnterior)}';
+      return 'Máximo ${_formatCurrency(widget.saldoAnterior)}';
     }
     return null;
   }
 
   bool get _formOk => _errorInteres == null && _errorCapital == null;
 
-  // ======== Utilidades visuales (sin tocar cálculos) ========
-  String _rd(int v) {
+  /// 🌍 Formatea según la configuración regional del dispositivo automáticamente
+  String _formatCurrency(int v) {
     final f = NumberFormat.currency(
-      locale: 'es_DO',
-      symbol: 'RD\$',
+      locale: Intl.getCurrentLocale(), // 👈 toma la región del sistema automáticamente
+      symbol: NumberFormat.simpleCurrency(locale: Intl.getCurrentLocale()).currencySymbol,
       decimalDigits: 0,
     );
     return f.format(v);
@@ -113,31 +106,24 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
     return '${d.day} ${meses[d.month - 1]} ${d.year}';
   }
 
-  // Normaliza fecha al mediodía (evita saltos de día por zona horaria)
   DateTime _atNoon(DateTime d) => DateTime(d.year, d.month, d.day, 12);
 
-  // (Se deja por compatibilidad aunque ya no se usa para continuar)
   DateTime _autoNext(String periodo, DateTime base) {
     return base.add(Duration(days: periodo == 'Quincenal' ? 15 : 30));
   }
 
   @override
   Widget build(BuildContext context) {
-    // 👉 Datos del teclado
-    final kb = MediaQuery.of(context).viewInsets.bottom; // double
+    final kb = MediaQuery.of(context).viewInsets.bottom;
     final bool tecladoAbierto = kb > 0.0;
 
-    // 👉 Posición vertical estable (sin rebote)
     const double baseDown = 240.0;
     final double translateY = tecladoAbierto ? 60.0 : baseDown;
 
-    // 👉 Altura estable: resta el teclado del alto útil
     final size = MediaQuery.of(context).size;
     final double usableH = size.height - (tecladoAbierto ? kb : 0.0) - 24.0;
     final double maxCardH = tecladoAbierto ? 500.0 : 580.0;
     final double availableHeight = usableH.clamp(260.0, maxCardH);
-
-    // 👉 No empujes el contenido por el teclado (margen mínimo al final)
     final double bottomPad = tecladoAbierto ? 12.0 : 0.0;
 
     final glassWhite = Colors.white.withOpacity(0.12);
@@ -156,7 +142,6 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              // === LOGO (fondo) con animación suave ===
               Positioned(
                 top: _logoTop,
                 left: 0,
@@ -178,7 +163,6 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                 ),
               ),
 
-              // === MARCO (sobre el logo) ===
               Positioned.fill(
                 child: Align(
                   alignment: Alignment.topCenter,
@@ -187,7 +171,6 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: SizedBox(
-                        // ⬅️ Altura estable (según alto útil real)
                         height: availableHeight,
                         child: Container(
                           decoration: BoxDecoration(
@@ -210,11 +193,10 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                             child: Padding(
                               padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
                               child: SingleChildScrollView(
-                                // 🔒 Fijo: evita cambios de física mientras escribes
                                 physics: const ClampingScrollPhysics(),
                                 padding: EdgeInsets.only(bottom: bottomPad),
                                 child: Column(
-                                  mainAxisSize: MainAxisSize.min, // ✅
+                                  mainAxisSize: MainAxisSize.min,
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Center(
@@ -233,7 +215,6 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                     ),
                                     const SizedBox(height: 12),
 
-                                    // === Tarjeta blanca ===
                                     Container(
                                       decoration: BoxDecoration(
                                         color: Colors.white,
@@ -253,22 +234,16 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          _resumen(
-                                            'Saldo anterior',
-                                            _rd(widget.saldoAnterior),
-                                          ),
+                                          _resumen('Saldo anterior', _formatCurrency(widget.saldoAnterior)),
                                           const SizedBox(height: 10),
-                                          _resumen(
-                                            'Interés ${widget.periodo.toLowerCase()}',
-                                            _rd(_interesMax),
-                                          ),
+                                          _resumen('Interés ${widget.periodo.toLowerCase()}', _formatCurrency(_interesMax)),
                                           const SizedBox(height: 12),
 
                                           Row(
                                             children: [
                                               Expanded(
                                                 child: _campoValidado(
-                                                  label: 'Pago interés (RD\$)',
+                                                  label: 'Pago interés',
                                                   controller: _interesCtrl,
                                                   errorText: _errorInteres,
                                                 ),
@@ -276,7 +251,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                               const SizedBox(width: 10),
                                               Expanded(
                                                 child: _campoValidado(
-                                                  label: 'Pago capital (RD\$)',
+                                                  label: 'Pago capital',
                                                   controller: _capitalCtrl,
                                                   errorText: _errorCapital,
                                                 ),
@@ -285,12 +260,11 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                           ),
                                           const SizedBox(height: 12),
 
-                                          _resumen('Total pagado', _rd(_totalPagado)),
+                                          _resumen('Total pagado', _formatCurrency(_totalPagado)),
                                           const SizedBox(height: 6),
-                                          _resumen('Saldo nuevo', _rd(_saldoNuevo)),
+                                          _resumen('Saldo nuevo', _formatCurrency(_saldoNuevo)),
                                           const SizedBox(height: 12),
 
-                                          // ====== FECHA (manual obligatoria) ======
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                             decoration: BoxDecoration(
@@ -345,11 +319,11 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                     final sel = await showDatePicker(
                                                       context: context,
                                                       initialDate: _proxima ?? hoy0,
-                                                      firstDate: hoy0, // 👈 no fechas pasadas
+                                                      firstDate: hoy0,
                                                       lastDate: DateTime(hoy.year + 5),
                                                     );
                                                     if (sel != null) {
-                                                      setState(() => _proxima = _atNoon(sel)); // 🕛
+                                                      setState(() => _proxima = _atNoon(sel));
                                                     }
                                                   }
                                                       : null,
@@ -362,7 +336,6 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                           ),
                                           const SizedBox(height: 16),
 
-                                          // === CONTINUAR ===
                                           SizedBox(
                                             width: double.infinity,
                                             height: 54,
@@ -388,18 +361,17 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                   'totalPagado': _totalPagado,
                                                   'saldoAnterior': widget.saldoAnterior,
                                                   'saldoNuevo': _saldoNuevo,
-                                                  'proximaFecha': _proxima, // 👈 manual (ya a mediodía)
+                                                  'proximaFecha': _proxima,
                                                 });
                                                 if (mounted) setState(() => _btnContinuarBusy = false);
                                               }
-                                                  : null, // 🔒 bloqueado si no hay fecha
+                                                  : null,
                                               child: const Text('Continuar'),
                                             ),
                                           ),
 
                                           const SizedBox(height: 12),
 
-                                          // === ATRÁS ===
                                           SizedBox(
                                             width: double.infinity,
                                             height: 54,
@@ -438,7 +410,6 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
     );
   }
 
-  // ===== Widgets auxiliares (premium, sin tocar lógica) =====
   Widget _campoValidado({
     required String label,
     required TextEditingController controller,

@@ -90,13 +90,17 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   }
 
   String _rd(int v) {
+    // Fuerza el símbolo antes del número (ej: $120,000),
+    // sin decimales y respetando separadores del locale.
     final f = NumberFormat.currency(
       locale: 'es_DO',
-      symbol: 'RD\$',
+      symbol: '\$',
       decimalDigits: 0,
+      customPattern: '¤#,##0', // 👈 asegura el símbolo a la izquierda
     );
     return f.format(v);
   }
+
 
   String _fmtFecha(DateTime d) {
     const meses = [

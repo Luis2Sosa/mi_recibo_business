@@ -393,8 +393,8 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly
                         ],
-                        decoration: _deco('Saldo inicial (RD\$)',
-                            icon: Icons.payments),
+                        decoration: _deco('Saldo inicial (\$)',
+                            icon: Icons.payments), // 👈 universal $
                         textInputAction: TextInputAction.next,
                         validator: (v) =>
                         (v == null || v.isEmpty)

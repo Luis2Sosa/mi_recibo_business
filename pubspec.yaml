@@ -41,6 +41,9 @@ dependencies:
   # 📦 Preferencias locales
   shared_preferences: ^2.2.2
 
+  # 🌍 Formato de moneda y localización automática
+  intl: any
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
