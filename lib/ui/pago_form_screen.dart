@@ -118,7 +118,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
     final bool tecladoAbierto = kb > 0.0;
 
     const double baseDown = 240.0;
-    final double translateY = tecladoAbierto ? 60.0 : baseDown;
+    final double translateY = tecladoAbierto ? 30.0 : baseDown;
 
     final size = MediaQuery.of(context).size;
     final double usableH = size.height - (tecladoAbierto ? kb : 0.0) - 24.0;
@@ -129,7 +129,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
     final glassWhite = Colors.white.withOpacity(0.12);
 
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -324,6 +324,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                     );
                                                     if (sel != null) {
                                                       setState(() => _proxima = _atNoon(sel));
+                                                      FocusScope.of(context).unfocus();
                                                     }
                                                   }
                                                       : null,

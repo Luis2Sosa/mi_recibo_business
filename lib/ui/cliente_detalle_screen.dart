@@ -397,17 +397,34 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       NotificationsPlus.trigger('deuda_finalizada');
     }
 
-    final prest = await _prestamistaSeguro();
+// ✅ Leer SIEMPRE los datos actualizados del prestamista desde Firestore
+    final prestDoc = await FirebaseFirestore.instance
+        .collection('prestamistas')
+        .doc(uid)
+        .get();
+    final prestData = prestDoc.data() ?? {};
+
+    final empresaActualizada = (prestData['empresa'] ?? '').toString().trim();
+    final nombreActualizado = (prestData['nombre'] ?? '').toString().trim();
+    final apellidoActualizado = (prestData['apellido'] ?? '').toString().trim();
+    final telefonoActualizado = (prestData['telefono'] ?? '').toString().trim();
+
+// ✅ Combinar nombre y apellido actualizados
+    final servidorActualizado = [nombreActualizado, apellidoActualizado]
+        .where((s) => s.isNotEmpty)
+        .join(' ');
+
     final numeroRecibo = 'REC-${nextReciboFinal.toString().padLeft(4, '0')}';
 
+// 📄 Ir al ReciboScreen con datos actualizados del perfil
     if (!mounted) return;
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ReciboScreen(
-          empresa: prest['empresa'] ?? widget.empresa,
-          servidor: prest['servidor'] ?? widget.servidor,
-          telefonoServidor: prest['telefono'] ?? widget.telefonoServidor,
+          empresa: empresaActualizada,
+          servidor: servidorActualizado,
+          telefonoServidor: telefonoActualizado,
           cliente: widget.nombreCompleto,
           telefonoCliente: widget.telefono,
           numeroRecibo: numeroRecibo,
@@ -423,6 +440,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         ),
       ),
     );
+
 
     if (!mounted) return;
     setState(() {

@@ -1196,7 +1196,8 @@ class _ClientesScreenState extends State<ClientesScreen> {
           itemBuilder: (_, i) {
             final c = filtered[i];
             final estado = _estadoDe(c);
-            final codigoCorto = 'ID-${i + 1}';
+            final codigoCorto = 'CL-${(i + 1).toString().padLeft(4, '0')}'; // CL-0001, CL-0002...
+
             return GestureDetector(
               onTap: () => _abrirDetalleYGuardar(c, codigoCorto),
               onLongPress: () => _mostrarOpcionesCliente(c),
