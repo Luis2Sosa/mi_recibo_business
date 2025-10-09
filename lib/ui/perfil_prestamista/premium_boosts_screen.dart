@@ -226,7 +226,7 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen> {
     for (int i = s.length - 1; i >= 0; i--) {
       b.write(s[i]);
       c++;
-      if (c == 3 && i != 0) { b.write('.'); c = 0; }
+      if (c == 3 && i != 0) { b.write(','); c = 0; }
     }
     return '\$${b.toString().split('').reversed.join()}';
   }

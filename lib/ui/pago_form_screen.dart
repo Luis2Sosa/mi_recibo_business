@@ -43,6 +43,13 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
     return n < 0 ? 0 : n;
   }
 
+  // ✅ NUEVO: cálculo del interés del próximo pago y saldo con interés
+  int get _interesProximo =>
+      (_saldoNuevo * (widget.tasaInteres / 100)).round();
+
+  int get _saldoNuevoConInteres => _saldoNuevo + _interesProximo;
+
+
   @override
   void initState() {
     super.initState();
@@ -262,7 +269,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
 
                                           _resumen('Total pagado', _formatCurrency(_totalPagado)),
                                           const SizedBox(height: 6),
-                                          _resumen('Saldo nuevo', _formatCurrency(_saldoNuevo)),
+                                          _resumen('Saldo nuevo', _formatCurrency(_saldoNuevoConInteres)),
                                           const SizedBox(height: 12),
 
                                           Container(

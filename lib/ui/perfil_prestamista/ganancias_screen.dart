@@ -45,9 +45,10 @@ class _GananciasScreenState extends State<GananciasScreen> {
       b.write(s[i]);
       c++;
       if (c == 3 && i != 0) {
-        b.write('.');
+        b.write(',');
         c = 0;
       }
+
     }
     return '\$${b.toString().split('').reversed.join()}';
   }

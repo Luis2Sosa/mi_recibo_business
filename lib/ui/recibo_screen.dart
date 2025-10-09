@@ -303,6 +303,7 @@ class ReciboScreen extends StatefulWidget {
   final DateTime proximaFecha;
 
   final ReciboUIConfig config;
+  final double tasaInteres;
 
   const ReciboScreen({
     super.key,
@@ -322,6 +323,7 @@ class ReciboScreen extends StatefulWidget {
     required this.saldoActual,
     required this.proximaFecha,
     this.config = const ReciboUIConfig(),
+    required this.tasaInteres,
   });
 
   @override
@@ -526,7 +528,7 @@ class _ReciboScreenState extends State<ReciboScreen> {
         behavior: SnackBarBehavior.floating,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        margin: EdgeInsets.fromLTRB(16, 0, 16, bottomSafe + 24),
+        margin: EdgeInsets.fromLTRB(16, 0, 16, bottomSafe + 3),
         duration: _backWindow,
         content: Container(
           decoration: BoxDecoration(
@@ -621,6 +623,7 @@ class _ReciboScreenState extends State<ReciboScreen> {
                             fmtFecha: _fmtFecha,
                             // 👇 ya no usamos RD$ aquí dentro para detalles; allá usamos `pesoSolo`
                             monedaRD: _monedaRD,
+                            tasaInteres: widget.tasaInteres,
                           ),
                         ),
                       ),
@@ -732,6 +735,7 @@ class _PlainCardShell extends StatelessWidget {
 /// ===============================
 class _ReceiptContent extends StatelessWidget {
   final ReciboUIConfig cfg;
+  final double tasaInteres;
 
   final String empresa;
   final String servidor;
@@ -772,6 +776,7 @@ class _ReceiptContent extends StatelessWidget {
     required this.proximaFecha,
     required this.fmtFecha,
     required this.monedaRD,
+    required this.tasaInteres,
   });
 
   @override
@@ -785,8 +790,11 @@ class _ReceiptContent extends StatelessWidget {
 
     // Estado y cálculo del próximo pago
     final bool pagoFinalizado = saldoActual == 0;
-    final double _tasa = (saldoAnterior > 0) ? (pagoInteres / saldoAnterior) : 0.0;
-    final int _proximoInteres = (_tasa * saldoActual).round();
+
+// ✅ Cálculo correcto del interés del próximo pago
+    final int _proximoInteres = (saldoActual * (tasaInteres / 100)).round();
+
+// ✅ Próximo saldo total (saldo + interés)
     final int saldoProximoPago = !pagoFinalizado ? (saldoActual + _proximoInteres) : 0;
 
     // ===== Helper fila con ícono =====
@@ -959,7 +967,7 @@ class _ReceiptContent extends StatelessWidget {
                             Divider(height: 14, thickness: 1, color: cfg.mintDivider),
                             _rowIcon(
                               Icons.request_quote_rounded,
-                              'Saldo próximo pago',
+                              'Próximo pago',
                               pesoSolo(saldoProximoPago),
                               iconBg: const Color(0xFFFFFAE6),
                               iconColor: const Color(0xFF92400E),

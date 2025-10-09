@@ -6,6 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'agregar_cliente_screen.dart';
 import 'package:flutter/services.dart';
 import 'dart:io' show exit, Platform;
+import 'dart:ui' show FontFeature;
+
 
 
 // 🔥 Firestore + Auth
@@ -1302,13 +1304,143 @@ class _ClienteCard extends StatelessWidget {
       buf.write(s[i]);
       count++;
       if (count == 3 && i != 0) {
-        buf.write(',');
+        buf.write('.'); // ← usa punto para miles, como en RD
         count = 0;
       }
     }
-    return '\$${buf.toString().split('').reversed.join()}';
+    // Reemplaza el punto decimal por coma solo si hubiera alguno
+    final texto = buf.toString().split('').reversed.join().replaceAll('.', ',');
+    return '\$$texto';
   }
 
+  // 👇 NUEVO: helper de cápsulas premium
+  Widget _chip(
+      String text, {
+        EdgeInsets pad = const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        Color bg = const Color(0xFFF4F6FA),
+        Color border = const Color(0xFFE5E7EB),
+        Color fg = const Color(0xFF0F172A),
+        double fs = 13,
+        FontWeight fw = FontWeight.w800,
+        IconData? icon,
+        Color? iconColor,
+      }) {
+    return Container(
+      padding: pad,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: iconColor ?? fg),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: fs,
+              fontWeight: fw,
+              color: fg,
+              fontFeatures: const [FontFeature.tabularFigures()],
+              letterSpacing: .2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
+// 👇 NUEVO: cápsula para el CÓDIGO (CL-0001, etc.)
+  Widget _codePill(String code) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Text(
+        code,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+          color: Color(0xFF334155),
+          letterSpacing: .6,
+        ),
+      ),
+    );
+  }
+
+// 👇 NUEVO: cápsula para el ESTADO (AL DÍA / VENCIDO / HOY / PRONTO / SALDADO)
+  Widget _statusPill(String estado) {
+    // Colores por estado (coinciden con tu lógica visual)
+    Color bg, fg, border;
+    switch (estado) {
+      case 'Vencido':
+        bg = const Color(0xFFFFE6E6);
+        fg = const Color(0xFFB91C1C);
+        border = const Color(0xFFFFC9C9);
+        break;
+      case 'Vence hoy':
+        bg = const Color(0xFFFFF1E6);
+        fg = const Color(0xFFB45309);
+        border = const Color(0xFFFBD2A8);
+        break;
+      case 'Vence mañana':
+      default:
+        if (estado.startsWith('Vence en')) {
+          bg = const Color(0xFFFEF9C3);
+          fg = const Color(0xFF92400E);
+          border = const Color(0xFFFDE68A);
+        } else if (estado == 'Saldado') {
+          bg = const Color(0xFFE2E8F0);
+          fg = const Color(0xFF475569);
+          border = const Color(0xFFCBD5E1);
+        } else { // Al día
+          bg = const Color(0xFFE6FFF4);
+          fg = const Color(0xFF047857);
+          border = const Color(0xFFC6F6D5);
+        }
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Text(
+        estado,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+          color: fg,
+          letterSpacing: .3,
+        ),
+      ),
+    );
+  }
 
 
   // Colores según pedido (saldado: banda GRIS)
@@ -1344,6 +1476,7 @@ class _ClienteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final interesPeriodo = (cliente.saldoActual * (cliente.tasaInteres / 100)).round();
+    final saldoConInteres = cliente.saldoActual + interesPeriodo;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -1362,7 +1495,7 @@ class _ClienteCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         child: Column(
           children: [
-            // Banda superior con código visible y estado
+            // Banda superior con código visible y estado (mejor jerarquía)
             Container(
               height: 36,
               color: _headerColor(),
@@ -1372,8 +1505,10 @@ class _ClienteCard extends StatelessWidget {
                   Text(
                     codigoCorto ?? cliente.codigo,
                     style: const TextStyle(
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: Colors.black87,
+                      letterSpacing: .3,
                     ),
                   ),
                   const Spacer(),
@@ -1381,57 +1516,80 @@ class _ClienteCard extends StatelessWidget {
                     Text(
                       _estadoTexto(),
                       style: const TextStyle(
-                        fontWeight: FontWeight.w700, // semibold/strong
+                        fontSize: 16,                  // ⬆️ un poco más grande
+                        fontWeight: FontWeight.w900,   // ⬆️ más fuerte
                         color: Colors.black87,
+                        letterSpacing: .3,
                       ),
                     ),
                 ],
               ),
             ),
+
             Padding(
               padding: const EdgeInsets.all(14),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Izquierda
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
+                  // ── Fila 1: Nombre + Saldo (cápsula a la derecha)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
                           cliente.nombreCompleto,
                           style: const TextStyle(
-                            fontSize: 19, // ⬆️ +1pt
-                            fontWeight: FontWeight.w800,
+                            fontSize: 20,                // ⬆️ +1pt más grande
+                            fontWeight: FontWeight.w900, // más sólida
+                            color: Color(0xFF0F172A),    // tono premium azul-gris oscuro
+                            letterSpacing: 0.2,          // ligera separación elegante
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Tel: ${cliente.telefono}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xDE000000), // 87% black
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Interés ${cliente.periodo.toLowerCase()}: ${_moneda(interesPeriodo)}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xDE000000),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                      _chip(
+                        _moneda(saldoConInteres),           // ← saldo + interés
+                        pad: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        bg: const Color(0xFFF4FAF7),
+                        border: const Color(0xFFDDE7E1),
+                        fg: const Color(0xFF065F46),
+                        fs: 16,
+                        fw: FontWeight.w900,
+                        icon: Icons.request_quote_rounded,
+                        iconColor: const Color(0xFF065F46),
+                      ),
+                    ],
                   ),
-                  // Derecha
-                  Text(
-                    'Saldo: ${_moneda(cliente.saldoActual)}',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black87,
-                      fontWeight: FontWeight.w600,
-                    ),
+
+
+
+                  const SizedBox(height: 10),
+
+                  // ── Fila 2: Teléfono (izq) + Interés quincenal (der)
+                  Row(
+                    children: [
+                      _chip(
+                        cliente.telefono,
+                        bg: Colors.white,
+                        border: const Color(0xFFE5E7EB),
+                        fg: const Color(0xFF334155),
+                        fs: 13,
+                        fw: FontWeight.w700,
+                        icon: Icons.phone_rounded,
+                        iconColor: const Color(0xFF334155),
+                      ),
+                      const Spacer(),
+                      _chip(
+                        _moneda(interesPeriodo),            // ← sólo interés del periodo
+                        bg: const Color(0xFFF1F5FF),
+                        border: const Color(0xFFDCE7FF),
+                        fg: const Color(0xFF1D4ED8),
+                        fs: 13,
+                        fw: FontWeight.w800,
+                        icon: Icons.trending_up_rounded,
+                        iconColor: const Color(0xFF1D4ED8),
+                      ),
+                    ],
                   ),
                 ],
               ),

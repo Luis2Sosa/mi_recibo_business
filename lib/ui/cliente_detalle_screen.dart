@@ -90,13 +90,10 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   }
 
   String _rd(int v) {
-    // Fuerza el símbolo antes del número (ej: $120,000),
-    // sin decimales y respetando separadores del locale.
     final f = NumberFormat.currency(
-      locale: 'es_DO',
-      symbol: '\$',
+      locale: 'en_US',      // 👈 mantiene la coma como separador de miles
+      symbol: '\$',         // 👈 el símbolo pegado
       decimalDigits: 0,
-      customPattern: '¤#,##0', // 👈 asegura el símbolo a la izquierda
     );
     return f.format(v);
   }
@@ -437,6 +434,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           saldoAnterior: saldoAnterior,
           saldoActual: saldoNuevo,
           proximaFecha: proxNoon,
+          tasaInteres: widget.tasaInteres,
         ),
       ),
     );
