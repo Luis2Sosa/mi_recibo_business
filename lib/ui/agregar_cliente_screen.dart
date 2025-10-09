@@ -56,7 +56,13 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
   bool get _usaProducto => _productoCtrl.text.trim().isNotEmpty;
 
   void _syncInteresConProducto() {
-    final tieneProducto = _productoCtrl.text.trim().isNotEmpty;
+    final txt = _productoCtrl.text.trim().toLowerCase();
+    final tieneProducto = txt.isNotEmpty &&
+        (txt.contains('arriendo') ||
+            txt.contains('alquiler') ||
+            txt.contains('apartamento') ||
+            txt.contains('casa') ||
+            txt.contains('producto'));
     if (tieneProducto) {
       if (_tasaCtrl.text.trim() != '0') {
         _tasaCtrl.text = '0';
@@ -64,6 +70,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     }
     if (mounted) setState(() {});
   }
+
 
   @override
   void initState() {
@@ -377,12 +384,77 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                   textInputAction: TextInputAction.newline,
                 ),
                 const SizedBox(height: 8),
-                TextFormField(
-                  controller: _productoCtrl,
-                  decoration: _deco('Producto (opcional)',
-                      icon: Icons.local_offer),
-                  textInputAction: TextInputAction.next,
+                // 🏠 Campo de Producto / Arriendo (sombreado premium)
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white, // ✅ igual que los otros campos
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE5E7EB)), // ✅ gris suave igual que los demás
+                  ),
+                  child: TextFormField(
+                    controller: _productoCtrl,
+                    decoration: InputDecoration(
+                      label: Row(
+                        mainAxisSize: MainAxisSize.max,
+                        children: const [
+                          Icon(Icons.local_offer_rounded, color: Color(0xFF94A3B8), size: 18),
+
+                          SizedBox(width: 6),
+                          Text(
+                            'Producto',
+                            style: TextStyle(color: Color(0xFF64748B)),
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            '/',
+                            style: TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                          ),
+                          SizedBox(width: 6),
+                          Icon(Icons.house_rounded, color: Color(0xFF94A3B8), size: 18),
+                          SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'Arriendo (opcional)',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis, // 👈 se encoge y pone “...”
+                              softWrap: false,
+                              style: TextStyle(color: Color(0xFF64748B)),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)), // ✅ igual que los demás
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)), // ✅ gris claro uniforme
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5), // ✅ azul al enfocar, igual que los otros
+                      ),
+                      filled: true,
+                      fillColor: Colors.white, // ✅ mismo fondo
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                    ),
+                    textInputAction: TextInputAction.next,
+                    onChanged: (v) {
+                      final txt = v.toLowerCase();
+                      if (txt.contains('arriendo') ||
+                          txt.contains('alquiler') ||
+                          txt.contains('apartamento') ||
+                          txt.contains('casa') ||
+                          txt.contains('producto')) {
+                        _tasaCtrl.text = '0';
+                      }
+                      _syncInteresConProducto();
+                    },
+                  ),
                 ),
+
                 const SizedBox(height: 8),
                 Row(
                   children: [

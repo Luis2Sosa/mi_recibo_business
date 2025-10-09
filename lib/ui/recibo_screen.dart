@@ -160,7 +160,7 @@ class ReciboUIConfig {
     this.mintBorder = const Color(0xFFDDE7E1),
     this.mintDivider = const Color(0xFFE7F0EA),
 
-    // Textos (↑ 1–2 pt debajo del monto)
+    // Textos
     this.labelStyle = const TextStyle(
       fontSize: 18,
       color: Color(0xFF667084),
@@ -253,34 +253,24 @@ class ReciboUIConfig {
   }
 }
 
+/// Formatea según locale del dispositivo.
+/// RD (_DO) → "RD$ 8,800" sin decimales; otros → símbolo local sin decimales.
 String monedaLocal(int valor) {
   final locale = Platform.localeName; // ej: es_DO, es_CO, en_US, pt_BR...
-
-  // RD → símbolo RD$ y separador de miles con coma; SIN decimales
   if (locale.toUpperCase().contains('_DO')) {
-    // Ahora (coma para miles, sin decimales):
     return 'RD\$ ${NumberFormat("#,##0", "en_US").format(valor)}';
   }
-
-  // Otros países: símbolo local, miles/decimales del país, pero SIN decimales
   final symbol = NumberFormat.simpleCurrency(locale: locale).currencySymbol;
   final number = NumberFormat.currency(
     locale: locale,
     symbol: '',
     decimalDigits: 0,
   ).format(valor);
-
-  // Siempre símbolo a la izquierda
   return '$symbol $number';
 }
 
-
-/// 💵 Solo signo de peso + miles, SIN decimales (para detalles)
-String pesoSolo(int v) {
-  // $ a la izquierda + miles con coma, sin decimales
-  return '\$ ${NumberFormat("#,##0", "en_US").format(v)}';
-}
-
+/// 💵 Solo signo de peso + miles, SIN decimales (para filas)
+String pesoSolo(int v) => '\$ ${NumberFormat("#,##0", "en_US").format(v)}';
 
 /// =======================================
 /// PANTALLA
@@ -341,7 +331,6 @@ class _ReciboScreenState extends State<ReciboScreen> {
   @override
   void initState() {
     super.initState();
-    // Mostrar banner premium al entrar (2s)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (widget.saldoActual <= 0) {
@@ -350,22 +339,6 @@ class _ReciboScreenState extends State<ReciboScreen> {
         NotificationsPlus.trigger('pago_ok');
       }
     });
-  }
-
-  // RD$ con miles (se mantiene por si lo necesitas en otra parte)
-  String _monedaRD(int v) {
-    final s = v.toString();
-    final b = StringBuffer();
-    int c = 0;
-    for (int i = s.length - 1; i >= 0; i--) {
-      b.write(s[i]);
-      c++;
-      if (c == 3 && i != 0) {
-        b.write(',');
-        c = 0;
-      }
-    }
-    return 'RD\$${b.toString().split('').reversed.join()}';
   }
 
   String _fmtFecha(DateTime d) {
@@ -405,7 +378,6 @@ class _ReciboScreenState extends State<ReciboScreen> {
 
   Future<void> _compartirWhatsApp() async {
     try {
-      // Capturar SOLO la capa de fondo+recibo (no incluye header/botón)
       final boundary = _captureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) return;
 
@@ -415,7 +387,6 @@ class _ReciboScreenState extends State<ReciboScreen> {
 
       final pngBytes = byteData.buffer.asUint8List();
 
-      // PDF del tamaño exacto de la captura
       final pdf = pw.Document();
       final img = pw.MemoryImage(pngBytes);
       final pageFormat = PdfPageFormat(image.width.toDouble(), image.height.toDouble());
@@ -428,12 +399,10 @@ class _ReciboScreenState extends State<ReciboScreen> {
       );
       final pdfBytes = await pdf.save();
 
-      // Nombre profesional
       final clienteTok = _sanitizeToken(widget.cliente);
       final numeroTok = _sanitizeToken(_reciboFmt);
       final fileName = 'Recibo-$clienteTok-$numeroTok.pdf';
 
-      // Guardado silencioso
       final savedUri = await _guardarSilencioso(pdfBytes, fileName);
       if (mounted && savedUri != null) {
         _showModernSnackBar(
@@ -443,7 +412,6 @@ class _ReciboScreenState extends State<ReciboScreen> {
         );
       }
 
-      // Compartir
       final tempDir = await getTemporaryDirectory();
       final tempPath = '${tempDir.path}/$fileName';
       await File(tempPath).writeAsBytes(pdfBytes, flush: true);
@@ -462,7 +430,6 @@ class _ReciboScreenState extends State<ReciboScreen> {
       );
     } catch (e, st) {
       debugPrint('Error generando/compartiendo PDF: $e\n$st');
-      // Fallback a PNG
       try {
         final boundary = _captureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
         if (boundary == null) return;
@@ -481,7 +448,6 @@ class _ReciboScreenState extends State<ReciboScreen> {
         debugPrint('Fallback PNG también falló: $e2\n$st2');
       }
     } finally {
-      // 👉 Después de compartir, volver al cliente
       _volverAClientes();
     }
   }
@@ -621,8 +587,6 @@ class _ReciboScreenState extends State<ReciboScreen> {
                             saldoActual: widget.saldoActual,
                             proximaFecha: widget.proximaFecha,
                             fmtFecha: _fmtFecha,
-                            // 👇 ya no usamos RD$ aquí dentro para detalles; allá usamos `pesoSolo`
-                            monedaRD: _monedaRD,
                             tasaInteres: widget.tasaInteres,
                           ),
                         ),
@@ -639,7 +603,10 @@ class _ReciboScreenState extends State<ReciboScreen> {
                   left: 0,
                   right: 0,
                   child: Center(
-                    child: Text(cfg.headerTitle, style: GoogleFonts.playfair(textStyle: cfg.headerTitleStyle)),
+                    child: Text(
+                      cfg.headerTitle,
+                      style: GoogleFonts.playfairDisplay(textStyle: cfg.headerTitleStyle),
+                    ),
                   ),
                 ),
 
@@ -731,6 +698,43 @@ class _PlainCardShell extends StatelessWidget {
 }
 
 /// ===============================
+/// WIDGET: MONTO GRANDE (prefijo + número con estilos)
+/// ===============================
+class MontoGrande extends StatelessWidget {
+  final String texto;
+  final TextStyle prefixStyle;
+  final TextStyle numberStyle;
+  const MontoGrande({
+    super.key,
+    required this.texto,
+    required this.prefixStyle,
+    required this.numberStyle,
+  });
+
+  bool _isDigit(int code) => code >= 48 && code <= 57;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = texto.trim();
+    int idx = 0;
+    for (; idx < s.length; idx++) {
+      final c = s.codeUnitAt(idx);
+      if (_isDigit(c)) break;
+    }
+    final prefix = s.substring(0, idx);
+    final number = s.substring(idx);
+
+    return Text.rich(
+      TextSpan(children: [
+        if (prefix.isNotEmpty) TextSpan(text: prefix, style: prefixStyle),
+        TextSpan(text: number, style: numberStyle),
+      ]),
+      textAlign: TextAlign.center,
+    );
+  }
+}
+
+/// ===============================
 /// CONTENIDO DEL RECIBO (usa cfg)
 /// ===============================
 class _ReceiptContent extends StatelessWidget {
@@ -754,7 +758,6 @@ class _ReceiptContent extends StatelessWidget {
   final DateTime proximaFecha;
 
   final String Function(DateTime) fmtFecha;
-  final String Function(int) monedaRD; // (queda por compatibilidad, no se usa en el monto grande)
 
   const _ReceiptContent({
     super.key,
@@ -775,12 +778,28 @@ class _ReceiptContent extends StatelessWidget {
     required this.saldoActual,
     required this.proximaFecha,
     required this.fmtFecha,
-    required this.monedaRD,
     required this.tasaInteres,
   });
 
   @override
   Widget build(BuildContext context) {
+    // ===== Detectar tipo automáticamente por el texto del producto =====
+    final ptxt = producto.toLowerCase();
+    final bool esArriendo = ptxt.contains('arriendo') ||
+        ptxt.contains('alquiler') ||
+        ptxt.contains('renta') ||
+        ptxt.contains('apartamento') ||
+        ptxt.contains('casa');
+
+    final bool esProducto = ptxt.contains('producto') ||
+        ptxt.contains('televisor') ||
+        ptxt.contains('moto') ||
+        ptxt.contains('celular') ||
+        ptxt.contains('electro') ||
+        ptxt.contains('lapto') ||
+        ptxt.contains('comput') ||
+        ptxt.contains('nevera');
+
     Widget label(String t) => Text(t, style: cfg.labelStyle);
     Widget value(String t) => Text(t, style: cfg.valueStyle, overflow: TextOverflow.ellipsis, maxLines: 1);
     Widget valueStrong(String t) => Text(t, style: cfg.valueStrongStyle);
@@ -788,14 +807,27 @@ class _ReceiptContent extends StatelessWidget {
 
     const double fixedTopSpacer = 80;
 
-    // Estado y cálculo del próximo pago
     final bool pagoFinalizado = saldoActual == 0;
 
-// ✅ Cálculo correcto del interés del próximo pago
-    final int _proximoInteres = (saldoActual * (tasaInteres / 100)).round();
+    // Títulos bonitos según tipo
+    String tituloPrincipal;
+    if (esArriendo && pagoFinalizado) {
+      tituloPrincipal = 'Arriendo saldado';
+    } else if (esArriendo && !pagoFinalizado) {
+      tituloPrincipal = 'Pago de arriendo recibido';
+    } else if (esProducto && !pagoFinalizado) {
+      tituloPrincipal = 'Pago de producto recibido';
+    } else if (esProducto && pagoFinalizado) {
+      tituloPrincipal = 'Producto pagado por completo';
+    } else if (pagoFinalizado) {
+      tituloPrincipal = 'Préstamo saldado';
+    } else {
+      tituloPrincipal = 'Pago recibido';
+    }
 
-// ✅ Próximo saldo total (saldo + interés)
-    final int saldoProximoPago = !pagoFinalizado ? (saldoActual + _proximoInteres) : 0;
+    // Interés solo se usa/enseña para PRÉSTAMO
+    final int proximoInteres = (saldoActual * (tasaInteres / 100)).round();
+    final int saldoProximoPago = !pagoFinalizado ? (saldoActual + proximoInteres) : 0;
 
     // ===== Helper fila con ícono =====
     Widget _rowIcon(IconData icon, String t, String v, {Color? iconBg, Color? iconColor}) {
@@ -808,11 +840,17 @@ class _ReceiptContent extends StatelessWidget {
             Container(
               width: 28,
               height: 28,
-              decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFDCE7FF))),
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFDCE7FF)),
+              ),
               child: Icon(icon, size: 16, color: ic),
             ),
             const SizedBox(width: 8),
-            Expanded(child: Text(t, style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w600))),
+            Expanded(
+              child: Text(t, style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w600)),
+            ),
             const SizedBox(width: 10),
             Text(v, style: cfg.valueStrongStyle),
           ],
@@ -820,6 +858,7 @@ class _ReceiptContent extends StatelessWidget {
       );
     }
 
+    // ===== CONTENIDO COMPLETO =====
     return Stack(
       children: [
         Column(
@@ -827,6 +866,7 @@ class _ReceiptContent extends StatelessWidget {
           children: [
             const SizedBox(height: fixedTopSpacer),
 
+            // ✔ Paloma
             Center(
               child: Container(
                 width: cfg.checkCircleSize,
@@ -839,26 +879,29 @@ class _ReceiptContent extends StatelessWidget {
               ),
             ),
 
+            // ✔ Título
             Padding(
               padding: cfg.titleMargin,
-              child: Center(
-                child: Text(pagoFinalizado ? 'Pago finalizado' : 'Pago recibido', style: cfg.recibidoTitleStyle),
-              ),
+              child: Center(child: Text(tituloPrincipal, style: cfg.recibidoTitleStyle)),
             ),
 
-            // ===== MONTO GRANDE (locale correcto) =====
+            // ✔ MONTO GRANDE
             Container(
               decoration: BoxDecoration(
                 borderRadius: cfg.amountPanelRadius,
-                gradient: LinearGradient(colors: cfg.amountPanelGradientColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
+                gradient: LinearGradient(
+                  colors: cfg.amountPanelGradientColors,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 border: Border.all(color: cfg.amountPanelBorder),
               ),
               padding: cfg.amountPanelPadding,
               child: Center(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: _MontoGrande(
-                    texto: monedaLocal(totalPagado), // 👈 ahora usa moneda local (RD$/MX$/US$/COP…)
+                  child: MontoGrande(
+                    texto: monedaLocal(totalPagado),
                     prefixStyle: cfg.amountPrefixStyle,
                     numberStyle: cfg.amountNumberStyle,
                   ),
@@ -868,8 +911,13 @@ class _ReceiptContent extends StatelessWidget {
 
             const SizedBox(height: 10),
 
+            // ✔ CABECERA DATOS
             Container(
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: cfg.line)),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: cfg.line),
+              ),
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -877,6 +925,7 @@ class _ReceiptContent extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Empresa / Servidor
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -892,18 +941,21 @@ class _ReceiptContent extends StatelessWidget {
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                Text('Tel:', style: cfg.valueStyle.copyWith(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black87)),
+                                Text('Tel:',
+                                    style: cfg.valueStyle.copyWith(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black87)),
                                 const SizedBox(width: 6),
-                                Text(telefonoServidor, style: cfg.valueStyle.copyWith(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.black87)),
+                                Text(telefonoServidor,
+                                    style: cfg.valueStyle.copyWith(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.black87)),
                               ],
                             ),
                           ],
                         ),
                       ),
+                      // Recibo / Fecha
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Row(mainAxisSize: MainAxisSize.min, children: [Text(numeroRecibo, style: cfg.valueStrongStyle)]),
+                          Row(mainAxisSize: MainAxisSize.min, children: [ Text(numeroRecibo, style: cfg.valueStrongStyle) ]),
                           const SizedBox(height: 4),
                           Text(fmtFecha(fecha), style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w700)),
                         ],
@@ -914,15 +966,21 @@ class _ReceiptContent extends StatelessWidget {
                   const SizedBox(height: 10),
                   Divider(height: 14, thickness: 1, color: cfg.line),
 
+                  // Cliente
                   label('Cliente'),
                   const SizedBox(height: 4),
                   valueClient(cliente),
 
                   const SizedBox(height: 10),
 
+                  // ===== BLOQUE DE PAGO SEGÚN TIPO =====
                   Container(
                     constraints: const BoxConstraints(minHeight: 240),
-                    decoration: BoxDecoration(color: cfg.mint, borderRadius: BorderRadius.circular(14), border: Border.all(color: cfg.mintBorder)),
+                    decoration: BoxDecoration(
+                      color: cfg.mint,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: cfg.mintBorder),
+                    ),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
                     child: pagoFinalizado
                         ? Column(
@@ -930,62 +988,120 @@ class _ReceiptContent extends StatelessWidget {
                       children: [
                         Icon(Icons.verified_rounded, color: cfg.brandTeal, size: 32),
                         const SizedBox(height: 8),
-                        Text('Préstamo saldado', style: cfg.valueStrongStyle.copyWith(fontSize: 20), textAlign: TextAlign.center),
+                        Text(
+                          esArriendo
+                              ? 'Arriendo saldado'
+                              : esProducto
+                              ? 'Producto pagado por completo'
+                              : 'Préstamo saldado',
+                          style: cfg.valueStrongStyle.copyWith(fontSize: 20),
+                          textAlign: TextAlign.center,
+                        ),
                         const SizedBox(height: 4),
-                        Text('No quedan pagos pendientes', style: cfg.labelStyle, textAlign: TextAlign.center),
+                        Text(
+                          esArriendo
+                              ? 'Gracias por ponerte al día con tu alquiler.'
+                              : esProducto
+                              ? '¡Disfruta tu compra! No quedan pagos pendientes.'
+                              : 'No quedan pagos pendientes.',
+                          style: cfg.labelStyle,
+                          textAlign: TextAlign.center,
+                        ),
                       ],
                     )
                         : Column(
-                        children: [
+                      children: [
+                        // ====== ARRIENDO / ALQUILER ======
+                        if (esArriendo) ...[
                           _rowIcon(
-                            Icons.account_balance_wallet_rounded,
-                            'Monto adeudado',
-                            pesoSolo(saldoAnterior),
-                            iconBg: const Color(0xFFF2F6FD),
+                            Icons.home_rounded,
+                            'Pago mensual de arriendo',
+                            pesoSolo(totalPagado),
+                            iconBg: const Color(0xFFFFFAE6),
+                            iconColor: const Color(0xFF92400E),
+                          ),
+                          Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                          _rowIcon(
+                            Icons.request_quote_rounded,
+                            'Saldo restante',
+                            pesoSolo(saldoActual),
+                            iconBg: const Color(0xFFEFF6FF),
                             iconColor: const Color(0xFF2563EB),
                           ),
-                          Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-
+                        ]
+                        // ====== PRODUCTO ======
+                        else if (esProducto) ...[
                           _rowIcon(
-                            Icons.trending_up_rounded,
-                            'Pago de interés',
-                            pesoSolo(pagoInteres),
-                            iconBg: const Color(0xFFEFFAF4),
-                            iconColor: const Color(0xFF22C55E),
+                            Icons.shopping_bag_rounded,
+                            'Pago mensual de producto',
+                            pesoSolo(totalPagado),
+                            iconBg: const Color(0xFFF3F0FF),
+                            iconColor: const Color(0xFF6D28D9),
                           ),
                           Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-
                           _rowIcon(
-                            Icons.savings_rounded,
-                            'Pago a capital',
-                            pesoSolo(pagoCapital),
-                            iconBg: const Color(0xFFFFF2F6),
-                            iconColor: const Color(0xFFE11D48),
+                            Icons.request_quote_rounded,
+                            'Saldo restante',
+                            pesoSolo(saldoActual),
+                            iconBg: const Color(0xFFEFF6FF),
+                            iconColor: const Color(0xFF2563EB),
                           ),
-
-                          if (saldoActual > 0) ...[
-                            Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                        ]
+                        // ====== PRÉSTAMO ======
+                        else ...[
                             _rowIcon(
-                              Icons.request_quote_rounded,
-                              'Próximo pago',
-                              pesoSolo(saldoProximoPago),
-                              iconBg: const Color(0xFFFFFAE6),
-                              iconColor: const Color(0xFF92400E),
-                            ),
-                            Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-                            _rowIcon(
-                              Icons.event_rounded,
-                              'Próxima fecha',
-                              fmtFecha(proximaFecha),
-                              iconBg: const Color(0xFFEFF6FF),
+                              Icons.account_balance_wallet_rounded,
+                              'Monto adeudado',
+                              pesoSolo(saldoAnterior),
+                              iconBg: const Color(0xFFF2F6FD),
                               iconColor: const Color(0xFF2563EB),
                             ),
+                            Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                            _rowIcon(
+                              Icons.trending_up_rounded,
+                              'Pago de interés',
+                              pesoSolo(pagoInteres),
+                              iconBg: const Color(0xFFEFFAF4),
+                              iconColor: const Color(0xFF22C55E),
+                            ),
+                            Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                            _rowIcon(
+                              Icons.savings_rounded,
+                              'Pago a capital',
+                              pesoSolo(pagoCapital),
+                              iconBg: const Color(0xFFFFF2F6),
+                              iconColor: const Color(0xFFE11D48),
+                            ),
+                            if (saldoActual > 0) ...[
+                              Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                              _rowIcon(
+                                Icons.request_quote_rounded,
+                                'Próximo pago',
+                                pesoSolo(saldoProximoPago),
+                                iconBg: const Color(0xFFFFFAE6),
+                                iconColor: const Color(0xFF92400E),
+                              ),
+                              Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                              _rowIcon(
+                                Icons.event_rounded,
+                                'Próxima fecha',
+                                fmtFecha(proximaFecha),
+                                iconBg: const Color(0xFFEFF6FF),
+                                iconColor: const Color(0xFF2563EB),
+                              ),
+                            ],
                           ],
 
+                        // ====== LÍNEA “TIPO/DETALLE” ======
                         if (producto.trim().isNotEmpty) ...[
                           Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-                          _rowIcon(Icons.shopping_bag_rounded, 'Producto', producto,
-                              iconBg: const Color(0xFFF3F0FF), iconColor: const Color(0xFF6D28D9)),
+                          _rowIcon(
+                            esArriendo ? Icons.home_work_rounded : (esProducto ? Icons.shopping_bag_rounded : Icons.description_rounded),
+                            esArriendo ? 'Arriendo' : (esProducto ? 'Producto' : 'Detalle'),
+                            producto,
+                            iconBg: esArriendo ? const Color(0xFFFFF7ED) : (esProducto ? const Color(0xFFF3F0FF) : const Color(0xFFF2F6FD)),
+                            iconColor: esArriendo ? const Color(0xFFB45309) : (esProducto ? const Color(0xFF6D28D9) : const Color(0xFF2563EB)),
+                          ),
                         ],
                       ],
                     ),
@@ -996,56 +1112,22 @@ class _ReceiptContent extends StatelessWidget {
           ],
         ),
 
+        // LOGO OVERLAY
         Positioned(
           top: cfg.brandLogoTop,
           left: 0,
           right: 20,
           child: Transform.translate(
             offset: Offset(cfg.brandLogoDx, 0),
-            child: Center(child: Image.asset(cfg.brandLogoAsset, height: cfg.brandLogoHeight, fit: BoxFit.contain)),
+            child: Center(
+              child: Image.asset(
+                cfg.brandLogoAsset,
+                height: cfg.brandLogoHeight,
+                fit: BoxFit.contain,
+              ),
+            ),
           ),
         ),
-      ],
-    );
-  }
-}
-
-/// ===== Monto grande “RD$ 8,800.00 / $ 8,800.00 …” =====
-class _MontoGrande extends StatelessWidget {
-  final String texto;
-  final TextStyle prefixStyle;
-  final TextStyle numberStyle;
-
-  const _MontoGrande({
-    super.key,
-    required this.texto,
-    required this.prefixStyle,
-    required this.numberStyle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final s = texto.trim();
-    String pref = 'RD\$';
-    String num = s;
-    if (s.startsWith('RD\$')) {
-      num = s.substring(3).trimLeft();
-    } else {
-      final parts = s.split(' ');
-      if (parts.length >= 2) {
-        pref = parts.first;
-        num = parts.sublist(1).join(' ');
-      }
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
-      children: [
-        Text(pref, style: prefixStyle),
-        const SizedBox(width: 6),
-        Text(num, style: numberStyle),
       ],
     );
   }
