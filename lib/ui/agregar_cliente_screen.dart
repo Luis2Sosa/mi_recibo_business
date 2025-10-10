@@ -47,11 +47,13 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
   late final TextEditingController _capitalCtrl;
   late final TextEditingController _tasaCtrl;
 
+
   late String _periodo;
   DateTime? _proximaFecha;
 
   bool get _isEdit => widget.id != null;
   bool _guardando = false;
+
 
   bool get _usaProducto => _productoCtrl.text.trim().isNotEmpty;
 
@@ -85,6 +87,118 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     if (mounted) setState(() {});
   }
 
+  // === NUEVO: pill flotante anclado al campo Producto/Alquiler (compacto)
+  final LayerLink _hintLink = LayerLink();
+  OverlayEntry? _hintEntry;
+  bool _hintMostrado = false;
+
+  void _showProductoHint([double keyboardInset = 0]) {
+    if (_hintMostrado) return;
+    _hintMostrado = true;
+
+    _hintEntry = OverlayEntry(
+      builder: (context) {
+        // Estado interno para animar dentro del Overlay
+        double opacity = 0.5;
+        Offset offset = const Offset(0, .04); // entra desde abajo
+
+        // Usamos StatefulBuilder para poder animar sin cambiar tu State
+        return StatefulBuilder(
+          builder: (context, setLocal) {
+            // Disparar la animación al primer frame
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              setLocal(() {
+                opacity = 1.0;
+                offset = Offset.zero;
+              });
+            });
+
+            return IgnorePointer(
+              // No bloquea toques
+              ignoring: true,
+              child: Stack(
+                children: [
+                  // Centrado horizontal, un poco arriba del teclado
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: (keyboardInset > 0 ? keyboardInset : MediaQuery.of(context).viewInsets.bottom) + 24,
+                    child: AnimatedSlide(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      offset: offset,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOut,
+                        opacity: opacity,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Container(
+                            constraints: const BoxConstraints(maxWidth: 360),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              // 👇 Gradiente oscuro, inspirado en tu fondo
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Color(0xFF1B3CA9), // azul oscuro (más oscuro que #2458D6)
+                                  Color(0xFF0A5F4F), // verde oscuro (más oscuro que #0A9A76)
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(.35),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: const [
+                                Icon(Icons.info_outline, size: 16, color: Colors.white70),
+                                SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    'Si es un préstamo, dejar vacío Producto o Alquiler.',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.25,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    final overlay = Overlay.of(context);
+    if (_hintEntry != null && overlay != null) {
+      overlay.insert(_hintEntry!);
+      Future.delayed(const Duration(milliseconds: 2500), () {
+        _hintEntry?.remove();
+        _hintEntry = null;
+        // NO volver a poner _hintMostrado = false;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -105,6 +219,9 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
 
     _productoCtrl.addListener(_syncInteresConProducto);
     _syncInteresConProducto();
+
+    // muestra el pill una sola vez al entrar
+    //WidgetsBinding.instance.addPostFrameCallback((_) => _showProductoHint());
   }
 
   @override
@@ -203,14 +320,14 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final bool tecladoAbierto = bottomInset > 0;
     final double h = MediaQuery.of(context).size.height;
-    final safeBottomPadding =
-    tecladoAbierto ? (bottomInset - 25).clamp(0.0, double.infinity) : 26.0;
+    final double bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    if (bottomInset > 0 && !_hintMostrado) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _showProductoHint(bottomInset));
+    }
 
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true, // ✅ habilitamos ajuste automático
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -224,17 +341,11 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
             children: [
               Align(
                 alignment: Alignment.bottomCenter,
-                child: AnimatedPadding(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                  padding: EdgeInsets.only(
-                    bottom: safeBottomPadding,
-                    left: 16,
-                    right: 16,
-                  ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 0), // 👈 deja el bottom en 0
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
-                      maxHeight: tecladoAbierto ? h * 0.75 : h * 0.96,
+                      maxHeight: h * 0.95,
                     ),
                     child: Container(
                       decoration: BoxDecoration(
@@ -253,9 +364,6 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
                           child: SingleChildScrollView(
-                            physics: tecladoAbierto
-                                ? const AlwaysScrollableScrollPhysics()
-                                : const NeverScrollableScrollPhysics(),
                             child: _formBody(),
                           ),
                         ),
@@ -368,13 +476,9 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                // 🏠 Campo de Producto / Arriendo
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
-                  ),
+                // 🏠 Campo de Producto / Arriendo con pill anclado
+                CompositedTransformTarget(
+                  link: _hintLink,
                   child: TextFormField(
                     controller: _productoCtrl,
                     decoration: InputDecoration(
@@ -417,17 +521,6 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                       contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                     ),
                     textInputAction: TextInputAction.next,
-                    onChanged: (v) {
-                      final txt = v.toLowerCase();
-                      if (txt.contains('arriendo') ||
-                          txt.contains('alquiler') ||
-                          txt.contains('apartamento') ||
-                          txt.contains('casa') ||
-                          txt.contains('producto')) {
-                        _tasaCtrl.text = '0';
-                      }
-                      _syncInteresConProducto();
-                    },
                   ),
                 ),
 
@@ -736,5 +829,51 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     }
 
     if (mounted) setState(() => _guardando = false);
+  }
+}
+
+// === Pill compacto (no cubre pantalla)
+class _HintPill extends StatelessWidget {
+  final String text;
+  const _HintPill({super.key, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFF111827),
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(.18),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.info_outline, size: 14, color: Colors.white70),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  text,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
