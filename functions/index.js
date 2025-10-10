@@ -1,11 +1,12 @@
 /**
  * Mi Recibo — Push por HORA LOCAL del usuario (multipaís) SIN plugins en app
- * - Tick: cada 5 min (UTC) → por usuario decide si es 08:00 ó 09:00 con utcOffsetMin
- * - 08:00 local: vencido > hoy > mañana > en 2 días (candado por usuario/slot)
- * - 09:00 local: diaria SOLO si no tuvo/ni tiene vencimientos (prioridad intacta)
+ * - Tick: cada 5 min (UTC)
+ * - 08:00 local (préstamos), 08:05 (productos), 08:10 (alquiler): vencido > hoy > mañana > en 2 días
+ *   * Candado por usuario+módulo+slot (no bloquea entre módulos)
+ * - 09:00 local: diaria GENERAL (una sola por usuario; no depende de vencimientos)
  * - Zona por usuario: prestamistas/{uid}/meta.utcOffsetMin (ej: -240 = UTC-4)
- * - Plantillas: config/(default)/push_templates/{diarias|vencido}
- *   - "vencido": { vencido:[], venceHoy:[], venceManana:[], venceEn2Dias:[] }
+ * - Plantillas: config/(default)/push_templates/{diarias|vencido|vencido_productos|vencido_alquiler}
+ *   - "vencido*": { vencido:[], venceHoy:[], venceManana:[], venceEn2Dias:[] }
  *   - "diarias": { mensajes:[] }
  */
 
@@ -78,6 +79,25 @@ async function getDailyMessage(ymd) {
   return (mensajes[idx] || "").toString().trim() || null;
 }
 
+// === NUEVO: seleccionar doc de vencidos por módulo
+function vencDocIdByModule(module) {
+  if (module === "productos") return "vencido_productos";
+  if (module === "alquiler")  return "vencido_alquiler";
+  return "vencido"; // préstamos (existente)
+}
+
+async function getVencMessageFor(module, kind, ymd) {
+  const docId = vencDocIdByModule(module);
+  const snap = await db.collection("config").doc("(default)")
+    .collection("push_templates").doc(docId).get();
+  const data = snap.data() || {};
+  const arr = Array.isArray(data[kind]) ? data[kind] : [];
+  if (!arr.length) return null;
+  const idx = ymd % arr.length;
+  return (arr[idx] || "").toString().trim() || null;
+}
+
+// (Se mantiene la versión original para compatibilidad donde se use)
 async function getVencMessage(kind, ymd) {
   const snap = await db.collection("config").doc("(default)")
     .collection("push_templates").doc("vencido").get();
@@ -116,6 +136,7 @@ async function getAllUsersMeta() {
 
 /* ====================== Clasificación de vencimientos ====================== */
 
+// Préstamos (ya estaba)
 async function getUserDueCategory(uid, offsetMin) {
   const qs = await db.collection("prestamistas").doc(uid).collection("clientes").get();
 
@@ -146,6 +167,64 @@ async function getUserDueCategory(uid, offsetMin) {
   return null;
 }
 
+// === NUEVO: Productos
+async function getUserDueCategoryProductos(uid, offsetMin) {
+  // Ajusta la ruta si tu colección se llama distinto
+  const qs = await db.collection("prestamistas").doc(uid).collection("productos").get();
+
+  const today    = ymdByOffset(offsetMin, 0);
+  const tomorrow = ymdByOffset(offsetMin, 1);
+  const in2days  = ymdByOffset(offsetMin, 2);
+
+  let hasVencido=false, hasHoy=false, hasManana=false, hasEn2=false;
+
+  qs.forEach(doc => {
+    const d = doc.data() || {};
+    if (typeof d.saldoActual === "number" && d.saldoActual <= 0) return;
+    const dueYMD = ymdOfDateByOffset(d.venceEl, offsetMin);
+    if (!dueYMD) return;
+    if (dueYMD < today)        hasVencido = true;
+    else if (dueYMD === today) hasHoy = true;
+    else if (dueYMD === tomorrow) hasManana = true;
+    else if (dueYMD === in2days)  hasEn2 = true;
+  });
+
+  if (hasVencido) return "vencido";
+  if (hasHoy)     return "venceHoy";
+  if (hasManana)  return "venceManana";
+  if (hasEn2)     return "venceEn2Dias";
+  return null;
+}
+
+// === NUEVO: Alquileres
+async function getUserDueCategoryAlquiler(uid, offsetMin) {
+  // Ajusta la ruta si tu colección se llama distinto
+  const qs = await db.collection("prestamistas").doc(uid).collection("alquileres").get();
+
+  const today    = ymdByOffset(offsetMin, 0);
+  const tomorrow = ymdByOffset(offsetMin, 1);
+  const in2days  = ymdByOffset(offsetMin, 2);
+
+  let hasVencido=false, hasHoy=false, hasManana=false, hasEn2=false;
+
+  qs.forEach(doc => {
+    const d = doc.data() || {};
+    if (typeof d.saldoActual === "number" && d.saldoActual <= 0) return;
+    const dueYMD = ymdOfDateByOffset(d.venceEl, offsetMin);
+    if (!dueYMD) return;
+    if (dueYMD < today)        hasVencido = true;
+    else if (dueYMD === today) hasHoy = true;
+    else if (dueYMD === tomorrow) hasManana = true;
+    else if (dueYMD === in2days)  hasEn2 = true;
+  });
+
+  if (hasVencido) return "vencido";
+  if (hasHoy)     return "venceHoy";
+  if (hasManana)  return "venceManana";
+  if (hasEn2)     return "venceEn2Dias";
+  return null;
+}
+
 /* ====================== Candado ====================== */
 // Doc: config/(default)/push_state_users/{uid}
 async function getUserLock(uid) {
@@ -162,6 +241,27 @@ async function setUserLock(uid, offsetMin, source, slotHHMM) {
     yyyymmdd: ymd,
     lastSource: source,         // "vencimiento" | "diaria"
     lastSlot: slotHHMM,         // "08:00" | "09:00"
+    ts: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+// === NUEVO: candado por módulo
+async function getUserLockForModule(uid, module) {
+  const ref = db.collection("config").doc("(default)")
+    .collection("push_state_users").doc(uid)
+    .collection("modules").doc(module);
+  const s = await ref.get();
+  return s.exists ? (s.data() || {}) : null;
+}
+async function setUserLockForModule(uid, module, offsetMin, source, slotHHMM) {
+  const ref = db.collection("config").doc("(default)")
+    .collection("push_state_users").doc(uid)
+    .collection("modules").doc(module);
+  const ymd = String(ymdByOffset(offsetMin, 0));
+  await ref.set({
+    yyyymmdd: ymd,
+    lastSource: source,         // "vencimiento"
+    lastSlot: slotHHMM,         // "08:00" | "08:05" | "08:10"
     ts: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
 }
@@ -183,36 +283,66 @@ exports.pushTick = onSchedule(
 
     for (const { uid, tokens, offsetMin } of users) {
       const nowHHMM = nowHHMMByOffset(offsetMin);
-      const lock = await getUserLock(uid);
+      const todayStr = String(ymdByOffset(offsetMin, 0));
+      const ymd = ymdByOffset(offsetMin, 0);
 
-      // 08:00 — vencimientos
+      // ——— 08:00 — VENCIMIENTOS (PRÉSTAMOS) ———
       if (isWithinSlot(nowHHMM, "08:00", 2)) {
-        if (!(lock?.lastSlot === "08:00" && lock?.yyyymmdd === String(ymdByOffset(offsetMin, 0)))) {
-          const ymd = ymdByOffset(offsetMin, 0);
-          const kind = await getUserDueCategory(uid, offsetMin);
+        const lock = await getUserLockForModule(uid, "prestamos");
+        if (!(lock?.lastSlot === "08:00" && lock?.yyyymmdd === todayStr)) {
+          const kind = await getUserDueCategory(uid, offsetMin); // préstamos (clientes)
           if (kind) {
-            const body = await getVencMessage(kind, ymd);
+            const body = await getVencMessageFor("prestamos", kind, ymd);
             if (body) {
-              const payload = { notification: { title: "Mi Recibo", body }, data: { type: "vencimiento", kind } };
+              const payload = { notification: { title: "Mi Recibo", body }, data: { type: "vencimiento", module: "prestamos", kind } };
               const r = await sendToTokens(tokens, payload);
-              if (r.sent > 0) await setUserLock(uid, offsetMin, "vencimiento", "08:00");
+              if (r.sent > 0) await setUserLockForModule(uid, "prestamos", offsetMin, "vencimiento", "08:00");
             }
           }
         }
       }
 
-      // 09:00 — diaria (solo si no tiene due)
-      if (isWithinSlot(nowHHMM, "09:00", 2)) {
-        if (!(lock?.lastSlot === "09:00" && lock?.yyyymmdd === String(ymdByOffset(offsetMin, 0)))) {
-          const ymd = ymdByOffset(offsetMin, 0);
-          const kind = await getUserDueCategory(uid, offsetMin); // prioridad
-          if (!kind) {
-            const body = await getDailyMessage(ymd);
+      // ——— 08:05 — VENCIMIENTOS (PRODUCTOS) ———
+      if (isWithinSlot(nowHHMM, "08:05", 2)) {
+        const lock = await getUserLockForModule(uid, "productos");
+        if (!(lock?.lastSlot === "08:05" && lock?.yyyymmdd === todayStr)) {
+          const kind = await getUserDueCategoryProductos(uid, offsetMin);
+          if (kind) {
+            const body = await getVencMessageFor("productos", kind, ymd);
             if (body) {
-              const payload = { notification: { title: "Mi Recibo", body }, data: { type: "daily" } };
+              const payload = { notification: { title: "Mi Recibo", body }, data: { type: "vencimiento", module: "productos", kind } };
               const r = await sendToTokens(tokens, payload);
-              if (r.sent > 0) await setUserLock(uid, offsetMin, "diaria", "09:00");
+              if (r.sent > 0) await setUserLockForModule(uid, "productos", offsetMin, "vencimiento", "08:05");
             }
+          }
+        }
+      }
+
+      // ——— 08:10 — VENCIMIENTOS (ALQUILER) ———
+      if (isWithinSlot(nowHHMM, "08:10", 2)) {
+        const lock = await getUserLockForModule(uid, "alquiler");
+        if (!(lock?.lastSlot === "08:10" && lock?.yyyymmdd === todayStr)) {
+          const kind = await getUserDueCategoryAlquiler(uid, offsetMin);
+          if (kind) {
+            const body = await getVencMessageFor("alquiler", kind, ymd);
+            if (body) {
+              const payload = { notification: { title: "Mi Recibo", body }, data: { type: "vencimiento", module: "alquiler", kind } };
+              const r = await sendToTokens(tokens, payload);
+              if (r.sent > 0) await setUserLockForModule(uid, "alquiler", offsetMin, "vencimiento", "08:10");
+            }
+          }
+        }
+      }
+
+      // ——— 09:00 — DIARIA GENERAL (UNA SOLA POR USUARIO) ———
+      if (isWithinSlot(nowHHMM, "09:00", 2)) {
+        const ulock = await getUserLock(uid); // lock a nivel usuario para la diaria
+        if (!(ulock?.lastSlot === "09:00" && ulock?.yyyymmdd === todayStr)) {
+          const body = await getDailyMessage(ymd); // mensajes generales
+          if (body) {
+            const payload = { notification: { title: "Mi Recibo", body }, data: { type: "daily" } };
+            const r = await sendToTokens(tokens, payload);
+            if (r.sent > 0) await setUserLock(uid, offsetMin, "diaria", "09:00");
           }
         }
       }
@@ -247,31 +377,50 @@ exports.testLocal = onRequest(async (req, res) => {
     if (hhmm === "08:00") {
       const kind = await getUserDueCategory(uid, offsetMin);
       if (kind) {
-        const body = await getVencMessage(kind, ymd);
+        const body = await getVencMessageFor("prestamos", kind, ymd);
         if (body) {
           if (!dry) {
-            const r = await sendToTokens(tokens, { notification: { title: "Mi Recibo", body }, data: { type: "vencimiento", kind } });
-            if (r.sent > 0) await setUserLock(uid, offsetMin, "vencimiento", "08:00");
+            const r = await sendToTokens(tokens, { notification: { title: "Mi Recibo", body }, data: { type: "vencimiento", module:"prestamos", kind } });
+            if (r.sent > 0) await setUserLockForModule(uid, "prestamos", offsetMin, "vencimiento", "08:00");
           }
-          out.actions.push({ type:"vencimiento", kind, sent: !dry });
-        } else out.actions.push({ type:"vencimiento", reason:"no-template" });
-      } else out.actions.push({ type:"vencimiento", reason:"no-due" });
-    } else if (hhmm === "09:00") {
-      const kind = await getUserDueCategory(uid, offsetMin);
+          out.actions.push({ type:"vencimiento", module:"prestamos", kind, sent: !dry });
+        } else out.actions.push({ type:"vencimiento", module:"prestamos", reason:"no-template" });
+      } else out.actions.push({ type:"vencimiento", module:"prestamos", reason:"no-due" });
+    } else if (hhmm === "08:05") {
+      const kind = await getUserDueCategoryProductos(uid, offsetMin);
       if (kind) {
-        out.actions.push({ type:"daily", reason:"has-due", kind });
-      } else {
-        const body = await getDailyMessage(ymd);
+        const body = await getVencMessageFor("productos", kind, ymd);
         if (body) {
           if (!dry) {
-            const r = await sendToTokens(tokens, { notification: { title: "Mi Recibo", body }, data: { type:"daily" } });
-            if (r.sent > 0) await setUserLock(uid, offsetMin, "diaria", "09:00");
+            const r = await sendToTokens(tokens, { notification: { title: "Mi Recibo", body }, data: { type: "vencimiento", module:"productos", kind } });
+            if (r.sent > 0) await setUserLockForModule(uid, "productos", offsetMin, "vencimiento", "08:05");
           }
-          out.actions.push({ type:"daily", sent: !dry });
-        } else out.actions.push({ type:"daily", reason:"no-template" });
-      }
+          out.actions.push({ type:"vencimiento", module:"productos", kind, sent: !dry });
+        } else out.actions.push({ type:"vencimiento", module:"productos", reason:"no-template" });
+      } else out.actions.push({ type:"vencimiento", module:"productos", reason:"no-due" });
+    } else if (hhmm === "08:10") {
+      const kind = await getUserDueCategoryAlquiler(uid, offsetMin);
+      if (kind) {
+        const body = await getVencMessageFor("alquiler", kind, ymd);
+        if (body) {
+          if (!dry) {
+            const r = await sendToTokens(tokens, { notification: { title: "Mi Recibo", body }, data: { type: "vencimiento", module:"alquiler", kind } });
+            if (r.sent > 0) await setUserLockForModule(uid, "alquiler", offsetMin, "vencimiento", "08:10");
+          }
+          out.actions.push({ type:"vencimiento", module:"alquiler", kind, sent: !dry });
+        } else out.actions.push({ type:"vencimiento", module:"alquiler", reason:"no-template" });
+      } else out.actions.push({ type:"vencimiento", module:"alquiler", reason:"no-due" });
+    } else if (hhmm === "09:00") {
+      const body = await getDailyMessage(ymd);
+      if (body) {
+        if (!dry) {
+          const r = await sendToTokens(tokens, { notification: { title: "Mi Recibo", body }, data: { type:"daily" } });
+          if (r.sent > 0) await setUserLock(uid, offsetMin, "diaria", "09:00");
+        }
+        out.actions.push({ type:"daily", sent: !dry });
+      } else out.actions.push({ type:"daily", reason:"no-template" });
     } else {
-      out.actions.push({ reason: "hhmm inválido (usa 08:00 o 09:00)" });
+      out.actions.push({ reason: "hhmm inválido (usa 08:00, 08:05, 08:10 o 09:00)" });
     }
 
     res.status(200).json({ ok:true, ...out });

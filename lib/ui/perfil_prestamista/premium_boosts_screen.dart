@@ -4,6 +4,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mi_recibo/ui/widgets/app_frame.dart';
 import 'package:mi_recibo/ui/theme/app_theme.dart';
 import 'package:mi_recibo/ui/perfil_prestamista/premium_boosts_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // <-- NUEVO
+
+/// Clave de día en UTC con formato fijo YYYYMMDD (evita problemas de TZ/DST)
+String _todayUtcYMD() {
+  final now = DateTime.now().toUtc();
+  final y = now.year.toString().padLeft(4, '0');
+  final m = now.month.toString().padLeft(2, '0');
+  final d = now.day.toString().padLeft(2, '0');
+  return '$y$m$d';
+}
 
 /// Header simple (mismo diseño del app) para que este archivo sea independiente.
 class HeaderBar extends StatelessWidget {
@@ -140,35 +150,57 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen> {
     }
   }
 
-  /// Rota 1 tip por día y persiste en Firestore
+  /// Rota 1 tip por día y persiste en Firestore (con fallback local en SharedPreferences).
   Future<void> _rotateDailyIndices() async {
+    final todayKey = _todayUtcYMD();
+
+    // --- Fallback local (por si no hay red / falla Firestore) ---
     try {
-      final dailyRef = widget.docPrest.collection('metrics').doc('daily');
-      final snap = await dailyRef.get();
-      final data = snap.data() ?? {};
-      final last = (data['lastDate'] ?? '') as String;
+      final prefs = await SharedPreferences.getInstance();
+      final lastLocal = prefs.getString('boosts_last_ymd_utc') ?? '';
 
-      final now = DateTime.now();
-      final todayKey = '${now.year}-${now.month}-${now.day}';
+      int q = prefs.getInt('boosts_q_index') ?? 0;
+      int f = prefs.getInt('boosts_f_index') ?? 0;
 
-      int q = (data['qeduIndex'] ?? 0) as int;
-      int f = (data['financeIndex'] ?? 0) as int;
-
-      if (last != todayKey) {
+      if (lastLocal != todayKey) {
         if (_qedu.isNotEmpty) q = (q + 1) % _qedu.length;
         if (_finance.isNotEmpty) f = (f + 1) % _finance.length;
-        await dailyRef.set(
-          {'qeduIndex': q, 'financeIndex': f, 'lastDate': todayKey},
-          SetOptions(merge: true),
-        );
+        await prefs.setString('boosts_last_ymd_utc', todayKey);
+        await prefs.setInt('boosts_q_index', q);
+        await prefs.setInt('boosts_f_index', f);
       }
 
       if (_qedu.isNotEmpty) _qIndex = q % _qedu.length;
       if (_finance.isNotEmpty) _fIndex = f % _finance.length;
     } catch (_) {
-      // deja índices en 0 si algo falla
-      _qIndex = 0;
-      _fIndex = 0;
+      // si prefs falla, seguimos con 0/0 y probamos Firestore abajo
+    }
+
+    // --- Persistencia en Firestore (fuente de verdad para multi-dispositivo) ---
+    try {
+      final dailyRef = widget.docPrest.collection('metrics').doc('daily');
+      final snap = await dailyRef.get();
+      final data = snap.data() ?? {};
+      final lastServer = (data['lastDateUtcYMD'] ?? '').toString();
+
+      int q = (data['qeduIndex'] ?? _qIndex).toInt();
+      int f = (data['financeIndex'] ?? _fIndex).toInt();
+
+      if (lastServer != todayKey) {
+        if (_qedu.isNotEmpty) q = (q + 1) % _qedu.length;
+        if (_finance.isNotEmpty) f = (f + 1) % _finance.length;
+
+        await dailyRef.set(
+          {'qeduIndex': q, 'financeIndex': f, 'lastDateUtcYMD': todayKey},
+          SetOptions(merge: true),
+        );
+      }
+
+      // toma los definitivos del server (mantiene sincronía entre dispositivos)
+      if (_qedu.isNotEmpty) _qIndex = q % _qedu.length;
+      if (_finance.isNotEmpty) _fIndex = f % _finance.length;
+    } catch (_) {
+      // si Firestore falla, ya nos cubrimos con prefs
     }
   }
 
@@ -230,7 +262,6 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen> {
     }
     return '\$${b.toString().split('').reversed.join()}';
   }
-
 
   @override
   Widget build(BuildContext context) {

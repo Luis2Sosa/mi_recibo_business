@@ -22,6 +22,20 @@ class NotificationsPlus {
     'resumen_mes': Duration(days: 30),
   };
 
+  // =================== NUEVO: Colores por módulo y estado ===================
+  static const _moduleTint = <String, Color>{
+    'prestamos': Color(0xFF0EA5E9), // cielo
+    'productos': Color(0xFF8B5CF6), // violeta
+    'alquiler': Color(0xFF22C55E),  // verde
+  };
+
+  static const _dueTint = <String, Color>{
+    'vencido': Color(0xFFDC2626),      // rojo
+    'venceHoy': Color(0xFFFB923C),     // naranja
+    'venceManana': Color(0xFFFACC15),  // amarillo
+    'venceEn2Dias': Color(0xFF2563EB), // azul
+  };
+
   static Future<void> trigger(String intent, {Map<String, dynamic>? payload}) async {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
@@ -169,8 +183,9 @@ class NotificationsPlus {
               text,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color:
-                intent == 'deuda_finalizada' ? Colors.white : const Color(0xFF0F172A),
+                color: intent == 'deuda_finalizada'
+                    ? Colors.white
+                    : const Color(0xFF0F172A),
                 fontSize: 17,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0.2,
@@ -325,5 +340,49 @@ class NotificationsPlus {
       _ => const Color(0xFF2563EB),
     };
     _showBanner(msg, color: color, intent: 'due_$estado');
+  }
+
+  // =================== NUEVO: Handler para datos de FCM ===================
+  /// Llama esto desde tu listener de FCM en primer plano:
+  /// FirebaseMessaging.onMessage.listen((msg) => NotificationsPlus.handleFcmData(msg.data));
+  static void handleFcmData(Map<String, dynamic> data) {
+    final type = (data['type'] ?? data['intent'] ?? '').toString(); // "vencimiento" | "daily" | ...
+    final module = (data['module'] ?? '').toString();               // "prestamos" | "productos" | "alquiler"
+    final kind = (data['kind'] ?? '').toString();                   // "vencido" | "venceHoy" | ...
+    final body = (data['body'] ?? data['text'] ?? '').toString();   // opcional si incluyes body en data
+
+    if (type == 'vencimiento') {
+      final c = _dueTint[kind] ?? _moduleTint[module] ?? const Color(0xFF2563EB);
+      final msg = body.isNotEmpty ? body : _labelForDue(module, kind);
+      _showBanner(msg, color: c, intent: 'due_${module}_$kind');
+      return;
+    }
+
+    if (type == 'daily') {
+      final msg = body.isNotEmpty ? body : '📣 Revisa tu negocio hoy y cuida tu billetera.';
+      _showBanner(msg, color: const Color(0xFF2563EB), intent: 'daily');
+      return;
+    }
+
+    // Fallback genérico
+    final msg = body.isNotEmpty ? body : '🔔 Tienes una notificación.';
+    _showBanner(msg, color: const Color(0xFF2563EB), intent: type.isEmpty ? 'push' : type);
+  }
+
+  // =================== NUEVO: Etiquetas de respaldo ===================
+  static String _labelForDue(String module, String kind) {
+    final m = switch (module) {
+      'prestamos' => 'préstamos',
+      'productos' => 'productos',
+      'alquiler' => 'alquileres',
+      _ => 'tu cartera',
+    };
+    return switch (kind) {
+      'vencido' => '⏰ Tienes $m vencidos. Revisa tus cobros.',
+      'venceHoy' => '📅 Hoy vencen $m. No los dejes pasar.',
+      'venceManana' => '🔔 Mañana vencen $m. Organiza tus cobros.',
+      'venceEn2Dias' => '📆 En 2 días vencen $m. Prepárate.',
+      _ => '🔔 Revisa $m en tu app.',
+    };
   }
 }
