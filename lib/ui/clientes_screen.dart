@@ -329,6 +329,17 @@ class _ClientesScreenState extends State<ClientesScreen> {
   }
 
   bool _esSaldado(_Cliente c) => c.saldoActual <= 0;
+  bool _esArriendo(_Cliente c) {
+    final p = (c.producto ?? '').toLowerCase().trim();
+    if (p.isEmpty) return false;
+    // Incluye “artilar” y variaciones
+    return p.contains('arri')      // arriendo, arrendar
+        || p.contains('alqui')     // alquiler, alquilar
+        || p.contains('renta')     // renta
+        || p.contains('rent')      // rent
+        || p.contains('lease')     // lease
+        || p.contains('artil');    // artilar (tu término)
+  }
 
   // Orden: primero NO saldados; luego saldados. Dentro: por proximaFecha; si empatan, por nombre.
   int _compareClientes(_Cliente a, _Cliente b) {
@@ -502,6 +513,46 @@ class _ClientesScreenState extends State<ClientesScreen> {
     );
   }
 
+  Future<void> _renovarArriendo(_Cliente c) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    // Solo tiene sentido renovar si está saldado
+    if (!_esSaldado(c)) {
+      _showBanner('Solo puedes renovar arriendos saldados.', color: const Color(0xFFFFF1F2));
+      return;
+    }
+
+    // Tomamos el mismo capital inicial del cliente para “volver a empezar”
+    final int nuevoSaldo = c.capitalInicial;
+
+    final docRef = FirebaseFirestore.instance
+        .collection('prestamistas')
+        .doc(uid)
+        .collection('clientes')
+        .doc(c.id);
+
+    try {
+      final DateTime prox = _atNoon(c.proximaFecha); // mantén la misma fecha próxima
+
+      await docRef.set({
+        'saldoActual': nuevoSaldo,            // vuelve a deber lo mismo que el capital inicial
+        'saldoAnterior': nuevoSaldo,          // opcional, por consistencia
+        'saldado': false,                     // ya NO está saldado
+        'estado': 'al_dia',                   // queda AL DÍA
+        'proximaFecha': Timestamp.fromDate(prox),
+        'venceEl': Timestamp.fromDate(prox),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      _showBanner('Arriendo renovado. Cliente al día ✅',
+          color: const Color(0xFFEFFBF3));
+    } catch (e) {
+      _showBanner('Error al renovar: $e',
+          color: const Color(0xFFFFF1F2));
+    }
+  }
+
   void _mostrarOpcionesCliente(_Cliente c) {
     bool _cerrado = false; // para no cerrar si ya se cerró manualmente
 
@@ -634,6 +685,21 @@ class _ClientesScreenState extends State<ClientesScreen> {
                       },
                     ),
                     const Divider(height: 1, color: Color(0xFFEFF1F5)),
+
+                    // 👉 Renovar: SOLO si es arriendo y está saldado
+                    if (_esArriendo(c) && _esSaldado(c)) ...[
+                      _actionItem(
+                        title: 'Renovar',
+                        icon: Icons.autorenew_rounded,
+                        color: const Color(0xFF16A34A), // verde
+                        onTap: () {
+                          _cerrado = true;
+                          Navigator.pop(sheetCtx);
+                          _renovarArriendo(c); // guarda sin cambiar nada
+                        },
+                      ),
+                      const Divider(height: 1, color: Color(0xFFEFF1F5)),
+                    ],
 
                     _actionItem(
                       title: 'Cancelar',

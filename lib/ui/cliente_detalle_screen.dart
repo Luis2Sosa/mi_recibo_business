@@ -53,6 +53,8 @@ class ClienteDetalleScreen extends StatefulWidget {
   State<ClienteDetalleScreen> createState() => _ClienteDetalleScreenState();
 }
 
+
+
 class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   // ✅ Icono de WhatsApp reutilizable (usa el PNG de assets)
   Widget _waIcon({double size = 24}) {
@@ -73,6 +75,13 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   bool _tieneCambios = false;
   int _totalPrestado = 0;
   bool _btnPagoBusy = false;
+  // Es PRÉSTAMO solo si el campo producto está vacío
+// o si explícitamente contiene palabras de préstamo.
+  bool get _esPrestamo {
+    final p = widget.producto.trim().toLowerCase();
+    if (p.isEmpty) return true; // vacío = préstamo normal
+    return p.contains('prest') || p.contains('crédito') || p.contains('credito') || p.contains('loan');
+  }
 
   // ✅ Nota opcional (leída de Firestore SIN tocar el constructor)
   String? _nota;
@@ -299,6 +308,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           tasaInteres: widget.tasaInteres,
           periodo: widget.periodo,
           proximaFecha: _proximaFecha,
+          esPrestamo: _esPrestamo
         ),
       ),
     );
@@ -1150,17 +1160,28 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                         ),
                                       ],
 
-                                      // Fila: Producto: (si existe)
+                                      // Fila: Producto o Alquiler (si existe)
                                       if (widget.producto.trim().isNotEmpty) ...[
                                         const SizedBox(height: 6),
                                         Row(
                                           crossAxisAlignment: CrossAxisAlignment.center,
                                           children: [
-                                            const SizedBox(
+                                            SizedBox(
                                               width: 38,
                                               child: Align(
                                                 alignment: Alignment.center,
-                                                child: Icon(Icons.shopping_bag_rounded, size: 18, color: Color(0xFF7C3AED)),
+                                                child: Icon(
+                                                  // 👇 Si es alquiler/arriendo/renta/casa/apartamento → ícono de casa
+                                                  (widget.producto.toLowerCase().contains('alquiler') ||
+                                                      widget.producto.toLowerCase().contains('arriendo') ||
+                                                      widget.producto.toLowerCase().contains('renta') ||
+                                                      widget.producto.toLowerCase().contains('casa') ||
+                                                      widget.producto.toLowerCase().contains('apartamento'))
+                                                      ? Icons.house_rounded
+                                                      : Icons.shopping_bag_rounded,
+                                                  size: 18,
+                                                  color: Color(0xFF7C3AED),
+                                                ),
                                               ),
                                             ),
                                             const SizedBox(width: 10),
@@ -1169,15 +1190,27 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                                 text: TextSpan(
                                                   style: GoogleFonts.inter(fontSize: 15, height: 1.25),
                                                   children: [
-                                                    const TextSpan(
-                                                      text: 'Producto: ',
-                                                      style: TextStyle(
+                                                    TextSpan(
+                                                      text: (widget.producto.toLowerCase().contains('alquiler') ||
+                                                          widget.producto.toLowerCase().contains('arriendo') ||
+                                                          widget.producto.toLowerCase().contains('renta') ||
+                                                          widget.producto.toLowerCase().contains('casa') ||
+                                                          widget.producto.toLowerCase().contains('apartamento'))
+                                                          ? 'Alquiler: '
+                                                          : 'Producto: ',
+                                                      style: const TextStyle(
                                                         fontWeight: FontWeight.w700,
                                                         color: Color(0xFF6B7280),
                                                       ),
                                                     ),
                                                     TextSpan(
-                                                      text: widget.producto,
+                                                      text: (widget.producto.toLowerCase().contains('alquiler') ||
+                                                          widget.producto.toLowerCase().contains('arriendo') ||
+                                                          widget.producto.toLowerCase().contains('renta') ||
+                                                          widget.producto.toLowerCase().contains('casa') ||
+                                                          widget.producto.toLowerCase().contains('apartamento'))
+                                                          ? 'Alquiler'
+                                                          : widget.producto,
                                                       style: const TextStyle(
                                                         fontWeight: FontWeight.w800,
                                                         color: Color(0xFF0F172A),
@@ -1226,13 +1259,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                           valueSaldo,
                                         ),
 
-                                        // 👇 Solo mostrar “Interés” si hay deuda (para que no cante al estar saldado)
-                                        if (_saldoActual > 0) ...[
-                                          const Divider(
-                                            height: 14,
-                                            thickness: 1,
-                                            color: Color(0xFFE7F0EA),
-                                          ),
+                                        if (_saldoActual > 0 && _esPrestamo) ...[
+                                          const Divider(height: 14, thickness: 1, color: Color(0xFFE7F0EA)),
                                           _rowStyled(
                                             'Interés ${widget.periodo.toLowerCase()}',
                                             _rd((_saldoActual * (widget.tasaInteres / 100)).round()),

@@ -10,12 +10,16 @@ class PagoFormScreen extends StatefulWidget {
   final String periodo;         // Mensual | Quincenal
   final DateTime proximaFecha;  // sugerida (solo referencia visual, no se usa automática)
 
+  // ✅ NUEVO: true = es préstamo (muestra interés); false = producto/alquiler (sin interés)
+  final bool esPrestamo;
+
   const PagoFormScreen({
     super.key,
     required this.saldoAnterior,
     required this.tasaInteres,
     required this.periodo,
     required this.proximaFecha,
+    this.esPrestamo = true,
   });
 
   @override
@@ -35,27 +39,33 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   bool _btnContinuarBusy = false;
 
   int get _interesMax =>
-      (widget.saldoAnterior * (widget.tasaInteres / 100)).round();
+      widget.esPrestamo ? (widget.saldoAnterior * (widget.tasaInteres / 100)).round() : 0;
 
   int get _totalPagado => _pagoInteres + _pagoCapital;
+
   int get _saldoNuevo {
     final n = widget.saldoAnterior - _pagoCapital;
     return n < 0 ? 0 : n;
   }
 
-  // ✅ NUEVO: cálculo del interés del próximo pago y saldo con interés
+  // ✅ Interés del próximo pago: solo si es préstamo
   int get _interesProximo =>
-      (_saldoNuevo * (widget.tasaInteres / 100)).round();
+      widget.esPrestamo ? (_saldoNuevo * (widget.tasaInteres / 100)).round() : 0;
 
   int get _saldoNuevoConInteres => _saldoNuevo + _interesProximo;
-
 
   @override
   void initState() {
     super.initState();
     _proxima = null;
-    _interesCtrl.text = _interesMax.toString();
-    _pagoInteres = _interesMax;
+
+    if (widget.esPrestamo) {
+      _interesCtrl.text = _interesMax.toString();
+      _pagoInteres = _interesMax;
+    } else {
+      _interesCtrl.text = '0';
+      _pagoInteres = 0;
+    }
 
     _interesCtrl.addListener(_recalcular);
     _capitalCtrl.addListener(_recalcular);
@@ -63,8 +73,9 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
 
   void _recalcular() {
     setState(() {
-      _pagoInteres =
-          int.tryParse(_interesCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+      _pagoInteres = widget.esPrestamo
+          ? int.tryParse(_interesCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0
+          : 0;
       _pagoCapital =
           int.tryParse(_capitalCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
     });
@@ -78,6 +89,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   }
 
   String? get _errorInteres {
+    if (!widget.esPrestamo) return null;
     if (_pagoInteres < 0) return 'No puede ser negativo';
     if (_pagoInteres > _interesMax) {
       return 'Máximo ${_formatCurrency(_interesMax)}';
@@ -98,7 +110,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   /// 🌍 Formatea según la configuración regional del dispositivo automáticamente
   String _formatCurrency(int v) {
     final f = NumberFormat.currency(
-      locale: Intl.getCurrentLocale(), // 👈 toma la región del sistema automáticamente
+      locale: Intl.getCurrentLocale(),
       symbol: NumberFormat.simpleCurrency(locale: Intl.getCurrentLocale()).currencySymbol,
       decimalDigits: 0,
     );
@@ -243,29 +255,40 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                         children: [
                                           _resumen('Saldo anterior', _formatCurrency(widget.saldoAnterior)),
                                           const SizedBox(height: 10),
-                                          _resumen('Interés ${widget.periodo.toLowerCase()}', _formatCurrency(_interesMax)),
-                                          const SizedBox(height: 12),
 
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: _campoValidado(
-                                                  label: 'Pago interés',
-                                                  controller: _interesCtrl,
-                                                  errorText: _errorInteres,
+                                          if (widget.esPrestamo) ...[
+                                            _resumen('Interés ${widget.periodo.toLowerCase()}', _formatCurrency(_interesMax)),
+                                            const SizedBox(height: 12),
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: _campoValidado(
+                                                    label: 'Pago interés',
+                                                    controller: _interesCtrl,
+                                                    errorText: _errorInteres,
+                                                  ),
                                                 ),
-                                              ),
-                                              const SizedBox(width: 10),
-                                              Expanded(
-                                                child: _campoValidado(
-                                                  label: 'Pago capital',
-                                                  controller: _capitalCtrl,
-                                                  errorText: _errorCapital,
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: _campoValidado(
+                                                    label: 'Pago capital',
+                                                    controller: _capitalCtrl,
+                                                    errorText: _errorCapital,
+                                                  ),
                                                 ),
-                                              ),
-                                            ],
-                                          ),
+                                              ],
+                                            ),
+                                          ] else ...[
+                                            // Producto / Arriendo: SOLO un campo, como tu imagen
+                                            _campoValidado(
+                                              label: 'Pago capital', // 👈 texto como en la imagen
+                                              controller: _capitalCtrl,
+                                              errorText: _errorCapital,
+                                            ),
+                                          ],
+
                                           const SizedBox(height: 12),
+                                          // ===== FIN DEL BLOQUE =====
 
                                           _resumen('Total pagado', _formatCurrency(_totalPagado)),
                                           const SizedBox(height: 6),
@@ -364,7 +387,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                 FocusScope.of(context).unfocus();
                                                 setState(() => _btnContinuarBusy = true);
                                                 Navigator.pop(context, {
-                                                  'pagoInteres': _pagoInteres,
+                                                  'pagoInteres': widget.esPrestamo ? _pagoInteres : 0,
                                                   'pagoCapital': _pagoCapital,
                                                   'totalPagado': _totalPagado,
                                                   'saldoAnterior': widget.saldoAnterior,

@@ -325,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             _googleButton(
-                              labelIdle: 'Soy Prestamista o Fiador',
+                              labelIdle: 'Soy Negocio',
                               loading: _cargando,
                               onTap: _cargando ? null : _manejarLoginPrestamista,
                             ),
