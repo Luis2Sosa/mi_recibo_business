@@ -545,22 +545,42 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     }
   }
 
-  // ✨ Mensajes “premium” cortos y claros para enviar por whatsapp
+  // ✨ Mensajes “premium” cortos y claros para enviar por WhatsApp
   String _mensajeRecordatorio(String tipo) {
-    // tipo: 'vencido' | 'hoy' | 'manana' | 'dos_dias' | 'aldia'
     final nombre = widget.nombreCompleto;
     final fecha = _fmtFecha(_proximaFecha);
     final saldo = _rd(_saldoActual);
 
+    // Detectar tipo de cliente
+    final producto = widget.producto.toLowerCase();
+    final esAlquiler = producto.contains('alquiler') ||
+        producto.contains('arriendo') ||
+        producto.contains('renta') ||
+        producto.contains('casa') ||
+        producto.contains('apartamento');
+    final esPrestamo = _esPrestamo;
+    final esProducto = !esPrestamo && !esAlquiler;
+
+    String base;
+    if (esPrestamo) {
+      base = 'tu pago vence';
+    } else if (esAlquiler) {
+      base = 'tu alquiler vence';
+    } else if (esProducto) {
+      base = 'tu producto vence';
+    } else {
+      base = 'tu pago vence';
+    }
+
     switch (tipo) {
       case 'vencido':
-        return 'Hola $nombre, tienes un pago vencido desde $fecha. Saldo: $saldo. ¿Coordinamos hoy?';
+        return 'Hola $nombre, $base desde $fecha. Saldo: $saldo. ¿Coordinamos hoy?';
       case 'hoy':
-        return 'Hola $nombre, tu pago vence HOY ($fecha). Saldo: $saldo. Avísame para pasar a cobrar.';
+        return 'Hola $nombre, $base HOY ($fecha). Saldo: $saldo.';
       case 'manana':
-        return 'Hola $nombre, tu pago vence MAÑANA ($fecha). Saldo: $saldo. Quedo atento(a).';
+        return 'Hola $nombre, $base MAÑANA ($fecha). Saldo: $saldo.';
       case 'dos_dias':
-        return 'Hola $nombre, tu pago vence en 2 días ($fecha). Saldo: $saldo.';
+        return 'Hola $nombre, $base en 2 días ($fecha). Saldo: $saldo.';
       case 'aldia':
         return 'Hola $nombre, estás al día ✅. Próxima fecha: $fecha. ¡Gracias por tu puntualidad!';
       default:

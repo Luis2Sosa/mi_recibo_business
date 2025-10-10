@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:mi_recibo/ui/sobre_mi_recibo_screen.dart';
 
 import 'prestamista_registro_screen.dart';
 import 'clientes_screen.dart';
@@ -21,7 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   static const double logoTop = -20;
   static const double logoSize = 400;
   static const double sloganTop = 270;
-  static const double buttonsTop = 500;
+  static const double buttonsTop = 460;
 
   // ===== State =====
   bool _cargando = false;
@@ -90,16 +91,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Ocurrió un error. Intenta de nuevo.';
   }
 
-  Future<void> _persistirDatosBasicos(User user) async {
+  Future<void> _persistirMetadatos(User user) async {
     final ref = FirebaseFirestore.instance.collection('prestamistas').doc(user.uid);
     await ref.set({
-      'nombre': (user.displayName ?? '').split(' ').isNotEmpty ? user.displayName?.split(' ').first : '',
-      'apellido': (() {
-        final name = (user.displayName ?? '').trim();
-        if (name.isEmpty) return '';
-        final parts = name.split(RegExp(r'\s+'));
-        return parts.length > 1 ? parts.sublist(1).join(' ') : '';
-      })(),
       'email': user.email ?? '',
       'fotoUrl': user.photoURL ?? '',
       'lastLoginAt': FieldValue.serverTimestamp(),
@@ -189,7 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       // ✔ Ya registrado y completo → persistimos metadatos útiles
-      await _persistirDatosBasicos(user);
+      await _persistirMetadatos(user);
 
       // Seguridad: lockEnabled o pinEnabled + pinCode
       final bool lockEnabled = settings['lockEnabled'] == true;
@@ -335,6 +329,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               loading: _cargando,
                               onTap: _cargando ? null : _manejarLoginTrabajador,
                             ),
+
+                            // 👇 BOTÓN PREMIUM
+                            const SizedBox(height: 12),
+                            _aboutButton(context),
                           ],
                         ),
                       ),
@@ -396,6 +394,75 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // 👇 BOTÓN PREMIUM DEGRADADO + CONTRASTE OSCURO
+  Widget _aboutButton(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 110), // lo baja más
+      child: Center(
+        child: SizedBox(
+          width: 320,
+          height: 60,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF1E3A8A), // azul más oscuro
+                  Color(0xFF0F766E), // verde oscuro elegante
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 16,
+                  offset: Offset(0, 6),
+                ),
+              ],
+            ),
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SobreMiReciboScreen()),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent, // muestra el degradado
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    color: Colors.white,
+                    size: 28, // más grande
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Sobre Mi Recibo Business',
+                    style: TextStyle(
+                      fontSize: 19, // más grande
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
