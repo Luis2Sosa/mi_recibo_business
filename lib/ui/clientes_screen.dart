@@ -44,7 +44,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
   String _telefonoServidor = '';
 
   // ===== Filtro por chips =====
-  FiltroClientes _filtro = FiltroClientes.todos;
+  FiltroClientes _filtro = FiltroClientes.prestamos; // por defecto: Préstamos
 
   // ===== Intent de notificación: 'vencidos' | 'hoy' | 'pronto' =====
   String? _intent;
@@ -909,54 +909,40 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                     ),
                                   ),
 
-                                  // === Chips de filtro (tus chips se mantienen igual) ===
+                                  // === Chips premium de filtro (alineados en una fila) ===
                                   Padding(
-                                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-                                    child: Wrap(
-                                      spacing: 8,
+                                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        ChoiceChip(
-                                          label: const Text('Todos'),
-                                          selected: _filtro == FiltroClientes.todos,
-                                          onSelected: (_) => setState(() => _filtro = FiltroClientes.todos),
-                                          backgroundColor: Colors.white.withOpacity(0.85),
-                                          selectedColor: Colors.white,
-                                          side: const BorderSide(color: Color(0xFFE5E7EB)),
-                                          labelStyle: TextStyle(
-                                            color: _filtro == FiltroClientes.todos
-                                                ? const Color(0xFF2563EB)
-                                                : const Color(0xFF0F172A),
-                                            fontWeight: FontWeight.w600,
+                                        Expanded(
+                                          child: _filtroBoton(
+                                            label: 'Préstamos',
+                                            icon: Icons.request_quote_rounded,
+                                            activo: _filtro == FiltroClientes.prestamos,
+                                            onTap: () => setState(() => _filtro = FiltroClientes.prestamos),
+                                            gradiente: const [Color(0xFF2563EB), Color(0xFF1E40AF)],
                                           ),
                                         ),
-                                        ChoiceChip(
-                                          label: const Text('Pendientes'),
-                                          selected: _filtro == FiltroClientes.pendientes,
-                                          onSelected: (_) =>
-                                              setState(() => _filtro = FiltroClientes.pendientes),
-                                          backgroundColor: Colors.white.withOpacity(0.85),
-                                          selectedColor: Colors.white,
-                                          side: const BorderSide(color: Color(0xFFE5E7EB)),
-                                          labelStyle: TextStyle(
-                                            color: _filtro == FiltroClientes.pendientes
-                                                ? const Color(0xFF2563EB)
-                                                : const Color(0xFF0F172A),
-                                            fontWeight: FontWeight.w600,
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: _filtroBoton(
+                                            label: 'Productos',
+                                            icon: Icons.shopping_bag_rounded,
+                                            activo: _filtro == FiltroClientes.productos,
+                                            onTap: () => setState(() => _filtro = FiltroClientes.productos),
+                                            gradiente: const [Color(0xFF10B981), Color(0xFF047857)],
                                           ),
                                         ),
-                                        ChoiceChip(
-                                          label: const Text('Saldados'),
-                                          selected: _filtro == FiltroClientes.saldados,
-                                          onSelected: (_) =>
-                                              setState(() => _filtro = FiltroClientes.saldados),
-                                          backgroundColor: Colors.white.withOpacity(0.85),
-                                          selectedColor: Colors.white,
-                                          side: const BorderSide(color: Color(0xFFE5E7EB)),
-                                          labelStyle: TextStyle(
-                                              color: _filtro == FiltroClientes.saldados
-                                                  ? const Color(0xFF2563EB)
-                                                  : const Color(0xFF0F172A),
-                                              fontWeight: FontWeight.w600),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: _filtroBoton(
+                                            label: 'Alquiler',
+                                            icon: Icons.house_rounded,
+                                            activo: _filtro == FiltroClientes.alquiler,
+                                            onTap: () => setState(() => _filtro = FiltroClientes.alquiler),
+                                            gradiente: const [Color(0xFFF59E0B), Color(0xFFB45309)],
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -1081,15 +1067,38 @@ class _ClientesScreenState extends State<ClientesScreen> {
               c.telefono.contains(q);
         }).toList();
 
-        // Filtro por chips
+        // helper local para detectar alquiler/renta/vivienda
+        bool _esTextoAlquiler(String t) {
+          final p = t.toLowerCase();
+          return p.contains('alquiler') ||
+              p.contains('arriendo') ||
+              p.contains('renta') ||
+              p.contains('rent') ||
+              p.contains('lease') ||
+              p.contains('casa') ||
+              p.contains('apartamento') ||
+              p.contains('apto') ||
+              p.contains('estudio') ||
+              p.contains('aparta estudio') ||
+              p.contains('apartaestudio');
+        }
+
+// Filtro por chips (Préstamos / Productos / Alquiler)
         filtered = filtered.where((c) {
+          final prod = (c.producto ?? '').trim().toLowerCase();
+
           switch (_filtro) {
-            case FiltroClientes.todos:
-              return true;
-            case FiltroClientes.pendientes:
-              return c.saldoActual > 0;
-            case FiltroClientes.saldados:
-              return c.saldoActual <= 0;
+            case FiltroClientes.prestamos:
+            // préstamo = producto vacío
+              return prod.isEmpty;
+
+            case FiltroClientes.productos:
+            // cualquier producto escrito que NO sea alquiler
+              return prod.isNotEmpty && !_esTextoAlquiler(prod);
+
+            case FiltroClientes.alquiler:
+            // cualquier texto de alquiler/renta/casa/apto...
+              return _esTextoAlquiler(prod);
           }
         }).toList()
           ..sort(_compareClientes);
@@ -1341,7 +1350,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
   }
 }
 
-enum FiltroClientes { todos, pendientes, saldados }
+enum FiltroClientes { prestamos, productos, alquiler }
 enum _EstadoVenc { vencido, hoy, pronto, alDia }
 
 // ================= Tarjeta de cliente =================
@@ -1539,6 +1548,63 @@ class _ClienteCard extends StatelessWidget {
     }
   }
 
+  // === Widget reutilizable: botón de filtro premium ===
+  Widget _filtroBoton({
+    required String label,
+    required IconData icon,
+    required bool activo,
+    required VoidCallback onTap,
+    required List<Color> gradiente,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: activo
+              ? LinearGradient(colors: gradiente)
+              : const LinearGradient(
+            colors: [Colors.white, Color(0xFFF1F5F9)],
+          ),
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: [
+            if (activo)
+              BoxShadow(
+                color: gradiente.last.withOpacity(0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+          ],
+          border: Border.all(
+            color: activo ? Colors.transparent : const Color(0xFFE2E8F0),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: activo ? Colors.white : const Color(0xFF475569),
+              size: 18,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: activo ? Colors.white : const Color(0xFF1E293B),
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.3,
+                fontSize: 14.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final interesPeriodo = (cliente.saldoActual * (cliente.tasaInteres / 100)).round();
@@ -1667,6 +1733,69 @@ class _ClienteCard extends StatelessWidget {
   }
 }
 
+// === Widget reutilizable: botón de filtro premium (compacto) ===
+Widget _filtroBoton({
+  required String label,
+  required IconData icon,
+  required bool activo,
+  required VoidCallback onTap,
+  required List<Color> gradiente,
+}) {
+  return GestureDetector(
+    onTap: onTap,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      height: 44, // 🔹 misma altura para todos los botones
+      decoration: BoxDecoration(
+        gradient: activo
+            ? LinearGradient(colors: gradiente)
+            : const LinearGradient(colors: [Colors.white, Color(0xFFF1F5F9)]),
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: [
+          if (activo)
+            BoxShadow(
+              color: gradiente.last.withOpacity(0.4),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+        ],
+        border: Border.all(
+          color: activo ? Colors.transparent : const Color(0xFFE2E8F0),
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: activo ? Colors.white : const Color(0xFF475569),
+            size: 16, // ↓ icono más pequeño
+          ),
+          const SizedBox(width: 6), // ↓ menos espacio
+          // Flexible + FittedBox para que el texto nunca se desborde
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: TextStyle(
+                  color: activo ? Colors.white : const Color(0xFF1E293B),
+                  fontWeight: FontWeight.w900, // 🔹 más negrita, más fuerte visualmente
+                  letterSpacing: 0.2,
+                  fontSize: 16, // ↓ texto más pequeño
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _Cliente {
   final String id; // docId (interno)
   final String codigo; // código visible (CL-XXXXXX)
@@ -1699,3 +1828,5 @@ class _Cliente {
 
   String get nombreCompleto => '$nombre $apellido';
 }
+
+//hecho

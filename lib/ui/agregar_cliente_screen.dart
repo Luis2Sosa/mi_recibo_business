@@ -62,28 +62,35 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     if (p == null) return false;
     final t = p.toLowerCase().trim();
     if (t.isEmpty) return false;
+
     return t.contains('arriendo') ||
         t.contains('alquiler') ||
         t.contains('renta') ||
-        t.contains('rent') ||
-        t.contains('lease') ||
+        t.contains('casa') ||
         t.contains('apartamento') ||
-        t.contains('casa');
+        t.contains('apartaestudio') ||
+        t.contains('estudio');
   }
 
   void _syncInteresConProducto() {
     final txt = _productoCtrl.text.trim().toLowerCase();
+
     final tieneProducto = txt.isNotEmpty &&
         (txt.contains('arriendo') ||
             txt.contains('alquiler') ||
-            txt.contains('apartamento') ||
+            txt.contains('renta') ||
             txt.contains('casa') ||
+            txt.contains('apartamento') ||
+            txt.contains('apartaestudio') ||
+            txt.contains('estudio') ||
             txt.contains('producto'));
+
     if (tieneProducto) {
       if (_tasaCtrl.text.trim() != '0') {
         _tasaCtrl.text = '0';
       }
     }
+
     if (mounted) setState(() {});
   }
 
