@@ -13,6 +13,10 @@ class PagoFormScreen extends StatefulWidget {
   // ✅ NUEVO: true = es préstamo (muestra interés); false = producto/alquiler (sin interés)
   final bool esPrestamo;
 
+  // ✅ OPCIONALES (para la barra premium). No rompen llamadas existentes.
+  final String nombreCliente;   // se muestra a la izquierda (puede ir vacío)
+  final String producto;        // texto libre para detectar arriendo o producto (puede ir vacío)
+
   const PagoFormScreen({
     super.key,
     required this.saldoAnterior,
@@ -20,6 +24,8 @@ class PagoFormScreen extends StatefulWidget {
     required this.periodo,
     required this.proximaFecha,
     this.esPrestamo = true,
+    this.nombreCliente = '',
+    this.producto = '',
   });
 
   @override
@@ -127,8 +133,16 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
 
   DateTime _atNoon(DateTime d) => DateTime(d.year, d.month, d.day, 12);
 
-  DateTime _autoNext(String periodo, DateTime base) {
-    return base.add(Duration(days: periodo == 'Quincenal' ? 15 : 30));
+  // === Helper para detectar ARRIENDO por texto ===
+  bool _esArriendoDesdeTexto(String? p) {
+    if (p == null) return false;
+    final t = p.toLowerCase().trim();
+    if (t.isEmpty) return false;
+    return t.contains('alquiler') ||
+        t.contains('arriendo') ||
+        t.contains('renta') ||
+        t.contains('casa') ||
+        t.contains('apartamento');
   }
 
   @override
@@ -136,16 +150,33 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
     final kb = MediaQuery.of(context).viewInsets.bottom;
     final bool tecladoAbierto = kb > 0.0;
 
-    const double baseDown = 240.0;
+    final double baseDown = widget.esPrestamo ? 180.0 : 220.0; // sube el marco solo si es préstamo
     final double translateY = tecladoAbierto ? 30.0 : baseDown;
 
     final size = MediaQuery.of(context).size;
-    final double usableH = size.height - (tecladoAbierto ? kb : 0.0) - 24.0;
+    final double usableH = size.height - (tecladoAbierto ? kb : 0.0) - 8.0;
     final double maxCardH = tecladoAbierto ? 500.0 : 580.0;
     final double availableHeight = usableH.clamp(260.0, maxCardH);
+    // 👇 Ajuste de altura solo para préstamos (baja un poco el marco transparente)
+    final double adjustedHeight = widget.esPrestamo ? availableHeight + 30.0 : availableHeight;
     final double bottomPad = tecladoAbierto ? 12.0 : 0.0;
 
+    // 👇 NUEVO: control de scroll y “aire” extra cuando el teclado está abajo
+    final scrollPhysics = tecladoAbierto
+        ? const ClampingScrollPhysics()
+        : const NeverScrollableScrollPhysics();
+
+    // NUEVO: ajuste de altura y zona segura inferior
+    final double safeBottom = MediaQuery.of(context).padding.bottom;
+    final double extraBottomSafe = 0.0;
+
     final glassWhite = Colors.white.withOpacity(0.12);
+
+    // Etiqueta derecha (tipo)
+    final esArriendo = _esArriendoDesdeTexto(widget.producto);
+    final String tipoLabel = widget.esPrestamo
+        ? 'Préstamo'
+        : (esArriendo ? 'Arriendo' : 'Producto');
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -190,7 +221,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: SizedBox(
-                        height: availableHeight,
+                        height: adjustedHeight + 20, // 🔥 alarga el marco transparente 40px más
                         child: Container(
                           decoration: BoxDecoration(
                             color: glassWhite,
@@ -210,9 +241,10 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(28),
                             child: Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+                              // 👇 Aumento de padding inferior para que el botón no quede pegado
+                                padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
                               child: SingleChildScrollView(
-                                physics: const ClampingScrollPhysics(),
+                                physics: scrollPhysics, // 👈 sin scroll cuando el teclado está abajo
                                 padding: EdgeInsets.only(bottom: bottomPad),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
@@ -234,10 +266,12 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                     ),
                                     const SizedBox(height: 12),
 
+                                    // ======= CUADRO BLANCO PRINCIPAL =======
                                     Container(
+                                      clipBehavior: Clip.antiAlias,
                                       decoration: BoxDecoration(
                                         color: Colors.white,
-                                        borderRadius: BorderRadius.circular(18),
+                                        borderRadius: BorderRadius.circular(28),
                                         boxShadow: [
                                           BoxShadow(
                                             color: Colors.black.withOpacity(0.06),
@@ -249,10 +283,66 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                           color: const Color(0xFFE9EEF5),
                                         ),
                                       ),
-                                      padding: const EdgeInsets.all(14),
+                                      // 👇 más “aire” al fondo del cuadro blanco
+                                      padding: EdgeInsets.fromLTRB(14, 14, 14, 14 + extraBottomSafe),
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
+                                          // 🟨 Barra premium: izquierda nombre, derecha tipo
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 10),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFFFF7D1),
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: const Color(0xFFFDE68A),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                // Izquierda: Nombre (si viene)
+                                                Expanded(
+                                                  child: Text(
+                                                    (widget.nombreCliente).trim().isEmpty
+                                                        ? 'Cliente'
+                                                        : widget.nombreCliente,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 15.5,
+                                                      fontWeight: FontWeight.w800,
+                                                      color: const Color(0xFF0F172A),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                // Derecha: Tipo (Préstamo / Producto / Arriendo)
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(
+                                                      horizontal: 10, vertical: 6),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFFFEF3C7),
+                                                    borderRadius: BorderRadius.circular(999),
+                                                    border: Border.all(
+                                                      color: const Color(0xFFFDE68A),
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    tipoLabel,
+                                                    style: const TextStyle(
+                                                      fontSize: 13.5,
+                                                      fontWeight: FontWeight.w900,
+                                                      color: Color(0xFF78350F),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 12),
+
+                                          // ===== CONTENIDO ORIGINAL (sin cambios) =====
                                           _resumen('Saldo anterior', _formatCurrency(widget.saldoAnterior)),
                                           const SizedBox(height: 10),
 
@@ -279,17 +369,15 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                               ],
                                             ),
                                           ] else ...[
-                                            // Producto / Arriendo: SOLO un campo, como tu imagen
+                                            // Producto / Arriendo: SOLO un campo
                                             _campoValidado(
-                                              label: 'Pago capital', // 👈 texto como en la imagen
+                                              label: 'Pago capital',
                                               controller: _capitalCtrl,
                                               errorText: _errorCapital,
                                             ),
                                           ],
 
                                           const SizedBox(height: 12),
-                                          // ===== FIN DEL BLOQUE =====
-
                                           _resumen('Total pagado', _formatCurrency(_totalPagado)),
                                           const SizedBox(height: 6),
                                           _resumen('Saldo nuevo', _formatCurrency(_saldoNuevoConInteres)),

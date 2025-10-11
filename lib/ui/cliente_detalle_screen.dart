@@ -68,7 +68,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
   static const double _logoHeight = 350;
   static const double _logoTop = -80;
-  static const double _contentTop = 140;
+  static const double _contentTop = 150;
 
   late int _saldoActual;
   late DateTime _proximaFecha;
@@ -308,8 +308,10 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           tasaInteres: widget.tasaInteres,
           periodo: widget.periodo,
           proximaFecha: _proximaFecha,
-          esPrestamo: _esPrestamo
-        ),
+          esPrestamo: _esPrestamo,
+          nombreCliente: widget.nombreCompleto, // ← izquierda
+          producto: widget.producto,           // ← para decidir Producto/Arriendo
+        )
       ),
     );
     if (result == null) return;
@@ -1211,30 +1213,29 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                                   style: GoogleFonts.inter(fontSize: 15, height: 1.25),
                                                   children: [
                                                     TextSpan(
-                                                      text: (widget.producto.toLowerCase().contains('alquiler') ||
-                                                          widget.producto.toLowerCase().contains('arriendo') ||
-                                                          widget.producto.toLowerCase().contains('renta') ||
-                                                          widget.producto.toLowerCase().contains('casa') ||
-                                                          widget.producto.toLowerCase().contains('apartamento'))
-                                                          ? 'Alquiler: '
-                                                          : 'Producto: ',
-                                                      style: const TextStyle(
-                                                        fontWeight: FontWeight.w700,
-                                                        color: Color(0xFF6B7280),
-                                                      ),
-                                                    ),
-                                                    TextSpan(
-                                                      text: (widget.producto.toLowerCase().contains('alquiler') ||
-                                                          widget.producto.toLowerCase().contains('arriendo') ||
-                                                          widget.producto.toLowerCase().contains('renta') ||
-                                                          widget.producto.toLowerCase().contains('casa') ||
-                                                          widget.producto.toLowerCase().contains('apartamento'))
-                                                          ? 'Alquiler'
-                                                          : widget.producto,
-                                                      style: const TextStyle(
-                                                        fontWeight: FontWeight.w800,
-                                                        color: Color(0xFF0F172A),
-                                                      ),
+                                                      style: GoogleFonts.inter(fontSize: 15, height: 1.25),
+                                                      children: [
+                                                        TextSpan(
+                                                          text: (widget.producto.toLowerCase().contains('alquiler') ||
+                                                              widget.producto.toLowerCase().contains('arriendo') ||
+                                                              widget.producto.toLowerCase().contains('renta') ||
+                                                              widget.producto.toLowerCase().contains('casa') ||
+                                                              widget.producto.toLowerCase().contains('apartamento'))
+                                                              ? 'Arriendo: '
+                                                              : 'Producto: ',
+                                                          style: const TextStyle(
+                                                            fontWeight: FontWeight.w700,
+                                                            color: Color(0xFF6B7280),
+                                                          ),
+                                                        ),
+                                                        TextSpan(
+                                                          text: widget.producto, // 👈 muestra exactamente lo que escribiste
+                                                          style: const TextStyle(
+                                                            fontWeight: FontWeight.w800,
+                                                            color: Color(0xFF0F172A),
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ],
                                                 ),
