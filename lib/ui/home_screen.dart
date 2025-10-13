@@ -7,7 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mi_recibo/ui/sobre_mi_recibo_screen.dart';
 
 import 'prestamista_registro_screen.dart';
-import 'clientes_screen.dart';
+import 'clientes/clientes_screen.dart';
 import 'pin_screen.dart'; // Gate de PIN/huella
 
 class HomeScreen extends StatefulWidget {

@@ -1062,7 +1062,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                       ),
                                       const SizedBox(height: 8),
 
-                                      // Fila: Tel:
                                       Row(
                                         crossAxisAlignment: CrossAxisAlignment.center,
                                         children: [
@@ -1075,25 +1074,12 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                           ),
                                           const SizedBox(width: 10),
                                           Expanded(
-                                            child: RichText(
-                                              text: TextSpan(
-                                                style: GoogleFonts.inter(fontSize: 15, height: 1.25),
-                                                children: [
-                                                  const TextSpan(
-                                                    text: 'Tel: ',
-                                                    style: TextStyle(
-                                                      fontWeight: FontWeight.w700,
-                                                      color: Color(0xFF6B7280), // gris del label
-                                                    ),
-                                                  ),
-                                                  TextSpan(
-                                                    text: widget.telefono,
-                                                    style: const TextStyle(
-                                                      fontWeight: FontWeight.w800,
-                                                      color: Color(0xFF0F172A), // negro del valor
-                                                    ),
-                                                  ),
-                                                ],
+                                            child: Text(
+                                              widget.telefono,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                color: Color(0xFF0F172A),
+                                                fontSize: 15,
                                               ),
                                             ),
                                           ),
@@ -1115,25 +1101,12 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                             ),
                                             const SizedBox(width: 10),
                                             Expanded(
-                                              child: RichText(
-                                                text: TextSpan(
-                                                  style: GoogleFonts.inter(fontSize: 15, height: 1.25),
-                                                  children: [
-                                                    const TextSpan(
-                                                      text: 'Dirección: ',
-                                                      style: TextStyle(
-                                                        fontWeight: FontWeight.w700,
-                                                        color: Color(0xFF6B7280),
-                                                      ),
-                                                    ),
-                                                    TextSpan(
-                                                      text: widget.direccion!,
-                                                      style: const TextStyle(
-                                                        fontWeight: FontWeight.w800,
-                                                        color: Color(0xFF0F172A),
-                                                      ),
-                                                    ),
-                                                  ],
+                                              child: Text(
+                                                widget.direccion!,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Color(0xFF0F172A),
+                                                  fontSize: 15,
                                                 ),
                                               ),
                                             ),
@@ -1156,25 +1129,12 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                             ),
                                             const SizedBox(width: 10),
                                             Expanded(
-                                              child: RichText(
-                                                text: TextSpan(
-                                                  style: GoogleFonts.inter(fontSize: 15, height: 1.25),
-                                                  children: [
-                                                    const TextSpan(
-                                                      text: 'Nota: ',
-                                                      style: TextStyle(
-                                                        fontWeight: FontWeight.w700,
-                                                        color: Color(0xFF6B7280),
-                                                      ),
-                                                    ),
-                                                    TextSpan(
-                                                      text: _nota!,
-                                                      style: const TextStyle(
-                                                        fontWeight: FontWeight.w800,
-                                                        color: Color(0xFF0F172A),
-                                                      ),
-                                                    ),
-                                                  ],
+                                              child: Text(
+                                                _nota!,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Color(0xFF0F172A),
+                                                  fontSize: 15,
                                                 ),
                                               ),
                                             ),
@@ -1193,7 +1153,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                               child: Align(
                                                 alignment: Alignment.center,
                                                 child: Icon(
-                                                  // 👇 Si es alquiler/arriendo/renta/casa/apartamento → ícono de casa
+                                                  // 👇 Si es alquiler/arriendo/renta/casa/apartamento → ícono de casa, si no, bolsa
                                                   (widget.producto.toLowerCase().contains('alquiler') ||
                                                       widget.producto.toLowerCase().contains('arriendo') ||
                                                       widget.producto.toLowerCase().contains('renta') ||
@@ -1202,42 +1162,18 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                                       ? Icons.house_rounded
                                                       : Icons.shopping_bag_rounded,
                                                   size: 18,
-                                                  color: Color(0xFF7C3AED),
+                                                  color: const Color(0xFF7C3AED),
                                                 ),
                                               ),
                                             ),
                                             const SizedBox(width: 10),
                                             Expanded(
-                                              child: RichText(
-                                                text: TextSpan(
-                                                  style: GoogleFonts.inter(fontSize: 15, height: 1.25),
-                                                  children: [
-                                                    TextSpan(
-                                                      style: GoogleFonts.inter(fontSize: 15, height: 1.25),
-                                                      children: [
-                                                        TextSpan(
-                                                          text: (widget.producto.toLowerCase().contains('alquiler') ||
-                                                              widget.producto.toLowerCase().contains('arriendo') ||
-                                                              widget.producto.toLowerCase().contains('renta') ||
-                                                              widget.producto.toLowerCase().contains('casa') ||
-                                                              widget.producto.toLowerCase().contains('apartamento'))
-                                                              ? 'Arriendo: '
-                                                              : 'Producto: ',
-                                                          style: const TextStyle(
-                                                            fontWeight: FontWeight.w700,
-                                                            color: Color(0xFF6B7280),
-                                                          ),
-                                                        ),
-                                                        TextSpan(
-                                                          text: widget.producto, // 👈 muestra exactamente lo que escribiste
-                                                          style: const TextStyle(
-                                                            fontWeight: FontWeight.w800,
-                                                            color: Color(0xFF0F172A),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ],
+                                              child: Text(
+                                                widget.producto, // 👈 Solo muestra el nombre del producto sin "Producto:"
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Color(0xFF0F172A),
+                                                  fontSize: 15,
                                                 ),
                                               ),
                                             ),

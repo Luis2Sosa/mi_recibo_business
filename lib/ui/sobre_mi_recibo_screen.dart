@@ -26,10 +26,10 @@ class _HeaderTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    return const Text(
       'Sobre Mi Recibo Business',
       textAlign: TextAlign.center,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 28,
         fontWeight: FontWeight.w900,
         color: Colors.white,
@@ -50,14 +50,13 @@ class _Content extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: Container(
-        // Panel translúcido premium
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.10),
+          color: Colors.white.withOpacity(.16), // ↑ Más sólida
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withOpacity(.15)),
+          border: Border.all(color: Colors.white.withOpacity(.34)), // ↑ contraste
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(.22),
+              color: Colors.black.withOpacity(.25),
               blurRadius: 22,
               offset: const Offset(0, 12),
             ),
@@ -76,60 +75,131 @@ class _ScrollableBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: const [
-          _SectionTitle('Soy Negocio'),
-          SizedBox(height: 6),
+          _IntroPitch(),
+          SizedBox(height: 14),
+          _SectionDivider(),
+          SizedBox(height: 10),
 
-          // Prestamista / Fiador / Arrendador
-          _PremiumInfoCard(
-            delayMs: 0,
+          _SectionTitle('Rutas principales'),
+          SizedBox(height: 10),
+
+          // Tarjetas HALO
+          _HaloCard(
+            color: Color(0xFF2563EB), // Azul préstamo
             icon: Icons.request_quote_rounded,
-            title: 'Prestamista',
-            description:
-            'Gestiona préstamos con control de intereses, fechas de pago y renovaciones automáticas (mensual o quincenal). Envía recibos profesionales por WhatsApp y activa recordatorios inteligentes.',
+            title: 'Préstamo',
+            bullets: [
+              'Controla saldo, intereses y fechas (mensual, quincenal, semanal o diario).',
+              'Registra abonos y genera recibos profesionales listos para WhatsApp.',
+              'Recordatorios automáticos y renovaciones para no perder el control.',
+            ],
           ),
-          _PremiumInfoCard(
-            delayMs: 80,
-            icon: Icons.verified_user_rounded,
-            title: 'Fiador',
-            description:
-            'Lleva el control de fiados de productos o servicios. Organiza tu cartera, visualiza saldos por cliente y recibe alertas de vencimientos con historial claro y exportable.',
+          SizedBox(height: 10),
+          _HaloCard(
+            color: Color(0xFF22C55E), // Verde productos fiados
+            icon: Icons.shopping_bag_rounded,
+            title: 'Fiado = Productos a crédito',
+            bullets: [
+              '“Fiado” aquí significa productos entregados a crédito (celulares, electrodomésticos, repuestos, etc.).',
+              'Lleva el saldo pendiente y abonos con claridad por cliente.',
+              'Alertas de vencimiento y comprobantes listos para compartir por WhatsApp.',
+            ],
           ),
-          _PremiumInfoCard(
-            delayMs: 160,
+          SizedBox(height: 10),
+          _HaloCard(
+            color: Color(0xFFF59E0B), // Naranja alquiler
             icon: Icons.house_rounded,
-            title: 'Arrendador',
-            description:
-            'Administra alquileres de casas, apartamentos o locales. Controla renovaciones, monitorea pagos y notifica a tus inquilinos con mensajes listos para enviar.',
+            title: 'Arrendado = Alquiler',
+            bullets: [
+              'Administra alquileres de casas, apartamentos, locales o habitaciones.',
+              'Registra pagos mensuales y controla renovaciones automáticamente.',
+              'Envío de recordatorios cortos y efectivos; historial y contratos organizados.',
+            ],
           ),
 
           SizedBox(height: 18),
           _SectionDivider(),
+          SizedBox(height: 10),
 
-          SizedBox(height: 8),
-          _SectionTitle('Soy Trabajador Independiente'),
-          SizedBox(height: 6),
-
-          _PremiumInfoCard(
-            delayMs: 0,
+          _SectionTitle('Para profesionales'),
+          SizedBox(height: 10),
+          _HaloCard(
+            color: Color(0xFF111827), // Gris oscuro elegante
             icon: Icons.build_rounded,
-            title: 'Profesionales y freelancers',
-            description:
-            'Reposteros, plomeros, albañiles, peluqueros y más: crea cotizaciones elegantes, genera recibos en segundos y registra ingresos/gastos para llevar tu contabilidad simple.',
+            title: 'Soy Profesional (independientes y oficios)',
+            bullets: [
+              'Crea cotizaciones elegantes y genera recibos en segundos.',
+              'Registra ingresos/gastos de manera simple desde el móvil.',
+              'Comunicación directa con tus clientes por WhatsApp.',
+            ],
           ),
 
-          SizedBox(height: 24),
-          _FooterQuote(),
+          SizedBox(height: 22),
+          _BenefitsBlock(),
         ],
       ),
     );
   }
 }
 
-// =================== SECTION ELEMENTS ===================
+// =================== BLOQUES DE TEXTO ===================
+
+class _IntroPitch extends StatelessWidget {
+  const _IntroPitch();
+
+  @override
+  Widget build(BuildContext context) {
+    return _HaloIntroPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Text(
+            'Mi Recibo Business organiza tu cartera de clientes y registra pagos con claridad. '
+                'Genera recibos elegantes, envía recordatorios por WhatsApp y consulta historiales en segundos.\n\n'
+                'Importante: la app NO mueve dinero; es una herramienta de control y seguimiento pensada para el día a día.',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              height: 1.4,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HaloIntroPanel extends StatelessWidget {
+  final Widget child;
+  const _HaloIntroPanel({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.16), // ↑ Más fuerte
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(.34)), // ↑ contraste
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.25),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+// =================== SECCIÓN / DIVIDER ===================
 
 class _SectionTitle extends StatelessWidget {
   final String text;
@@ -144,6 +214,7 @@ class _SectionTitle extends StatelessWidget {
         fontWeight: FontWeight.w900,
         color: Colors.white,
         height: 1.1,
+        letterSpacing: .2,
       ),
     );
   }
@@ -160,12 +231,224 @@ class _SectionDivider extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.white.withOpacity(.10),
-            Colors.white.withOpacity(.04),
-            Colors.white.withOpacity(.10),
+            Colors.white.withOpacity(.16),
+            Colors.white.withOpacity(.08),
+            Colors.white.withOpacity(.16),
           ],
         ),
       ),
+    );
+  }
+}
+
+// =================== HALO CARD ===================
+
+class _HaloCard extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final String title;
+  final List<String> bullets;
+
+  const _HaloCard({
+    required this.color,
+    required this.icon,
+    required this.title,
+    required this.bullets,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = color.withOpacity(.30);
+    final border = color.withOpacity(.55);
+    final chipBg = color.withOpacity(.22);
+
+    return _FadeSlideIn(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(.15),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 8, right: 8),
+                    padding: const EdgeInsets.only(bottom: 6),
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(color: Color(0xFFE6ECF8), width: 1),
+                      ),
+                    ),
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                  for (final b in bullets) ...[
+                    _BulletLine(text: b, accent: color, chipBg: chipBg),
+                    const SizedBox(height: 6),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [color, color.withOpacity(.78)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withOpacity(.30),
+                    blurRadius: 14,
+                    offset: const Offset(0, 8),
+                  )
+                ],
+              ),
+              child: Icon(icon, color: Colors.white, size: 22),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BulletLine extends StatelessWidget {
+  final String text;
+  final Color accent;
+  final Color chipBg;
+
+  const _BulletLine({
+    required this.text,
+    required this.accent,
+    required this.chipBg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 18,
+          height: 18,
+          margin: const EdgeInsets.only(top: 3),
+          decoration: BoxDecoration(
+            color: chipBg,
+            shape: BoxShape.circle,
+            border: Border.all(color: accent.withOpacity(.38)),
+          ),
+          child: Icon(Icons.check_rounded, size: 14, color: accent),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 15.5,
+              height: 1.44,
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// =================== BENEFICIOS ===================
+
+class _BenefitsBlock extends StatelessWidget {
+  const _BenefitsBlock();
+
+  @override
+  Widget build(BuildContext context) {
+    return _HaloIntroPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          _BenefitRow(
+            icon: Icons.verified_rounded,
+            text:
+            'Recibos elegantes y consistentes con tu marca: compártelos por WhatsApp en un toque.',
+          ),
+          SizedBox(height: 10),
+          _BenefitRow(
+            icon: Icons.alarm_rounded,
+            text:
+            'Recordatorios por tipo (préstamo, productos fiados, alquiler) con mensajes claros.',
+          ),
+          SizedBox(height: 10),
+          _BenefitRow(
+            icon: Icons.analytics_rounded,
+            text:
+            'Historial por cliente, control de renovaciones y notificaciones diarias a las 9:00 a. m.',
+          ),
+          SizedBox(height: 12),
+          _FooterQuote(),
+        ],
+      ),
+    );
+  }
+}
+
+class _BenefitRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _BenefitRow({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: const BoxDecoration(
+            color: Colors.white24,
+            shape: BoxShape.circle,
+          ),
+          child: Center(child: Icon(icon, color: Colors.white, size: 18)),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 15.5,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -176,128 +459,20 @@ class _FooterQuote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(
-      'Más que un recibo, la herramienta inteligente que transforma tu trabajo.',
+      'Más que un recibo: la herramienta inteligente que transforma el trabajo diario en Latinoamérica.',
       textAlign: TextAlign.center,
       style: TextStyle(
-        color: Colors.white.withOpacity(.85),
+        color: Colors.white.withOpacity(.95),
         fontStyle: FontStyle.italic,
         fontSize: 13.5,
         height: 1.3,
+        fontWeight: FontWeight.w800,
       ),
     );
   }
 }
 
-// =================== PREMIUM CARD ===================
-
-class _PremiumInfoCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String description;
-  final int delayMs;
-
-  const _PremiumInfoCard({
-    required this.icon,
-    required this.title,
-    required this.description,
-    this.delayMs = 0,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _FadeSlideIn(
-      delayMs: delayMs,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          // Fondo con degradado MUY sutil para sensación premium
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white.withOpacity(.96),
-              Colors.white.withOpacity(.92),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFFE8ECF4)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(.08),
-              blurRadius: 16,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Icon chip circular con degradado corporativo
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppTheme.gradTop, AppTheme.gradBottom],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.gradTop.withOpacity(.28),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  )
-                ],
-              ),
-              child: Icon(icon, color: Colors.white, size: 26),
-            ),
-            const SizedBox(width: 14),
-            // Textos
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Título con subrayado sutil
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 6),
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(color: Color(0xFFE5EAF4), width: 1),
-                      ),
-                    ),
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0F172A),
-                        height: 1.2,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    description,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      height: 1.42,
-                      color: Color(0xFF475569),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// =================== ANIMACIÓN SUAVE ===================
+// =================== ANIMACIÓN ===================
 
 class _FadeSlideIn extends StatefulWidget {
   final Widget child;

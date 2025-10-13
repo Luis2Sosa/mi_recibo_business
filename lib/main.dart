@@ -7,10 +7,13 @@ import 'package:firebase_messaging/firebase_messaging.dart'; // 🔔 FCM
 
 import 'ui/home_screen.dart';
 import 'ui/theme/app_theme.dart';
-import 'ui/clientes_screen.dart'; // Perfil / Clientes
+import 'ui/clientes/clientes_screen.dart'; // Perfil / Clientes
 import 'ui/pin_screen.dart'; // Pantalla de PIN/biometría
 // 🔔 Notificaciones Plus
 import 'core/notifications_plus.dart';
+
+// ⬇️ IMPORTANTE: importa tu servicio de auto filtro (ajusta la ruta si lo guardaste en otro lugar/nombre)
+import 'ui/clientes/auto_filtro_service.dart';
 
 /// 🔔 Handler de mensajes en background/terminated
 @pragma('vm:entry-point')
@@ -165,8 +168,13 @@ class _StartGateState extends State<_StartGate> with WidgetsBindingObserver {
         _unlocked = true;
         // 🔔 Notificaciones Plus: app abierta sin PIN -> dispara recordatorios
         NotificationsPlus.onAppOpen(user.uid);
-        // Sin intención especial al entrar normal
-        _replace(const ClientesScreen());
+
+        // ⬇️ NUEVO: elegir pestaña inicial con AutoFiltroService (sin flicker)
+        final preferido = await AutoFiltroService.elegirFiltroPreferido();
+        _replace(
+          const ClientesScreen(),
+          args: {'initFiltro': preferido.toString().split('.').last}, // "prestamos" | "productos" | "alquiler"
+        );
         return;
       }
 
@@ -195,18 +203,28 @@ class _StartGateState extends State<_StartGate> with WidgetsBindingObserver {
       if (uid != null) {
         NotificationsPlus.onAppOpen(uid);
       }
-      _replace(const ClientesScreen());
+
+      // ⬇️ NUEVO: elegir pestaña inicial con AutoFiltroService (sin flicker)
+      final preferido = await AutoFiltroService.elegirFiltroPreferido();
+      _replace(
+        const ClientesScreen(),
+        args: {'initFiltro': preferido.toString().split('.').last},
+      );
     } else {
       _unlocked = false;
       _replace(const HomeScreen());
     }
   }
 
-  void _replace(Widget page) {
+  // ⬇️ NUEVO: acepta argumentos para pasárselos como RouteSettings
+  void _replace(Widget page, {Map<String, dynamic>? args}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => page),
+        MaterialPageRoute(
+          builder: (_) => page,
+          settings: RouteSettings(arguments: args),
+        ),
             (r) => false,
       );
       // (El setState para _checking=false es redundante aquí porque esta vista se reemplaza)

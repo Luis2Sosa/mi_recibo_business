@@ -1,13 +1,15 @@
+import 'dart:math' as MainSize;
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart'; // Formato moneda automático
+import 'package:intl/intl.dart';
 
 class HistorialScreen extends StatelessWidget {
   final String idCliente;
   final String nombreCliente;
-  final String? producto; // opcional
+  final String? producto; // opcional (decide estilo: préstamo/producto/alquiler)
 
   const HistorialScreen({
     super.key,
@@ -20,6 +22,23 @@ class HistorialScreen extends StatelessWidget {
   // Helpers
   // =======================
 
+  bool get _esPrestamo {
+    final p = (producto ?? '').trim().toLowerCase();
+    if (p.isEmpty) return true; // vacío = préstamo clásico
+    return p.contains('prest') || p.contains('crédito') || p.contains('credito') || p.contains('loan');
+  }
+
+  bool get _esAlquiler {
+    final p = (producto ?? '').trim().toLowerCase();
+    return p.contains('alqui') ||
+        p.contains('arriendo') ||
+        p.contains('renta') ||
+        p.contains('casa') ||
+        p.contains('apart');
+  }
+
+  bool get _esProducto => !_esPrestamo && !_esAlquiler;
+
   String _fmtFecha(DateTime d) {
     const meses = [
       'ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.',
@@ -28,18 +47,16 @@ class HistorialScreen extends StatelessWidget {
     return '${d.day} ${meses[d.month - 1]} ${d.year}';
   }
 
-  // ✅ moneda automática según país del dispositivo
+  // moneda automática según país del dispositivo
   String _rd(num v) {
-    final format = NumberFormat.simpleCurrency(
-      locale: Intl.getCurrentLocale(),
-    );
+    final format = NumberFormat.simpleCurrency(locale: Intl.getCurrentLocale());
     return format.format(v);
   }
 
   DateTime _parseFecha(dynamic ts) {
     if (ts is Timestamp) return ts.toDate();
     if (ts is DateTime) return ts;
-    return DateTime.now();
+    return DateTime.fromMillisecondsSinceEpoch(0); // muy vieja para ordenar
   }
 
   TextStyle get _titleStyle => GoogleFonts.playfairDisplay(
@@ -64,7 +81,8 @@ class HistorialScreen extends StatelessWidget {
         body: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
               colors: [Color(0xFF2458D6), Color(0xFF0A9A76)],
             ),
           ),
@@ -103,22 +121,32 @@ class HistorialScreen extends StatelessWidget {
       );
     }
 
-    final pagosQuery = FirebaseFirestore.instance
+    // 📌 NO usamos orderBy para no perder pagos que no tengan 'fecha'.
+    final pagosRef = FirebaseFirestore.instance
         .collection('prestamistas')
         .doc(uid)
         .collection('clientes')
         .doc(idCliente)
-        .collection('pagos')
-        .orderBy('fecha', descending: true)
-        .limit(300);
+        .collection('pagos');
 
     final double safeBottom = MediaQuery.of(context).padding.bottom;
+
+    // Paleta HALO suave por tipo
+    final Color colorMain = _esPrestamo
+        ? const Color(0xFF2563EB) // azul
+        : (_esAlquiler ? const Color(0xFFF59E0B) : const Color(0xFF22C55E)); // naranja : verde
+
+    final Color cardTint = colorMain.withOpacity(0.08);
+    final Color cardBorder = colorMain.withOpacity(0.22);
+    final Color chipBgLeft = colorMain.withOpacity(_esPrestamo ? 0.06 : 0.08);
+    final Color chipBorderLeft = colorMain.withOpacity(0.18);
 
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter, end: Alignment.bottomCenter,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [Color(0xFF2458D6), Color(0xFF0A9A76)],
           ),
         ),
@@ -182,71 +210,147 @@ class HistorialScreen extends StatelessWidget {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
+                                        // Encabezado (cliente + subtítulo por tipo)
                                         Padding(
                                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                nombreCliente,
-                                                style: const TextStyle(
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.w800,
-                                                ),
-                                              ),
-                                              if ((producto ?? '').trim().isNotEmpty) ...[
-                                                const SizedBox(height: 6),
-                                                Row(
-                                                  children: [
-                                                    const Icon(Icons.local_offer,
-                                                        color: Color(0xFF2563EB), size: 18),
-                                                    const SizedBox(width: 6),
-                                                    Flexible(
-                                                      child: Text(
-                                                        (producto ?? '').trim(),
-                                                        style: const TextStyle(
-                                                          fontSize: 14,
-                                                          color: Color(0xFF0F172A),
-                                                          fontWeight: FontWeight.w600,
+                                          child: Builder(
+                                            builder: (_) {
+                                              final p = (producto ?? '').trim();
+                                              final lower = p.toLowerCase();
+
+                                              final bool esAlquiler = lower.contains('alquiler') ||
+                                                  lower.contains('arriendo') ||
+                                                  lower.contains('renta') ||
+                                                  lower.contains('casa') ||
+                                                  lower.contains('apart');
+
+                                              final bool esPrestamo = p.isEmpty ||
+                                                  lower.contains('prest') ||
+                                                  lower.contains('crédit') ||
+                                                  lower.contains('credit') ||
+                                                  lower.contains('loan');
+
+                                              final String subtitulo = esPrestamo ? 'Préstamo' : p;
+
+                                              final IconData icono = esAlquiler
+                                                  ? Icons.house_rounded
+                                                  : (esPrestamo ? Icons.request_quote_rounded : Icons.shopping_bag_rounded);
+
+                                              final Color colorIcono = esAlquiler
+                                                  ? const Color(0xFFF59E0B)   // naranja alquiler
+                                                  : (esPrestamo ? const Color(0xFF2563EB) : const Color(0xFF22C55E)); // azul préstamo / verde producto
+
+                                              return Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    nombreCliente,
+                                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  Row(
+                                                    children: [
+                                                      Icon(icono, color: colorIcono, size: 18),
+                                                      const SizedBox(width: 6),
+                                                      Flexible(
+                                                        child: Text(
+                                                          subtitulo,
+                                                          style: const TextStyle(
+                                                            fontSize: 14,
+                                                            color: Color(0xFF0F172A),
+                                                            fontWeight: FontWeight.w600,
+                                                          ),
+                                                          overflow: TextOverflow.ellipsis,
                                                         ),
                                                       ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
-                                            ],
+                                                    ],
+                                                  ),
+                                                ],
+                                              );
+                                            },
                                           ),
                                         ),
                                         const Divider(height: 1, color: Color(0xFFE5E7EB)),
                                         Expanded(
                                           child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                                            stream: pagosQuery.snapshots(),
+                                            stream: pagosRef.snapshots(),
                                             builder: (context, snapshot) {
                                               if (snapshot.connectionState == ConnectionState.waiting) {
                                                 return const _LoadingList();
                                               }
                                               if (snapshot.hasError) {
-                                                return _ErrorState(
-                                                  onRetry: () => {},
-                                                );
+                                                return _ErrorState(onRetry: () {});
                                               }
 
-                                              final docs = snapshot.data?.docs ?? [];
-                                              if (docs.isEmpty) {
+                                              final raw = snapshot.data?.docs ?? [];
+
+                                              if (raw.isEmpty) {
                                                 return const _EmptyState();
                                               }
 
+                                              // Ordenar local por fecha (o createdAt si existe) descendente
+                                              final docs = [...raw]..sort((a, b) {
+                                                final ad = a.data();
+                                                final bd = b.data();
+                                                final af = _parseFecha(ad['fecha'] ?? ad['createdAt']);
+                                                final bf = _parseFecha(bd['fecha'] ?? bd['createdAt']);
+                                                return bf.compareTo(af);
+                                              });
+
                                               num sumInteres = 0;
                                               num sumCapital = 0;
+
+                                              // === Normalización de campos por pago ===
+                                              List<_PagoNorm> pagos = [];
                                               for (final e in docs) {
                                                 final d = e.data();
-                                                sumInteres += (d['pagoInteres'] as num?)?.toInt() ?? 0;
-                                                sumCapital += (d['pagoCapital'] as num?)?.toInt() ?? 0;
+
+                                                // Candidatos comunes en tus colecciones
+                                                int capital = (d['pagoCapital'] ??
+                                                    d['capital'] ??
+                                                    d['abonoCapital'] ??
+                                                    d['abono'] ??
+                                                    d['pago'] ??
+                                                    0) as int;
+
+                                                int? totalMaybe = (d['totalPagado'] ??
+                                                    d['monto'] ??
+                                                    d['pago']) as int?;
+                                                int interes = (d['pagoInteres'] ??
+                                                    d['interes']) as int? ??
+                                                    0;
+
+                                                if (totalMaybe == null) {
+                                                  // si no hay total explícito, suma capital+interés
+                                                  totalMaybe = capital + interes;
+                                                } else {
+                                                  // si hay total pero no hay interés, calcúlalo
+                                                  if (interes == 0 && totalMaybe > capital) {
+                                                    interes = totalMaybe - capital;
+                                                  }
+                                                }
+
+                                                // evita negativos por inconsistencias
+                                                if (interes < 0) interes = 0;
+
+                                                sumInteres += interes;
+                                                sumCapital += capital;
+
+                                                pagos.add(
+                                                  _PagoNorm(
+                                                    id: e.id,
+                                                    data: d,
+                                                    total: totalMaybe,
+                                                    interes: interes,
+                                                    capital: capital,
+                                                  ),
+                                                );
                                               }
 
-                                              return Column(
-                                                children: [
-                                                  Padding(
+                                              // Header de stats, según tipo
+                                              Widget stats() {
+                                                if (_esPrestamo) {
+                                                  return Padding(
                                                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                                                     child: Row(
                                                       children: [
@@ -254,7 +358,9 @@ class HistorialScreen extends StatelessWidget {
                                                           child: _ChipStat(
                                                             label: 'Intereses',
                                                             value: _rd(sumInteres),
-                                                            color: const Color(0xFF22C55E),
+                                                            bg: chipBgLeft,
+                                                            border: chipBorderLeft,
+                                                            valueColor: const Color(0xFF22C55E),
                                                           ),
                                                         ),
                                                         const SizedBox(width: 10),
@@ -262,47 +368,73 @@ class HistorialScreen extends StatelessWidget {
                                                           child: _ChipStat(
                                                             label: 'Capital',
                                                             value: _rd(sumCapital),
-                                                            color: const Color(0xFF2563EB),
+                                                            bg: const Color(0xFFF5F8FF),
+                                                            border: const Color(0xFFDDE7FF),
+                                                            valueColor: const Color(0xFF2563EB),
                                                           ),
                                                         ),
                                                       ],
                                                     ),
+                                                  );
+                                                }
+                                                // Producto / Alquiler → solo capital
+                                                return Padding(
+                                                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                                                  child: _ChipStat(
+                                                    label: 'Capital',
+                                                    value: _rd(sumCapital),
+                                                    bg: chipBgLeft,
+                                                    border: chipBorderLeft,
+                                                    valueColor: colorMain,
                                                   ),
+                                                );
+                                              }
+
+                                              return Column(
+                                                children: [
+                                                  stats(),
                                                   const Divider(height: 1, color: Color(0xFFE5E7EB)),
                                                   Expanded(
                                                     child: ListView.separated(
                                                       key: const PageStorageKey('historialPagosList'),
                                                       padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                                                      itemCount: docs.length,
+                                                      itemCount: pagos.length,
                                                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                                                       itemBuilder: (context, i) {
-                                                        final doc = docs[i];
-                                                        final d = doc.data();
-                                                        final fecha = _parseFecha(d['fecha']);
-                                                        final pagoInteres =
-                                                            (d['pagoInteres'] as num?)?.toInt() ?? 0;
-                                                        final pagoCapital =
-                                                            (d['pagoCapital'] as num?)?.toInt() ?? 0;
-                                                        final totalPagado = (d['totalPagado'] as num?)?.toInt() ??
-                                                            (pagoInteres + pagoCapital);
+                                                        final p = pagos[i];
+                                                        final d = p.data;
+                                                        final fecha = _parseFecha(d['fecha'] ?? d['createdAt']);
+
                                                         final saldoAnterior =
                                                             (d['saldoAnterior'] as num?)?.toInt() ?? 0;
                                                         final saldoNuevo =
                                                             (d['saldoNuevo'] as num?)?.toInt() ?? saldoAnterior;
 
                                                         final bool fechaPendiente =
-                                                            d['fecha'] == null || d['fecha'] is! Timestamp;
+                                                            (d['fecha'] == null && d['createdAt'] == null) ||
+                                                                (d['fecha'] != null && d['fecha'] is! Timestamp);
 
-                                                        return _PagoCard(
-                                                          key: ValueKey(doc.id),
+                                                        // Estética HALO suave por tipo
+                                                        return _PagoCardPremium(
+                                                          key: ValueKey(p.id),
                                                           fecha: _fmtFecha(fecha),
                                                           fechaPendiente: fechaPendiente,
-                                                          total: totalPagado,
-                                                          capital: pagoCapital,
-                                                          interes: pagoInteres,
+                                                          total: p.total,
+                                                          capital: p.capital,
+                                                          interes: p.interes,
                                                           saldoAntes: saldoAnterior,
                                                           saldoDespues: saldoNuevo,
                                                           rd: _rd,
+                                                          // estilo
+                                                          showInteres: _esPrestamo && p.interes > 0, // solo préstamo y si hay interés
+                                                          tint: cardTint,
+                                                          border: cardBorder,
+                                                          accent: colorMain,
+                                                          leadingIcon: _esAlquiler
+                                                              ? Icons.house_rounded
+                                                              : (_esPrestamo
+                                                              ? Icons.request_quote_rounded
+                                                              : Icons.shopping_bag_rounded),
                                                         );
                                                       },
                                                     ),
@@ -368,18 +500,42 @@ class HistorialScreen extends StatelessWidget {
 }
 
 // =======================
+// Modelo interno para normalizar pago
+// =======================
+
+class _PagoNorm {
+  final String id;
+  final Map<String, dynamic> data;
+  final int total;
+  final int interes;
+  final int capital;
+
+  _PagoNorm({
+    required this.id,
+    required this.data,
+    required this.total,
+    required this.interes,
+    required this.capital,
+  });
+}
+
+// =======================
 // Widgets auxiliares
 // =======================
 
 class _ChipStat extends StatelessWidget {
   final String label;
   final String value;
-  final Color color;
+  final Color bg;
+  final Color border;
+  final Color valueColor;
 
   const _ChipStat({
     required this.label,
     required this.value,
-    required this.color,
+    required this.bg,
+    required this.border,
+    required this.valueColor,
   });
 
   @override
@@ -387,9 +543,9 @@ class _ChipStat extends StatelessWidget {
     return Container(
       height: 72,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: bg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: border),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Center(
@@ -415,7 +571,7 @@ class _ChipStat extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: color,
+                color: valueColor,
                 fontWeight: FontWeight.w900,
                 fontSize: 16,
               ),
@@ -549,17 +705,23 @@ class _ShimmerCard extends StatelessWidget {
   }
 }
 
-class _PagoCard extends StatelessWidget {
+class _PagoCardPremium extends StatelessWidget {
   final String fecha;
   final bool fechaPendiente;
   final int total;
   final int capital;
-  final int interes;
+  final int interes; // se oculta si showInteres=false
   final int saldoAntes;
   final int saldoDespues;
   final String Function(num) rd;
 
-  const _PagoCard({
+  final bool showInteres;
+  final Color tint;   // fondo suave
+  final Color border; // borde suave
+  final Color accent; // color de marca por tipo
+  final IconData leadingIcon;
+
+  const _PagoCardPremium({
     super.key,
     required this.fecha,
     required this.fechaPendiente,
@@ -569,47 +731,51 @@ class _PagoCard extends StatelessWidget {
     required this.saldoAntes,
     required this.saldoDespues,
     required this.rd,
+    required this.showInteres,
+    required this.tint,
+    required this.border,
+    required this.accent,
+    required this.leadingIcon,
   });
 
   @override
   Widget build(BuildContext context) {
-    const azul = Color(0xFF2563EB);
-    const verde = Color(0xFF22C55E);
+    final verde = const Color(0xFF22C55E);
+    final azul = const Color(0xFF2563EB);
     final rojo = Colors.red.shade600;
     const ink = Color(0xFF0F172A);
 
     final bool saldoBaja = saldoDespues <= saldoAntes;
     final Color colorAntes = saldoAntes > 0 ? rojo : verde;
-    final Color colorDespues = saldoDespues == 0
-        ? verde
-        : (saldoBaja ? ink : rojo);
+    final Color colorDespues = saldoDespues == 0 ? verde : (saldoBaja ? ink : rojo);
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFF),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        color: tint,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 36,
             height: 36,
-            decoration: const BoxDecoration(
-              color: Color(0xFFEFF6FF),
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.12),
               shape: BoxShape.circle,
+              border: Border.all(color: accent.withOpacity(0.22)),
             ),
             alignment: Alignment.center,
-            child: const Icon(Icons.event_note, color: azul, size: 20),
+            child: Icon(leadingIcon, color: accent, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -635,7 +801,7 @@ class _PagoCard extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFFF3C7),
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: Color(0xFFFDE68A)),
+                                border: Border.all(color: const Color(0xFFFDE68A)),
                               ),
                               child: const Text(
                                 'pendiente de servidor',
@@ -652,33 +818,43 @@ class _PagoCard extends StatelessWidget {
                     ),
                     Text(
                       rd(total),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w900,
-                        color: azul,
+                        color: accent, // usa color del tipo
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 6),
+
+                // Interés (solo préstamos, solo si > 0)
+                if (showInteres) ...[
+                  Row(
+                    children: [
+                      const Text(
+                        'Interés: ',
+                        style: TextStyle(
+                          color: Color(0xFF16A34A),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        rd(interes),
+                        style: const TextStyle(
+                          color: Color(0xFF16A34A),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                ],
+
+                // Capital (siempre)
                 Row(
                   children: [
-                    const Text(
-                      'I: ',
-                      style: TextStyle(
-                        color: verde,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
                     Text(
-                      rd(interes),
-                      style: const TextStyle(
-                        color: verde,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'C: ',
+                      'Capital: ',
                       style: TextStyle(
                         color: azul,
                         fontWeight: FontWeight.w800,
@@ -686,50 +862,54 @@ class _PagoCard extends StatelessWidget {
                     ),
                     Text(
                       rd(capital),
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: azul,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Text(
-                      'Saldo: ',
-                      style: TextStyle(
-                        color: Colors.grey.shade800,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                const SizedBox(height: 4),
+
+                // Saldo (oculto si es alquiler)
+                if (leadingIcon != Icons.house_rounded) ...[
+                  Row(
+                    children: [
+                      Text(
+                        'Saldo: ',
+                        style: TextStyle(
+                          color: Colors.grey.shade800,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    Text(
-                      rd(saldoAntes),
-                      style: TextStyle(
-                        color: colorAntes,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                      Text(
+                        rd(saldoAntes),
+                        style: TextStyle(
+                          color: colorAntes,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    Text(
-                      '  →  ',
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                      Text(
+                        '  →  ',
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    Text(
-                      rd(saldoDespues),
-                      style: TextStyle(
-                        color: colorDespues,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
+                      Text(
+                        rd(saldoDespues),
+                        style: TextStyle(
+                          color: colorDespues,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
