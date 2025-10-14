@@ -276,6 +276,7 @@ String pesoSolo(int v) => '\$ ${NumberFormat("#,##0", "en_US").format(v)}';
 /// PANTALLA
 /// =======================================
 class ReciboScreen extends StatefulWidget {
+  final int moraCobrada; // 👈 NUEVO
   final String empresa;
   final String servidor;
   final String telefonoServidor;
@@ -294,6 +295,7 @@ class ReciboScreen extends StatefulWidget {
 
   final ReciboUIConfig config;
   final double tasaInteres;
+
 
   const ReciboScreen({
     super.key,
@@ -314,6 +316,7 @@ class ReciboScreen extends StatefulWidget {
     required this.proximaFecha,
     this.config = const ReciboUIConfig(),
     required this.tasaInteres,
+    this.moraCobrada = 0, // 👈 NUEVO: valor por defecto 0
   });
 
   @override
@@ -588,6 +591,7 @@ class _ReciboScreenState extends State<ReciboScreen> {
                             proximaFecha: widget.proximaFecha,
                             fmtFecha: _fmtFecha,
                             tasaInteres: widget.tasaInteres,
+                            moraCobrada: widget.moraCobrada, // 👈 NUEVO
                           ),
                         ),
                       ),
@@ -739,6 +743,7 @@ class MontoGrande extends StatelessWidget {
 /// ===============================
 class _ReceiptContent extends StatelessWidget {
   final ReciboUIConfig cfg;
+  final int moraCobrada; // 👈 NUEVO
   final double tasaInteres;
 
   final String empresa;
@@ -779,6 +784,7 @@ class _ReceiptContent extends StatelessWidget {
     required this.proximaFecha,
     required this.fmtFecha,
     required this.tasaInteres,
+    this.moraCobrada = 0, // 👈 NUEVO
   });
 
   @override
@@ -998,6 +1004,29 @@ class _ReceiptContent extends StatelessWidget {
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 4),
+
+                        // === MOSTRAR MONTO PAGADO Y MORA COBRADA CUANDO SE SALDA ===
+                        const SizedBox(height: 6),
+                        _rowIcon(
+                          Icons.attach_money_rounded,
+                          esArriendo
+                              ? 'Pago de arriendo'
+                              : (esProducto ? 'Pago de producto' : 'Pago realizado'),
+                          pesoSolo(totalPagado),
+                          iconBg: const Color(0xFFFFF7ED),
+                          iconColor: const Color(0xFFB45309),
+                        ),
+                        if (moraCobrada > 0) ...[
+                          const SizedBox(height: 6),
+                          _rowIcon(
+                            Icons.local_fire_department_rounded,
+                            'Mora cobrada',
+                            pesoSolo(moraCobrada),
+                            iconBg: const Color(0xFFFFEBEE),
+                            iconColor: const Color(0xFFE11D48),
+                          ),
+                        ],
+
                         Text(
                           esArriendo
                               ? 'Gracias por ponerte al día con tu alquiler.'
@@ -1020,6 +1049,18 @@ class _ReceiptContent extends StatelessWidget {
                             iconBg: const Color(0xFFFFFAE6),
                             iconColor: const Color(0xFF92400E),
                           ),
+
+                          if (moraCobrada > 0) ...[
+                            const SizedBox(height: 6),
+                            _rowIcon(
+                              Icons.local_fire_department_rounded,
+                              'Mora cobrada',
+                              pesoSolo(moraCobrada),
+                              iconBg: const Color(0xFFFFEBEE),
+                              iconColor: const Color(0xFFE11D48),
+                            ),
+                          ],
+
                           Divider(height: 14, thickness: 1, color: cfg.mintDivider),
                           _rowIcon(
                             Icons.request_quote_rounded,
@@ -1038,6 +1079,19 @@ class _ReceiptContent extends StatelessWidget {
                             iconBg: const Color(0xFFF3F0FF),
                             iconColor: const Color(0xFF6D28D9),
                           ),
+
+
+                          if (moraCobrada > 0) ...[
+                            const SizedBox(height: 6),
+                            _rowIcon(
+                              Icons.local_fire_department_rounded,
+                              'Mora cobrada',
+                              pesoSolo(moraCobrada),
+                              iconBg: const Color(0xFFFFEBEE),
+                              iconColor: const Color(0xFFE11D48),
+                            ),
+                          ],
+
                           Divider(height: 14, thickness: 1, color: cfg.mintDivider),
                           _rowIcon(
                             Icons.request_quote_rounded,

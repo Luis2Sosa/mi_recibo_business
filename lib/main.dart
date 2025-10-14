@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart'; // 🌍 localización
 import 'package:firebase_core/firebase_core.dart'; // Firebase Core
 import 'package:firebase_auth/firebase_auth.dart'; // 👈 para saber si hay sesión
 import 'package:cloud_firestore/cloud_firestore.dart'; // 🔐 leer settings lockEnabled
 import 'package:firebase_messaging/firebase_messaging.dart'; // 🔔 FCM
+import 'package:connectivity_plus/connectivity_plus.dart'; // 🔄 detectar conexión
 
 import 'ui/home_screen.dart';
 import 'ui/theme/app_theme.dart';
@@ -26,11 +28,21 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
-  // 🔔 FCM básico (background)
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  await _setupFCM(); // registra token + handlers
+  // ✅ Cache/persistencia offline de Firestore
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  );
 
+  // 🔔 Handler de background (esto no bloquea)
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // ⬅️ ARRANCA YA LA UI (no bloquear el primer frame)
   runApp(const MiReciboApp());
+
+  // 🔧 Configura FCM y la sync offline DESPUÉS, sin bloquear el arranque
+  Future.microtask(_setupFCM);
+  Future.microtask(SyncOfflinePagos.iniciar);
 }
 
 class MiReciboApp extends StatelessWidget {
@@ -115,8 +127,8 @@ class _StartGateState extends State<_StartGate> with WidgetsBindingObserver {
   final _db = FirebaseFirestore.instance;
 
   bool _checking = true;
-  bool _unlocked = false;     // si ya se desbloqueó esta sesión en foreground
-  bool _lockEnabled = false;  // configuración leída del perfil
+  bool _unlocked = false; // si ya se desbloqueó esta sesión en foreground
+  bool _lockEnabled = false; // configuración leída del perfil
 
   @override
   void initState() {
@@ -141,14 +153,35 @@ class _StartGateState extends State<_StartGate> with WidgetsBindingObserver {
     }
   }
 
+  // ⬇️ OFFLINE-FRIENDLY: caché primero, luego servidor con timeout, y fallback
   Future<Map<String, dynamic>> _readSettings(User user) async {
-    final snap = await _db.collection('prestamistas').doc(user.uid).get();
-    final data = snap.data() ?? {};
-    final settings = (data['settings'] as Map?) ?? {};
-    return {
-      // 👇 único switch que gobierna bloqueo por PIN/biometría
-      'lockEnabled': settings['lockEnabled'] == true,
-    };
+    // 1) Intentar desde caché (instantáneo si existe)
+    try {
+      final snap = await _db
+          .collection('prestamistas')
+          .doc(user.uid)
+          .get(const GetOptions(source: Source.cache));
+      final data = snap.data() ?? {};
+      final settings = (data['settings'] as Map?) ?? {};
+      return {'lockEnabled': settings['lockEnabled'] == true};
+    } catch (_) {
+      // sigue al server si falla
+    }
+
+    // 2) Fallback a servidor con timeout corto (no tranca el splash)
+    try {
+      final snap = await _db
+          .collection('prestamistas')
+          .doc(user.uid)
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 4));
+      final data = snap.data() ?? {};
+      final settings = (data['settings'] as Map?) ?? {};
+      return {'lockEnabled': settings['lockEnabled'] == true};
+    } catch (_) {
+      // 3) Sin red / timeout: no bloquees la app
+      return {'lockEnabled': false};
+    }
   }
 
   Future<void> _routeAccordingToState() async {
@@ -310,10 +343,10 @@ Future<void> _setupFCM() async {
   // Foreground: muestra banner premium usando tu messengerKey (sin tocar otros archivos)
   FirebaseMessaging.onMessage.listen((msg) {
     final title = msg.notification?.title?.trim();
-    final body  = msg.notification?.body?.trim();
+    final body = msg.notification?.body?.trim();
     final parts = <String>[];
     if (title != null && title.isNotEmpty) parts.add(title);
-    if (body  != null && body .isNotEmpty) parts.add(body);
+    if (body != null && body.isNotEmpty) parts.add(body);
     final text = parts.join(' · ');
 
     final messenger = NotificationsPlus.messengerKey.currentState;
@@ -374,4 +407,60 @@ Future<void> _setupFCM() async {
       _writeFcmToken(u.uid);
     }
   });
+}
+
+// ===================================================
+// 🔄 SINCRONIZACIÓN AUTOMÁTICA DE PAGOS OFFLINE
+// ===================================================
+class SyncOfflinePagos {
+  static StreamSubscription<ConnectivityResult>? _sub;
+
+  static void iniciar() {
+    // Se ejecuta cada vez que cambia el estado de red
+    final subscription = Connectivity().onConnectivityChanged.listen((result) async {
+      if (result != ConnectivityResult.none) {
+        await _sincronizarPendientes();
+      }
+    });
+
+    _sub = subscription as StreamSubscription<ConnectivityResult>;
+  }
+
+  static Future<void> _sincronizarPendientes() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final db = FirebaseFirestore.instance;
+
+    try {
+      final clientesSnap = await db
+          .collection('prestamistas')
+          .doc(user.uid)
+          .collection('clientes')
+          .get();
+
+      for (final clienteDoc in clientesSnap.docs) {
+        final pagosSnap = await clienteDoc.reference
+            .collection('pagos')
+            .where('pendienteSync', isEqualTo: true)
+            .get();
+
+        for (final pago in pagosSnap.docs) {
+          // Marca el pago como sincronizado
+          await pago.reference.update({
+            'pendienteSync': false,
+            'fecha': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      debugPrint('✅ Pagos offline sincronizados correctamente');
+    } catch (e) {
+      debugPrint('⚠️ Error sincronizando pagos offline: $e');
+    }
+  }
+
+  static void detener() {
+    _sub?.cancel();
+  }
 }

@@ -117,6 +117,7 @@ class ProductosScreen extends StatelessWidget {
             proximaFecha: (data['proximaFecha'] is Timestamp)
                 ? (data['proximaFecha'] as Timestamp).toDate()
                 : DateTime.now(),
+            mora: data['mora'] as Map<String, dynamic>?, // 👈 ÚNICA LÍNEA NUEVA
           );
         }).toList();
 

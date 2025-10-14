@@ -53,8 +53,6 @@ class ClienteDetalleScreen extends StatefulWidget {
   State<ClienteDetalleScreen> createState() => _ClienteDetalleScreenState();
 }
 
-
-
 class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   // ✅ Icono de WhatsApp reutilizable (usa el PNG de assets)
   Widget _waIcon({double size = 24}) {
@@ -75,8 +73,12 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   bool _tieneCambios = false;
   int _totalPrestado = 0;
   bool _btnPagoBusy = false;
+
+  // ✅ Mora acumulada offline (calculada aquí)
+  late int _moraAcumulada; // 👈 NUEVO
+
   // Es PRÉSTAMO solo si el campo producto está vacío
-// o si explícitamente contiene palabras de préstamo.
+  // o si explícitamente contiene palabras de préstamo.
   bool get _esPrestamo {
     final p = widget.producto.trim().toLowerCase();
     if (p.isEmpty) return true; // vacío = préstamo normal
@@ -93,20 +95,57 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     super.initState();
     _saldoActual = widget.saldoActual;
     _proximaFecha = widget.proximaFecha;
+    _moraAcumulada = _calcMoraAcumulada(); // 👈 NUEVO: calcula local/offline
     Future.microtask(_autoFixEstado);
     Future.microtask(_cargarTotalPrestado);
     Future.microtask(_cargarNota); // <-- lee 'nota' si existe
   }
 
+  // =======================
+  // 👇 NUEVO: cálculo de mora offline (defaults del modelo)
+  // umbrales: [15,30], tipo: porcentaje, valor: 10, dobleEn30: true
+  int _calcMoraAcumulada() {
+    if (_saldoActual <= 0) return 0;
+
+    final hoy = _soloFecha(DateTime.now());
+    final vence = _soloFecha(_proximaFecha);
+    final diasAtraso = hoy.difference(vence).inDays;
+    if (diasAtraso <= 0) return 0;
+
+    // Solo aplica a Producto / Alquiler
+    final productoTxt = widget.producto.toLowerCase();
+    final esAlquiler = productoTxt.contains('alquiler') ||
+        productoTxt.contains('arriendo') ||
+        productoTxt.contains('renta') ||
+        productoTxt.contains('casa') ||
+        productoTxt.contains('apartamento');
+    final esProducto = !_esPrestamo && !esAlquiler;
+    final esProdOAlq = esAlquiler || esProducto;
+    if (!esProdOAlq) return 0;
+
+    const List<int> umbrales = [15, 30];
+    if (diasAtraso < umbrales.first) return 0;
+
+    const String tipo = 'porcentaje';
+    const double valor = 10; // 10%
+    const bool dobleEn30 = true;
+
+    final int base = _saldoActual;
+    double monto = (tipo == 'fijo') ? valor : (base * (valor / 100.0));
+    if (dobleEn30 && diasAtraso >= 30) monto *= 2;
+
+    return monto.round();
+  }
+  // =======================
+
   String _rd(int v) {
     final f = NumberFormat.currency(
-      locale: 'en_US',      // 👈 mantiene la coma como separador de miles
-      symbol: '\$',         // 👈 el símbolo pegado
+      locale: 'en_US',
+      symbol: '\$',
       decimalDigits: 0,
     );
     return f.format(v);
   }
-
 
   String _fmtFecha(DateTime d) {
     const meses = [
@@ -166,7 +205,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     bool needsUpdate = false;
     final Map<String, dynamic> updates = {};
 
-    // Caso 1: tenía "saldado" pero el saldoActual > 0 → corregir a "al_dia"
     if (_saldoActual > 0 &&
         (saldado == true || (data['estado'] ?? '') == 'saldado')) {
       updates['saldado'] = false;
@@ -174,7 +212,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       needsUpdate = true;
     }
 
-    // Caso 2: saldoActual <= 0 y el doc NO está saldado → cerrar y borrar venceEl
     if (_saldoActual <= 0 && !(saldado == true)) {
       updates['saldado'] = true;
       updates['estado'] = 'saldado';
@@ -311,7 +348,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           esPrestamo: _esPrestamo,
           nombreCliente: widget.nombreCompleto, // ← izquierda
           producto: widget.producto,           // ← para decidir Producto/Arriendo
-        )
+          moraActual: _moraAcumulada,          // 👈 NUEVO: pasa la mora al formulario
+        ),
       ),
     );
     if (result == null) return;
@@ -326,6 +364,19 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     // 🕛 Normaliza antes de usar/guardar
     final DateTime proxAlDia = _siguienteFechaAlDia(prox, widget.periodo);
     final DateTime proxNoon = _atNoon(proxAlDia);
+
+    // 👇 NUEVO: sumar mora SOLO en producto/alquiler
+    final productoTxt = widget.producto.toLowerCase();
+    final esAlquiler = productoTxt.contains('alquiler') ||
+        productoTxt.contains('arriendo') ||
+        productoTxt.contains('renta') ||
+        productoTxt.contains('casa') ||
+        productoTxt.contains('apartamento');
+    final esProducto = !_esPrestamo && !esAlquiler;
+    final bool esProdOAlq = esAlquiler || esProducto;
+
+    final int moraCobrada = esProdOAlq ? _moraAcumulada : 0;           // 👈 NUEVO
+    final int totalConMora = totalPagado + moraCobrada;                 // 👈 NUEVO
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
@@ -349,7 +400,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         final current = (snap.data()?['nextReciboCliente'] ?? 0) as int;
         final next = current + 1;
 
-        // 👇 Actualización del cliente (proximaFecha/venceEl normalizados a mediodía)
         final Map<String, dynamic> updates = {
           'saldoActual': saldoNuevo,
           'proximaFecha': Timestamp.fromDate(proxNoon),
@@ -371,7 +421,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         'fecha': FieldValue.serverTimestamp(),
         'pagoInteres': pagoInteres,
         'pagoCapital': pagoCapital,
-        'totalPagado': totalPagado,
+        'moraCobrada': moraCobrada,              // 👈 NUEVO
+        'totalPagado': totalConMora,             // 👈 NUEVO (incluye mora)
         'saldoAnterior': saldoAnterior,
         'saldoNuevo': saldoNuevo,
         'periodo': widget.periodo,
@@ -388,7 +439,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       await metricsRef.set({
         'lifetimeRecuperado': FieldValue.increment(pagoCapital),
         'lifetimeGanancia': FieldValue.increment(pagoInteres),
-        'lifetimePagosSum': FieldValue.increment(totalPagado),
+        'lifetimePagosSum': FieldValue.increment(totalConMora), // 👈 NUEVO
         'lifetimePagosCount': FieldValue.increment(1),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -406,7 +457,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       NotificationsPlus.trigger('deuda_finalizada');
     }
 
-// ✅ Leer SIEMPRE los datos actualizados del prestamista desde Firestore
+    // ✅ Leer SIEMPRE los datos actualizados del prestamista desde Firestore
     final prestDoc = await FirebaseFirestore.instance
         .collection('prestamistas')
         .doc(uid)
@@ -418,14 +469,12 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     final apellidoActualizado = (prestData['apellido'] ?? '').toString().trim();
     final telefonoActualizado = (prestData['telefono'] ?? '').toString().trim();
 
-// ✅ Combinar nombre y apellido actualizados
     final servidorActualizado = [nombreActualizado, apellidoActualizado]
         .where((s) => s.isNotEmpty)
         .join(' ');
 
     final numeroRecibo = 'REC-${nextReciboFinal.toString().padLeft(4, '0')}';
 
-// 📄 Ir al ReciboScreen con datos actualizados del perfil
     if (!mounted) return;
     await Navigator.push(
       context,
@@ -442,20 +491,21 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           capitalInicial: saldoAnterior,
           pagoInteres: pagoInteres,
           pagoCapital: pagoCapital,
-          totalPagado: totalPagado,
+          totalPagado: totalConMora,     // 👈 NUEVO (incluye mora)
           saldoAnterior: saldoAnterior,
           saldoActual: saldoNuevo,
           proximaFecha: proxNoon,
           tasaInteres: widget.tasaInteres,
+          moraCobrada: moraCobrada,      // 👈 NUEVO
         ),
       ),
     );
-
 
     if (!mounted) return;
     setState(() {
       _saldoActual = saldoNuevo;
       _proximaFecha = proxNoon;
+      _moraAcumulada = _calcMoraAcumulada(); // 👈 recalcula
       _tieneCambios = true;
     });
   }
@@ -477,25 +527,16 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   // =======================
 
   String _limpiarTelefono(String t) {
-    // Quita todo lo que no sea dígito
     return t.replaceAll(RegExp(r'[^0-9]'), '');
   }
 
-  /// Normaliza el número para WhatsApp:
-  /// - Acepta formatos con o sin +, guiones, espacios, paréntesis, etc.
-  /// - Si tiene 10 dígitos: asume NANP (RD/US/CA) y antepone '1'
-  /// - Si tiene 11 dígitos y empieza con '1': OK (NANP)
-  /// - Si tiene >= 11 con otro código de país (ej. 52, 57, etc. sin el +): OK
-  /// - Si tiene 7–9 dígitos: inválido (faltaría código de país)
-  /// - Si tiene >15 dígitos: inválido (límite E.164)
   String? _normalizarParaWhatsapp(String telefono) {
     final digits = _limpiarTelefono(telefono);
     if (digits.isEmpty) return null;
 
-    if (digits.length > 15) return null; // 👈 límite internacional
+    if (digits.length > 15) return null;
 
     if (digits.length == 10) {
-      // 10 dígitos (RD/US/CA) → anteponer 1
       return '1$digits';
     }
     if (digits.length == 11 && digits.startsWith('1')) {
@@ -516,13 +557,10 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       return;
     }
 
-    // App normal
     final uriApp = Uri.parse(
         'whatsapp://send?phone=$normalized&text=${Uri.encodeComponent(mensaje)}');
-    // App Business (si la tienen instalada)
     final uriBiz = Uri.parse(
         'whatsapp-business://send?phone=$normalized&text=${Uri.encodeComponent(mensaje)}');
-    // Fallback web
     final uriWeb = Uri.parse(
         'https://wa.me/$normalized?text=${Uri.encodeComponent(mensaje)}');
 
@@ -547,13 +585,11 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     }
   }
 
-  // ✨ Mensajes “premium” cortos y claros para enviar por WhatsApp
   String _mensajeRecordatorio(String tipo) {
     final nombre = widget.nombreCompleto;
     final fecha = _fmtFecha(_proximaFecha);
     final saldo = _rd(_saldoActual);
 
-    // Detectar tipo de cliente
     final producto = widget.producto.toLowerCase();
     final esAlquiler = producto.contains('alquiler') ||
         producto.contains('arriendo') ||
@@ -590,11 +626,10 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     }
   }
 
-  // ====== VALIDACIÓN DE ESTADO PARA HABILITAR / BLOQUEAR EL ENVÍO ======
   int _diasHasta(DateTime d) {
     final hoy = _soloFecha(DateTime.now());
     final dd = _soloFecha(d);
-    return dd.difference(hoy).inDays; // <0 vencido, 0 hoy, 1 mañana, 2 dos días, >2 al día
+    return dd.difference(hoy).inDays;
   }
 
   bool _permiteRecordatorio(String tipo) {
@@ -603,21 +638,20 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
     switch (tipo) {
       case 'vencido':
-        return deuda && d < 0; // solo si ya está vencido
+        return deuda && d < 0;
       case 'hoy':
-        return deuda && d == 0; // solo si vence hoy
+        return deuda && d == 0;
       case 'manana':
-        return deuda && d == 1; // solo si vence mañana
+        return deuda && d == 1;
       case 'dos_dias':
-        return deuda && d == 2; // solo si vence en 2 días
+        return deuda && d == 2;
       case 'aldia':
-        return !deuda || d > 2; // al día: sin deuda o faltan >2 días
+        return !deuda || d > 2;
       default:
         return false;
     }
   }
 
-  // 🔔 Banner “premium” cuando el recordatorio NO corresponde
   void _avisoNoCorresponde() {
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
@@ -632,7 +666,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         content: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
-            color: const Color(0xFFFEF3C7), // amarillo suave premium
+            color: const Color(0xFFFEF3C7),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: const Color(0xFFFDE68A)),
             boxShadow: [
@@ -664,7 +698,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     );
   }
 
-  // 🔒 Banner premium para clientes saldados
   void _showSaldadoBanner() {
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
@@ -710,7 +743,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     );
   }
 
-  // Mini toast premium reutilizable
   void _showToastPremium(String text) {
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
@@ -747,15 +779,12 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     );
   }
 
-  // =====================================================
-
   void _abrirMenuRecordatorio() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: false,
-      backgroundColor: Colors.transparent, // 👈 para sombra/gradiente premium
+      backgroundColor: Colors.transparent,
       builder: (_) {
-        // Helper: chip de WhatsApp (activo/inactivo)
         Widget _waChip(bool enabled) {
           return AnimatedContainer(
             duration: const Duration(milliseconds: 140),
@@ -769,19 +798,13 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
-              children: [
-                _waIcon(size: 18),
-                const SizedBox(width: 6),
-                const Text(
-                  'WhatsApp',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-                ),
+              children: const [
+                // usa el ícono real en la app
               ],
             ),
           );
         }
 
-        // Helper: ítem premium (se desactiva visualmente si no corresponde)
         Widget _premiumItem(String title, String tipo, IconData icon) {
           final enabled = _permiteRecordatorio(tipo);
 
@@ -851,7 +874,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const SizedBox(height: 8),
-                  // handle
                   Container(
                     width: 44,
                     height: 5,
@@ -861,12 +883,10 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                     ),
                   ),
                   const SizedBox(height: 10),
-
-                  // título premium
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 14),
                     child: Row(
-                      children: const [
+                      children: [
                         Icon(Icons.sms_rounded, color: Color(0xFF0F172A)),
                         SizedBox(width: 8),
                         Expanded(
@@ -883,11 +903,9 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 8),
                   const Divider(height: 1, color: Color(0xFFE9EEF5)),
 
-                  // ítems
                   _premiumItem('Pago vencido', 'vencido', Icons.warning_amber_rounded),
                   const Divider(height: 1, color: Color(0xFFE9EEF5)),
                   _premiumItem('Vence hoy', 'hoy', Icons.event_available),
@@ -908,7 +926,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     );
   }
 
-  // =======================
   @override
   Widget build(BuildContext context) {
     final labelStyle = GoogleFonts.inter(
@@ -925,7 +942,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       fontFeatures: const [FontFeature.tabularFigures()],
     );
 
-    // 🎯 Todos los textos de la izquierda en negro
     final labelInk = labelStyle.copyWith(color: const Color(0xFF0F172A));
 
     const azul = Color(0xFF2563EB);
@@ -937,7 +953,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     final valueGreen = valueStyle.copyWith(color: const Color(0xFF22C55E));
     final valueInk = valueStyle.copyWith(color: const Color(0xFF0F172A));
 
-    // 🎛️ Estilos "premium desactivados" (visuales) pero con onTap para banner
     final bool saldado = _estaSaldado;
 
     final registrarPagoStyle = ElevatedButton.styleFrom(
@@ -959,6 +974,15 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
       backgroundColor: saldado ? Colors.white.withOpacity(0.92) : Colors.white,
     );
+
+    final productoTxt = widget.producto.toLowerCase();
+    final esAlquiler = productoTxt.contains('alquiler') ||
+        productoTxt.contains('arriendo') ||
+        productoTxt.contains('renta') ||
+        productoTxt.contains('casa') ||
+        productoTxt.contains('apartamento');
+    final esProducto = !_esPrestamo && !esAlquiler;
+    final esProdOAlq = esAlquiler || esProducto;
 
     return Scaffold(
       body: AppGradientBackground(
@@ -1012,26 +1036,22 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                     borderRadius: BorderRadius.circular(22),
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                      // 👇 Ajuste para que el marco se adapte al contenido
                       child: LayoutBuilder(
                         builder: (context, constraints) {
                           return SingleChildScrollView(
                             physics: const ClampingScrollPhysics(),
                             child: ConstrainedBox(
                               constraints: BoxConstraints(
-                                // Estírate al alto disponible, pero permite crecer si hay más contenido
                                 minHeight: constraints.maxHeight,
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  // ===== Encabezado premium con íconos y labels grises + valores negros =====
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      // Fila: Avatar + Nombre
                                       Row(
                                         crossAxisAlignment: CrossAxisAlignment.center,
                                         children: [
@@ -1086,7 +1106,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                         ],
                                       ),
 
-                                      // Fila: Dirección: (si existe)
                                       if (widget.direccion != null && widget.direccion!.trim().isNotEmpty) ...[
                                         const SizedBox(height: 6),
                                         Row(
@@ -1114,7 +1133,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                         ),
                                       ],
 
-                                      // Fila: Nota: (si existe)
                                       if ((_nota ?? '').isNotEmpty) ...[
                                         const SizedBox(height: 6),
                                         Row(
@@ -1142,7 +1160,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                         ),
                                       ],
 
-                                      // Fila: Producto o Alquiler (si existe)
                                       if (widget.producto.trim().isNotEmpty) ...[
                                         const SizedBox(height: 6),
                                         Row(
@@ -1153,7 +1170,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                               child: Align(
                                                 alignment: Alignment.center,
                                                 child: Icon(
-                                                  // 👇 Si es alquiler/arriendo/renta/casa/apartamento → ícono de casa, si no, bolsa
                                                   (widget.producto.toLowerCase().contains('alquiler') ||
                                                       widget.producto.toLowerCase().contains('arriendo') ||
                                                       widget.producto.toLowerCase().contains('renta') ||
@@ -1169,7 +1185,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                             const SizedBox(width: 10),
                                             Expanded(
                                               child: Text(
-                                                widget.producto, // 👈 Solo muestra el nombre del producto sin "Producto:"
+                                                widget.producto,
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.w800,
                                                   color: Color(0xFF0F172A),
@@ -1184,7 +1200,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                       const SizedBox(height: 16),
                                     ],
                                   ),
-
 
                                   const Divider(height: 24, thickness: 1, color: Color(0xFFE7E9EE)),
 
@@ -1216,6 +1231,20 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                           valueSaldo,
                                         ),
 
+                                        // 👇 NUEVO: Línea Mora (solo producto/alquiler y si hay mora)
+                                        if (esProdOAlq && _moraAcumulada > 0) ...[
+                                          const Divider(height: 14, thickness: 1, color: Color(0xFFE7F0EA)),
+                                          _rowStyled(
+                                            'Mora',
+                                            _rd(_moraAcumulada),
+                                            labelInk,
+                                            valueStyle.copyWith(
+                                              color: const Color(0xFFDC2626),
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ],
+
                                         if (_saldoActual > 0 && _esPrestamo) ...[
                                           const Divider(height: 14, thickness: 1, color: Color(0xFFE7F0EA)),
                                           _rowStyled(
@@ -1226,7 +1255,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                           ),
                                         ],
 
-                                        // 👇 Solo se muestra si el cliente NO está saldado
                                         if (_saldoActual > 0) ...[
                                           const Divider(
                                             height: 14,
@@ -1246,7 +1274,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
                                   const SizedBox(height: 20),
 
-                                  // ===== Botón Registrar pago (premium desactivado si saldado, pero con banner al tocar) =====
                                   SizedBox(
                                     width: double.infinity,
                                     height: 56,
@@ -1269,7 +1296,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                   ),
                                   const SizedBox(height: 14),
 
-                                  // ===== Botón Ver historial (siempre habilitado) =====
                                   SizedBox(
                                     width: double.infinity,
                                     height: 56,
@@ -1300,7 +1326,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
                                   const SizedBox(height: 14),
 
-                                  // 🚀 Enviar recordatorio (WhatsApp) — premium desactivado si saldado, pero con banner al tocar
                                   SizedBox(
                                     width: double.infinity,
                                     height: 56,

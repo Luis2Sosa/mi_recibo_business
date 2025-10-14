@@ -1005,11 +1005,11 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 _showBanner('📆 $cHoy clientes vencen hoy.', color: const Color(0xFFFB923C));
               } else {
                 if (!hayClientes && !_esRecienRegistrado) {
-                  _showBanner('Aún no has agregado clientes.', color: const Color(0xFFEFFBF3));
+                  _showBanner('Aún no has agregado clientes.', color: const Color(0xFF417CDE));
                 } else if (hayClientes && !hayActivos) {
-                  _showBanner('No tienes clientes activos.', color: const Color(0xFFEFFBF3));
+                  _showBanner('No tienes clientes activos.', color: const Color(0xFF417CDE));
                 } else if (hayClientes && hayActivos) {
-                  _showBanner('✅ Nadie vence hoy.', color: const Color(0xFFEFFBF3));
+                  _showBanner('✅ Nadie vence hoy.', color: const Color(0xFF417CDE));
                 }
               }
             } else if (_intent == 'pronto') {

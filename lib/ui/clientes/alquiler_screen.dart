@@ -122,6 +122,7 @@ class AlquilerScreen extends StatelessWidget {
             proximaFecha: (data['proximaFecha'] is Timestamp)
                 ? (data['proximaFecha'] as Timestamp).toDate()
                 : DateTime.now(),
+            mora: data['mora'] as Map<String, dynamic>?, // 👈 ÚNICA LÍNEA NUEVA
           );
         }).toList();
 
@@ -154,32 +155,12 @@ class AlquilerScreen extends StatelessWidget {
             return GestureDetector(
               onTap: () => onTapCliente(c, codigoCorto),
               onLongPress: () => onLongPressCliente(c),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClienteCard(
-                    cliente: c,
-                    estado: estado,
-                    diasHasta: _diasHasta(c.proximaFecha),
-                    resaltar: resaltarVencimientos,
-                    codigoCorto: codigoCorto,
-                  ),
-
-                  // 👇 Mostrar mora solo si existe
-                  if (c.moraAcumulada > 0) const SizedBox(height: 4),
-                  if (c.moraAcumulada > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 16, bottom: 8),
-                      child: Text(
-                        'Mora: \$${c.moraAcumulada}',
-                        style: const TextStyle(
-                          color: Colors.amber,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                ],
+              child: ClienteCard(
+                cliente: c,
+                estado: estado,
+                diasHasta: _diasHasta(c.proximaFecha),
+                resaltar: resaltarVencimientos,
+                codigoCorto: codigoCorto,
               ),
             );
           },

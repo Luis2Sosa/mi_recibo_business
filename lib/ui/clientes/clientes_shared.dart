@@ -6,14 +6,12 @@ import 'package:flutter/material.dart';
 /// =====================
 /// ENUMS GLOBALES
 /// =====================
-
 enum FiltroClientes { prestamos, productos, alquiler }
 enum EstadoVenc { vencido, hoy, pronto, alDia }
 
 /// =====================
 /// MODELO DE CLIENTE
 /// =====================
-
 class Cliente {
   final String id;
   final String codigo; // Ejemplo: CL-XXXX
@@ -28,7 +26,7 @@ class Cliente {
   final double tasaInteres;
   final String periodo;
   final DateTime proximaFecha;
-  final Map<String, dynamic>? mora;  // 👈 NUEVO
+  final Map<String, dynamic>? mora; // 👈 NUEVO
 
   Cliente({
     required this.id,
@@ -44,12 +42,12 @@ class Cliente {
     required this.tasaInteres,
     required this.periodo,
     required this.proximaFecha,
-    this.mora
+    this.mora,
   });
 
   String get nombreCompleto => '$nombre $apellido';
 
-  // 👇 El getter DEBE estar dentro de la clase, antes de cerrar con "}"
+  /// ✅ Mora calculada localmente (sin internet)
   int get moraAcumulada {
     final cfg = mora;
     if (cfg == null) return 0;
@@ -69,19 +67,16 @@ class Cliente {
     final bool dobleEn30 = (cfg['dobleEn30'] ?? true) as bool;
 
     final int base = saldoActual > 0 ? saldoActual : capitalInicial;
-
     double monto = (tipo == 'fijo') ? valor : (base * (valor / 100.0));
     if (dobleEn30 && diasAtraso >= 30) monto *= 2;
 
     return monto.round();
   }
-} // 👈 aquí recién se cierra la clase
-
+}
 
 /// =====================
 /// WIDGET CLIENTE CARD
 /// =====================
-
 class ClienteCard extends StatelessWidget {
   final Cliente cliente;
   final EstadoVenc estado;
@@ -184,8 +179,26 @@ class ClienteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final interesPeriodo = (cliente.saldoActual * (cliente.tasaInteres / 100)).round();
-    final saldoConInteres = cliente.saldoActual + interesPeriodo;
+    // ✅ Detectar tipo de cliente por el campo producto
+    final prod = (cliente.producto ?? '').trim().toLowerCase();
+    final bool esAlquiler =
+        prod.contains('alquiler') || prod.contains('arriendo') || prod.contains('renta');
+    final bool esProducto = prod.isNotEmpty && !esAlquiler; // cualquier otro texto ≈ producto
+    final bool esPrestamo = prod.isEmpty; // sin producto ⇒ préstamo
+
+    // Interés solo aplica a préstamos
+    final int interesPeriodo = esPrestamo
+        ? (cliente.saldoActual * (cliente.tasaInteres / 100)).round()
+        : 0;
+
+    // Monto grande:
+    // - préstamo: saldo + interés
+    // - producto/alquiler: solo saldo
+    final int montoPrincipal = cliente.saldoActual + interesPeriodo;
+
+    // Mora (solo para producto o alquiler)
+    final bool tieneMora =
+        cliente.saldoActual > 0 && (esProducto || esAlquiler) && cliente.moraAcumulada > 0;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -255,7 +268,7 @@ class ClienteCard extends StatelessWidget {
                         ),
                       ),
                       _chip(
-                        _moneda(saldoConInteres),
+                        _moneda(montoPrincipal),
                         pad: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                         bg: const Color(0xFFF4FAF7),
                         border: const Color(0xFFDDE7E1),
@@ -267,7 +280,9 @@ class ClienteCard extends StatelessWidget {
                       ),
                     ],
                   ),
+
                   const SizedBox(height: 10),
+
                   Row(
                     children: [
                       _chip(
@@ -281,16 +296,40 @@ class ClienteCard extends StatelessWidget {
                         iconColor: const Color(0xFF334155),
                       ),
                       const Spacer(),
-                      _chip(
-                        _moneda(interesPeriodo),
-                        bg: const Color(0xFFF1F5FF),
-                        border: const Color(0xFFDCE7FF),
-                        fg: const Color(0xFF1D4ED8),
-                        fs: 13,
-                        fw: FontWeight.w800,
-                        icon: Icons.trending_up_rounded,
-                        iconColor: const Color(0xFF1D4ED8),
-                      ),
+                      if (cliente.saldoActual > 0) // ocultar si ya está saldado
+                        if (tieneMora)
+                          _chip(
+                            _moneda(cliente.moraAcumulada),
+                            bg: const Color(0xFFFFF7ED),
+                            border: const Color(0xFFFECACA),
+                            fg: const Color(0xFFB91C1C),
+                            fs: 13,
+                            fw: FontWeight.w900,
+                            icon: Icons.warning_amber_rounded,
+                            iconColor: const Color(0xFFB91C1C),
+                          )
+                        else if (esPrestamo)
+                          _chip(
+                            _moneda(interesPeriodo),
+                            bg: const Color(0xFFF1F5FF),
+                            border: const Color(0xFFDCE7FF),
+                            fg: const Color(0xFF1D4ED8),
+                            fs: 13,
+                            fw: FontWeight.w800,
+                            icon: Icons.trending_up_rounded,
+                            iconColor: const Color(0xFF1D4ED8),
+                          )
+                        else
+                          _chip(
+                            _moneda(0),
+                            bg: const Color(0xFFF1F5FF),
+                            border: const Color(0xFFE5E7EB),
+                            fg: const Color(0xFF64748B),
+                            fs: 13,
+                            fw: FontWeight.w800,
+                            icon: Icons.trending_up_rounded,
+                            iconColor: const Color(0xFF64748B),
+                          ),
                     ],
                   ),
                 ],

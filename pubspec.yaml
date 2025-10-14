@@ -44,6 +44,9 @@ dependencies:
   # 🌍 Formato de moneda y localización automática
   intl: any
 
+  # 🔄 Detección de conexión a internet
+  connectivity_plus: ^6.0.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

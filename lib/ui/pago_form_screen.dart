@@ -9,13 +9,13 @@ class PagoFormScreen extends StatefulWidget {
   final double tasaInteres;     // %
   final String periodo;         // Mensual | Quincenal
   final DateTime proximaFecha;  // sugerida (solo referencia visual, no se usa automática)
-
   // ✅ NUEVO: true = es préstamo (muestra interés); false = producto/alquiler (sin interés)
   final bool esPrestamo;
-
   // ✅ OPCIONALES (para la barra premium). No rompen llamadas existentes.
   final String nombreCliente;   // se muestra a la izquierda (puede ir vacío)
   final String producto;        // texto libre para detectar arriendo o producto (puede ir vacío)
+  // 👇 Monto de mora vigente al momento de cobrar (solo productos/alquiler)
+  final int moraActual;
 
   const PagoFormScreen({
     super.key,
@@ -26,6 +26,7 @@ class PagoFormScreen extends StatefulWidget {
     this.esPrestamo = true,
     this.nombreCliente = '',
     this.producto = '',
+    this.moraActual = 0,
   });
 
   @override
@@ -47,7 +48,12 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   int get _interesMax =>
       widget.esPrestamo ? (widget.saldoAnterior * (widget.tasaInteres / 100)).round() : 0;
 
-  int get _totalPagado => _pagoInteres + _pagoCapital;
+  int get _totalPagado {
+    final base = _pagoCapital + (widget.esPrestamo ? _pagoInteres : 0);
+// 👇 si no es préstamo (producto/alquiler), trata la mora como interés
+    final moraComoInteres = (!widget.esPrestamo && widget.moraActual > 0) ? widget.moraActual : 0;
+    return base + moraComoInteres;
+  }
 
   int get _saldoNuevo {
     final n = widget.saldoAnterior - _pagoCapital;
@@ -242,7 +248,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                             borderRadius: BorderRadius.circular(28),
                             child: Padding(
                               // 👇 Aumento de padding inferior para que el botón no quede pegado
-                                padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+                              padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
                               child: SingleChildScrollView(
                                 physics: scrollPhysics, // 👈 sin scroll cuando el teclado está abajo
                                 padding: EdgeInsets.only(bottom: bottomPad),
@@ -345,6 +351,10 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                           // ===== CONTENIDO ORIGINAL (sin cambios) =====
                                           _resumen('Saldo anterior', _formatCurrency(widget.saldoAnterior)),
                                           const SizedBox(height: 10),
+                                          if (!widget.esPrestamo && widget.moraActual > 0) ...[
+                                            _resumen('Mora vigente', _formatCurrency(widget.moraActual)),
+                                            const SizedBox(height: 10),
+                                          ],
 
                                           if (widget.esPrestamo) ...[
                                             _resumen('Interés ${widget.periodo.toLowerCase()}', _formatCurrency(_interesMax)),
@@ -478,6 +488,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                   'pagoInteres': widget.esPrestamo ? _pagoInteres : 0,
                                                   'pagoCapital': _pagoCapital,
                                                   'totalPagado': _totalPagado,
+                                                  'moraCobrada': (!widget.esPrestamo && widget.moraActual > 0) ? widget.moraActual : 0,
                                                   'saldoAnterior': widget.saldoAnterior,
                                                   'saldoNuevo': _saldoNuevo,
                                                   'proximaFecha': _proxima,

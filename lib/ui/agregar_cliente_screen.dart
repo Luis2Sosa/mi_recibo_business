@@ -556,7 +556,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                 ),
 
                 // === Mora (solo en Alquiler) — colapsable ===
-                if (_esAlquiler) ...[
+                if (_esAlquiler || _esProducto) ...[
                   const SizedBox(height: 14),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -840,9 +840,9 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
         .doc(uid)
         .collection('clientes');
 
-    // Config mora (solo alquiler y si está activada)
+    // Config mora (Alquiler o Productos) si está activada
     Map<String, dynamic>? moraCfg;
-    if (_esAlquiler && _moraEnabled) {
+    if ((_esAlquiler || _esProducto) && _moraEnabled) {
       final umbrales = <int>[
         if (_mora15) 15,
         if (_mora30) 30,
@@ -850,7 +850,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
       moraCfg = {
         'tipo': _moraTipo,            // 'porcentaje' | 'fijo'
         'valor': _moraValor,          // double
-        'umbralesDias': umbrales,     // [15,30]
+        'umbralesDias': umbrales,     // p.ej. [15,30]
         'dobleEn30': true,            // a los 30 días se cobra doble
       };
     }
@@ -885,6 +885,8 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
           'proximaFecha': Timestamp.fromDate(proximaDate),
           'updatedAt': FieldValue.serverTimestamp(),
           'mora': moraCfg, // null para otros módulos o si está desactivada
+          'esFiado': _esProducto && _moraEnabled,
+
         };
 
         await col.doc(docId).set(update, SetOptions(merge: true));
@@ -924,6 +926,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
           'updatedAt': FieldValue.serverTimestamp(),
           'mora': moraCfg,
           'moraAplicadaEnDias': <int>[], // para evitar aplicar dos veces el mismo umbral
+          'esFiado': _esProducto && _moraEnabled,
         });
 
         // Métricas
