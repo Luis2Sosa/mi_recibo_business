@@ -492,6 +492,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                   'saldoAnterior': widget.saldoAnterior,
                                                   'saldoNuevo': _saldoNuevo,
                                                   'proximaFecha': _proxima,
+                                                  'moraCobrada': widget.moraActual, // 👈 agrega esta línea
                                                 });
                                                 if (mounted) setState(() => _btnContinuarBusy = false);
                                               }

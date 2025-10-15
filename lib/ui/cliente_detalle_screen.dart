@@ -14,6 +14,8 @@ import '../core/notifications_plus.dart';
 // 📲 Envíos por WhatsApp (Bloque 3)
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:firebase_auth/firebase_auth.dart';
+
 class ClienteDetalleScreen extends StatefulWidget {
   // --------- Datos del cliente ---------
   final String id;
@@ -348,141 +350,83 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           esPrestamo: _esPrestamo,
           nombreCliente: widget.nombreCompleto, // ← izquierda
           producto: widget.producto,           // ← para decidir Producto/Arriendo
-          moraActual: _moraAcumulada,          // 👈 NUEVO: pasa la mora al formulario
+          moraActual: _moraAcumulada,          // 👈 pasa la mora al formulario
         ),
       ),
     );
     if (result == null) return;
 
-    final int pagoInteres = result['pagoInteres'] as int? ?? 0;
-    final int pagoCapital = result['pagoCapital'] as int? ?? 0;
-    final int totalPagado = result['totalPagado'] as int? ?? (pagoInteres + pagoCapital);
-    final int saldoAnterior = result['saldoAnterior'] as int? ?? _saldoActual;
-    final int saldoNuevo = result['saldoNuevo'] as int? ?? _saldoActual;
-    final DateTime prox = result['proximaFecha'] as DateTime? ?? _proximaFecha;
+    final int pagoInteres   = result['pagoInteres']   as int? ?? 0;
+    final int pagoCapital   = result['pagoCapital']   as int? ?? 0;
+    final int totalPagado   = result['totalPagado']   as int? ?? (pagoInteres + pagoCapital);
+    final int saldoAnterior = result['salvoAnterior'] as int? ?? result['saldoAnterior'] as int? ?? _saldoActual;
+    final int saldoNuevo    = result['saldoNuevo']    as int? ?? _saldoActual;
+    final DateTime prox     = result['proximaFecha']  as DateTime? ?? _proximaFecha;
 
     // 🕛 Normaliza antes de usar/guardar
     final DateTime proxAlDia = _siguienteFechaAlDia(prox, widget.periodo);
-    final DateTime proxNoon = _atNoon(proxAlDia);
+    final DateTime proxNoon  = _atNoon(proxAlDia);
 
-    // 👇 NUEVO: sumar mora SOLO en producto/alquiler
-    final productoTxt = widget.producto.toLowerCase();
-    final esAlquiler = productoTxt.contains('alquiler') ||
-        productoTxt.contains('arriendo') ||
-        productoTxt.contains('renta') ||
-        productoTxt.contains('casa') ||
-        productoTxt.contains('apartamento');
+    // 👇 Sumar mora SOLO en producto/alquiler (si hay)
+    final txt = widget.producto.toLowerCase();
+    final esAlquiler = txt.contains('alquiler') || txt.contains('arriendo') || txt.contains('renta') || txt.contains('casa') || txt.contains('apartamento');
     final esProducto = !_esPrestamo && !esAlquiler;
     final bool esProdOAlq = esAlquiler || esProducto;
 
-    final int moraCobrada = esProdOAlq ? _moraAcumulada : 0;           // 👈 NUEVO
-    final int totalConMora = totalPagado + moraCobrada;                 // 👈 NUEVO
+    // 1) Usar el valor que vino del form si lo hay; si no, usa la mora local
+    final int moraCobrada = (result['moraCobrada'] as int?) ?? (esProdOAlq ? _moraAcumulada : 0);
+    final int totalConMora = totalPagado + moraCobrada;
 
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sesión expirada. Inicia sesión de nuevo.')),
-      );
-      return;
-    }
+    // ✅ 2) ABRIR SIEMPRE EL RECIBO (OFFLINE/ONLINE)
+    //    Navegamos primero (optimista). Guardaremos después.
+    //    Leer perfil actualizado si hay internet, si no, usar los que llegaron al screen.
+    String empresa = widget.empresa;
+    String servidor = widget.servidor;
+    String telefonoServidor = widget.telefonoServidor;
 
-    final clienteRef = FirebaseFirestore.instance
-        .collection('prestamistas')
-        .doc(uid)
-        .collection('clientes')
-        .doc(widget.id);
-
-    int nextReciboFinal = 1;
     try {
-      await FirebaseFirestore.instance.runTransaction((tx) async {
-        final snap = await tx.get(clienteRef);
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final prestDoc = await FirebaseFirestore.instance.collection('prestamistas').doc(uid).get();
+        final data = prestDoc.data() ?? {};
+        final nombre = (data['nombre'] ?? '').toString().trim();
+        final apellido = (data['apellido'] ?? '').toString().trim();
+        empresa = (data['empresa'] ?? empresa).toString().trim().isEmpty ? empresa : (data['empresa'] ?? empresa).toString().trim();
+        servidor = [nombre, apellido].where((s) => s.isNotEmpty).join(' ').trim().isEmpty ? servidor : [nombre, apellido].where((s) => s.isNotEmpty).join(' ');
+        final tel = (data['telefono'] ?? '').toString().trim();
+        telefonoServidor = tel.isNotEmpty ? tel : telefonoServidor;
+      }
+    } catch (_) {
+      // sin internet → mantenemos los valores que ya tenemos
+    }
+
+    // Generar correlativo local y nro de recibo (si no hay internet, hacemos uno temporal local)
+    int nextReciboLocal = 1;
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final ref = FirebaseFirestore.instance
+            .collection('prestamistas').doc(uid)
+            .collection('clientes').doc(widget.id);
+        final snap = await ref.get();
         final current = (snap.data()?['nextReciboCliente'] ?? 0) as int;
-        final next = current + 1;
-
-        final Map<String, dynamic> updates = {
-          'saldoActual': saldoNuevo,
-          'proximaFecha': Timestamp.fromDate(proxNoon),
-          'updatedAt': FieldValue.serverTimestamp(),
-          'nextReciboCliente': next,
-          'saldado': saldoNuevo <= 0,
-          'estado': saldoNuevo <= 0 ? 'saldado' : 'al_dia',
-        };
-        updates['venceEl'] = (saldoNuevo <= 0)
-            ? FieldValue.delete()
-            : Timestamp.fromDate(proxNoon);
-
-        tx.set(clienteRef, updates, SetOptions(merge: true));
-
-        nextReciboFinal = next;
-      });
-
-      await clienteRef.collection('pagos').add({
-        'fecha': FieldValue.serverTimestamp(),
-        'pagoInteres': pagoInteres,
-        'pagoCapital': pagoCapital,
-        'moraCobrada': moraCobrada,              // 👈 NUEVO
-        'totalPagado': totalConMora,             // 👈 NUEVO (incluye mora)
-        'saldoAnterior': saldoAnterior,
-        'saldoNuevo': saldoNuevo,
-        'periodo': widget.periodo,
-        'tasaInteres': widget.tasaInteres,
-        'producto': widget.producto,
-      });
-
-      final metricsRef = FirebaseFirestore.instance
-          .collection('prestamistas')
-          .doc(uid)
-          .collection('metrics')
-          .doc('summary');
-
-      await metricsRef.set({
-        'lifetimeRecuperado': FieldValue.increment(pagoCapital),
-        'lifetimeGanancia': FieldValue.increment(pagoInteres),
-        'lifetimePagosSum': FieldValue.increment(totalConMora), // 👈 NUEVO
-        'lifetimePagosCount': FieldValue.increment(1),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al guardar el pago: $e')),
-      );
-      return;
+        nextReciboLocal = current + 1;
+      }
+    } catch (_) {
+      // offline: usa 1 si no pudimos leer
+      nextReciboLocal = 1;
     }
+    final numeroRecibo = 'REC-${nextReciboLocal.toString().padLeft(4, '0')}';
 
-    // 🔔 Notificaciones Plus
-    NotificationsPlus.trigger('pago_ok');
-    if (saldoNuevo <= 0) {
-      NotificationsPlus.trigger('deuda_finalizada');
-    }
-
-    // ✅ Leer SIEMPRE los datos actualizados del prestamista desde Firestore
-    final prestDoc = await FirebaseFirestore.instance
-        .collection('prestamistas')
-        .doc(uid)
-        .get();
-    final prestData = prestDoc.data() ?? {};
-
-    final empresaActualizada = (prestData['empresa'] ?? '').toString().trim();
-    final nombreActualizado = (prestData['nombre'] ?? '').toString().trim();
-    final apellidoActualizado = (prestData['apellido'] ?? '').toString().trim();
-    final telefonoActualizado = (prestData['telefono'] ?? '').toString().trim();
-
-    final servidorActualizado = [nombreActualizado, apellidoActualizado]
-        .where((s) => s.isNotEmpty)
-        .join(' ');
-
-    final numeroRecibo = 'REC-${nextReciboFinal.toString().padLeft(4, '0')}';
-
+    // 👉 Mostrar Recibo ya mismo
     if (!mounted) return;
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ReciboScreen(
-          empresa: empresaActualizada,
-          servidor: servidorActualizado,
-          telefonoServidor: telefonoActualizado,
+          empresa: empresa,
+          servidor: servidor,
+          telefonoServidor: telefonoServidor,
           cliente: widget.nombreCompleto,
           telefonoCliente: widget.telefono,
           numeroRecibo: numeroRecibo,
@@ -491,22 +435,80 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           capitalInicial: saldoAnterior,
           pagoInteres: pagoInteres,
           pagoCapital: pagoCapital,
-          totalPagado: totalConMora,     // 👈 NUEVO (incluye mora)
+          totalPagado: totalConMora,  // incluye mora
           saldoAnterior: saldoAnterior,
+          saldoRestante: saldoNuevo, // 👈 NUEVO
           saldoActual: saldoNuevo,
           proximaFecha: proxNoon,
           tasaInteres: widget.tasaInteres,
-          moraCobrada: moraCobrada,      // 👈 NUEVO
+          moraCobrada: moraCobrada,   // para mostrar línea "Mora cobrada"
         ),
       ),
     );
 
+    // ✅ 3) GUARDAR DESPUÉS (si hay internet). Si falla, no bloquea el flujo.
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      final clienteRef = FirebaseFirestore.instance
+          .collection('prestamistas').doc(uid)
+          .collection('clientes').doc(widget.id);
+
+      try {
+        await FirebaseFirestore.instance.runTransaction((tx) async {
+          final snap = await tx.get(clienteRef);
+          final current = (snap.data()?['nextReciboCliente'] ?? 0) as int;
+          final next = current + 1;
+
+          final Map<String, dynamic> updates = {
+            'saldoActual': saldoNuevo,
+            'proximaFecha': Timestamp.fromDate(proxNoon),
+            'updatedAt': FieldValue.serverTimestamp(),
+            'nextReciboCliente': next,
+            'saldado': saldoNuevo <= 0,
+            'estado': saldoNuevo <= 0 ? 'saldado' : 'al_dia',
+          };
+          updates['venceEl'] = (saldoNuevo <= 0)
+              ? FieldValue.delete()
+              : Timestamp.fromDate(proxNoon);
+
+          tx.set(clienteRef, updates, SetOptions(merge: true));
+        });
+
+        await clienteRef.collection('pagos').add({
+          'fecha': FieldValue.serverTimestamp(),
+          'pagoInteres': pagoInteres,
+          'pagoCapital': pagoCapital,
+          'moraCobrada': moraCobrada,
+          'totalPagado': totalConMora,
+          'saldoAnterior': saldoAnterior,
+          'saldoNuevo': saldoNuevo,
+          'periodo': widget.periodo,
+          'tasaInteres': widget.tasaInteres,
+          'producto': widget.producto,
+        });
+
+        final metricsRef = FirebaseFirestore.instance
+            .collection('prestamistas').doc(uid)
+            .collection('metrics').doc('summary');
+
+        await metricsRef.set({
+          'lifetimeRecuperado': FieldValue.increment(pagoCapital),
+          'lifetimeGanancia': FieldValue.increment(pagoInteres),
+          'lifetimePagosSum': FieldValue.increment(totalConMora),
+          'lifetimePagosCount': FieldValue.increment(1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (_) {
+        // sin internet o error: no bloquea nada
+      }
+    }
+
     if (!mounted) return;
     setState(() {
-      _saldoActual = saldoNuevo;
-      _proximaFecha = proxNoon;
-      _moraAcumulada = _calcMoraAcumulada(); // 👈 recalcula
-      _tieneCambios = true;
+      _saldoActual   = saldoNuevo;
+      _proximaFecha  = proxNoon;
+      _moraAcumulada = _calcMoraAcumulada(); // recalcular con la nueva fecha/saldo
+      _tieneCambios  = true;
     });
   }
 

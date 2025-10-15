@@ -276,7 +276,7 @@ String pesoSolo(int v) => '\$ ${NumberFormat("#,##0", "en_US").format(v)}';
 /// PANTALLA
 /// =======================================
 class ReciboScreen extends StatefulWidget {
-  final int moraCobrada; // 👈 NUEVO
+  final int moraCobrada;
   final String empresa;
   final String servidor;
   final String telefonoServidor;
@@ -290,6 +290,9 @@ class ReciboScreen extends StatefulWidget {
   final int pagoCapital;
   final int totalPagado;
   final int saldoAnterior;
+
+  final int saldoRestante; // 👈 AÑADIR ESTA LÍNEA
+
   final int saldoActual;
   final DateTime proximaFecha;
 
@@ -312,11 +315,12 @@ class ReciboScreen extends StatefulWidget {
     required this.pagoCapital,
     required this.totalPagado,
     required this.saldoAnterior,
+    required this.saldoRestante, // 👈 AÑADIR AQUÍ
     required this.saldoActual,
     required this.proximaFecha,
     this.config = const ReciboUIConfig(),
     required this.tasaInteres,
-    this.moraCobrada = 0, // 👈 NUEVO: valor por defecto 0
+    this.moraCobrada = 0,
   });
 
   @override
@@ -588,6 +592,7 @@ class _ReciboScreenState extends State<ReciboScreen> {
                             totalPagado: widget.totalPagado,
                             saldoAnterior: widget.saldoAnterior,
                             saldoActual: widget.saldoActual,
+                            saldoRestante: widget.saldoRestante,
                             proximaFecha: widget.proximaFecha,
                             fmtFecha: _fmtFecha,
                             tasaInteres: widget.tasaInteres,
@@ -691,6 +696,7 @@ class _PlainCardShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: height,
+      constraints: const BoxConstraints(minHeight: 650), // fuerza altura mínima
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: radius,
@@ -759,6 +765,7 @@ class _ReceiptContent extends StatelessWidget {
   final int pagoCapital;
   final int totalPagado;
   final int saldoAnterior;
+  final int saldoRestante; // 👈 AÑADIR
   final int saldoActual;
   final DateTime proximaFecha;
 
@@ -780,6 +787,7 @@ class _ReceiptContent extends StatelessWidget {
     required this.pagoCapital,
     required this.totalPagado,
     required this.saldoAnterior,
+    required this.saldoRestante, // 👈 AÑADIR
     required this.saldoActual,
     required this.proximaFecha,
     required this.fmtFecha,
@@ -789,22 +797,22 @@ class _ReceiptContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ===== Detectar tipo automáticamente por el texto del producto =====
-    final ptxt = producto.toLowerCase();
-    final bool esArriendo = ptxt.contains('arriendo') ||
-        ptxt.contains('alquiler') ||
-        ptxt.contains('renta') ||
-        ptxt.contains('apartamento') ||
-        ptxt.contains('casa');
+    // ===== Detectar tipo correctamente por el texto del producto =====
+    final t = producto.toLowerCase().trim();
+    final bool esPrestamo = t.isEmpty ||
+        t.contains('prest') ||
+        t.contains('crédito') ||
+        t.contains('credito') ||
+        t.contains('loan');
 
-    final bool esProducto = ptxt.contains('producto') ||
-        ptxt.contains('televisor') ||
-        ptxt.contains('moto') ||
-        ptxt.contains('celular') ||
-        ptxt.contains('electro') ||
-        ptxt.contains('lapto') ||
-        ptxt.contains('comput') ||
-        ptxt.contains('nevera');
+    final bool esArriendo = t.contains('arriendo') ||
+        t.contains('alquiler') ||
+        t.contains('renta') ||
+        t.contains('apartamento') ||
+        t.contains('casa');
+
+// Todo lo que no sea préstamo ni arriendo => producto
+    final bool esProducto = !esPrestamo && !esArriendo;
 
     Widget label(String t) => Text(t, style: cfg.labelStyle);
     Widget value(String t) => Text(t, style: cfg.valueStyle, overflow: TextOverflow.ellipsis, maxLines: 1);
@@ -1016,6 +1024,19 @@ class _ReceiptContent extends StatelessWidget {
                           iconBg: const Color(0xFFFFF7ED),
                           iconColor: const Color(0xFFB45309),
                         ),
+
+// 👉 Mostrar producto debajo del pago (solo si es producto)
+                        if (esProducto && producto.trim().isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          _rowIcon(
+                            Icons.shopping_bag_rounded,
+                            'Producto',
+                            producto,
+                            iconBg: const Color(0xFFF3F0FF),
+                            iconColor: const Color(0xFF6D28D9),
+                          ),
+                        ],
+
                         if (moraCobrada > 0) ...[
                           const SizedBox(height: 6),
                           _rowIcon(
@@ -1027,15 +1048,19 @@ class _ReceiptContent extends StatelessWidget {
                           ),
                         ],
 
+                        const SizedBox(height: 50), // 👈 espacio entre el monto y el texto
                         Text(
                           esArriendo
                               ? 'Gracias por ponerte al día con tu alquiler.'
                               : esProducto
-                              ? '¡Disfruta tu compra! No quedan pagos pendientes.'
+                              ? (saldoRestante > 0
+                              ? 'Gracias por tu compra. Nos vemos en el próximo pago.'
+                              : '¡Disfruta tu compra! No quedan pagos pendientes.')
                               : 'No quedan pagos pendientes.',
                           style: cfg.labelStyle,
                           textAlign: TextAlign.center,
                         ),
+
                       ],
                     )
                         : Column(
@@ -1080,7 +1105,6 @@ class _ReceiptContent extends StatelessWidget {
                             iconColor: const Color(0xFF6D28D9),
                           ),
 
-
                           if (moraCobrada > 0) ...[
                             const SizedBox(height: 6),
                             _rowIcon(
@@ -1100,7 +1124,29 @@ class _ReceiptContent extends StatelessWidget {
                             iconBg: const Color(0xFFEFF6FF),
                             iconColor: const Color(0xFF2563EB),
                           ),
+
+                          // 👉 Producto ARRIBA del texto
+                          Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                          _rowIcon(
+                            Icons.shopping_bag_rounded,
+                            'Producto',
+                            producto,
+                            iconBg: const Color(0xFFF3F0FF),
+                            iconColor: const Color(0xFF6D28D9),
+                          ),
+
+                          const SizedBox(height: 16),
+                          Center(
+                            child: Text(
+                              'Gracias por tu compra. Nos vemos en el próximo pago.',
+                              style: cfg.labelStyle,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
                         ]
+
+
+
                         // ====== PRÉSTAMO ======
                         else ...[
                             _rowIcon(
@@ -1147,7 +1193,7 @@ class _ReceiptContent extends StatelessWidget {
                           ],
 
                         // ====== LÍNEA “TIPO/DETALLE” ======
-                        if (producto.trim().isNotEmpty) ...[
+                        if (!esProducto && producto.trim().isNotEmpty) ...[
                           Divider(height: 14, thickness: 1, color: cfg.mintDivider),
                           _rowIcon(
                             esArriendo ? Icons.home_work_rounded : (esProducto ? Icons.shopping_bag_rounded : Icons.description_rounded),
