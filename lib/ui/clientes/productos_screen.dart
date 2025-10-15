@@ -155,6 +155,7 @@ class ProductosScreen extends StatelessWidget {
                 diasHasta: _diasHasta(c.proximaFecha),
                 resaltar: resaltarVencimientos,
                 codigoCorto: codigoCorto,
+
               ),
             );
           },

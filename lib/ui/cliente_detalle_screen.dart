@@ -33,6 +33,8 @@ class ClienteDetalleScreen extends StatefulWidget {
   final String empresa;
   final String servidor;
   final String telefonoServidor;
+  final int moraAcumulada; // 👈 mora unificada desde Cliente
+
 
   const ClienteDetalleScreen({
     super.key,
@@ -49,6 +51,8 @@ class ClienteDetalleScreen extends StatefulWidget {
     required this.servidor,
     required this.telefonoServidor,
     required this.producto,
+    required this.moraAcumulada, // 👈 NUEVO
+
   });
 
   @override
@@ -97,7 +101,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     super.initState();
     _saldoActual = widget.saldoActual;
     _proximaFecha = widget.proximaFecha;
-    _moraAcumulada = _calcMoraAcumulada(); // 👈 NUEVO: calcula local/offline
+    _moraAcumulada = widget.moraAcumulada; // 👈 NUEVO: calcula local/offline
     Future.microtask(_autoFixEstado);
     Future.microtask(_cargarTotalPrestado);
     Future.microtask(_cargarNota); // <-- lee 'nota' si existe
@@ -536,7 +540,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     setState(() {
       _saldoActual   = saldoNuevo;
       _proximaFecha  = proxNoon;
-      _moraAcumulada = _calcMoraAcumulada(); // recalcular con la nueva fecha/saldo
+      _moraAcumulada = 0; // recalcular con la nueva fecha/saldo
       _tieneCambios  = true;
     });
   }

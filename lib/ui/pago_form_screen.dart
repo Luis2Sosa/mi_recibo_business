@@ -198,7 +198,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
 
     final double baseDown = widget.esPrestamo ? 180.0 : 220.0;
     // 📱 Si el teclado está arriba, bajamos más el marco
-    final double translateY = tecladoAbierto ? 1.0 : (baseDown + 80.0);
+    final double translateY = tecladoAbierto ? 1.0 : (baseDown + 20.0);
 
 
 
@@ -435,28 +435,115 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
 
                                           // === Próxima fecha (auto vs manual) ===
                                           if (widget.autoFecha)
-                                            Container(
-                                              width: double.infinity,
-                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFF7F8FA),
-                                                borderRadius: BorderRadius.circular(14),
-                                                border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  const Icon(Icons.schedule, size: 20, color: Color(0xFF64748B)),
-                                                  const SizedBox(width: 8),
-                                                  Expanded(
-                                                    child: Text(
-                                                      // 👈 Mostrar la fecha GUARDADA, no la calculada
-                                                      'Próxima fecha: ${_fmtFecha(_baseProximaLocal)}',
-                                                      style: const TextStyle(fontSize: 15, color: Color(0xFF374151)),
+                                            Builder(
+                                              builder: (_) {
+                                                final hoy = DateTime.now();
+                                                final hoy0 = DateTime(hoy.year, hoy.month, hoy.day);
+                                                final proxima = _baseProximaLocal;
+                                                final diff = proxima.difference(hoy0).inDays;
+
+                                                // ===== Texto del estado =====
+                                                String statusText;
+                                                if (diff < 0) {
+                                                  statusText = 'Vencido el ${_fmtFecha(proxima)}';
+                                                } else if (diff == 0) {
+                                                  statusText = 'Vence hoy • ${_fmtFecha(proxima)}';
+                                                } else if (diff == 1) {
+                                                  statusText = 'En 1 día vence';
+                                                } else if (diff == 2) {
+                                                  statusText = 'En 2 días vence';
+                                                } else {
+                                                  statusText = 'En $diff días vence';
+                                                }
+
+                                                // ===== Colores del estado =====
+                                                Color statusBg;
+                                                Color statusBorder;
+                                                Color statusFg;
+                                                if (diff < 0) {
+                                                  statusBg = const Color(0xFFFFF1F2);      // rojo suave
+                                                  statusBorder = const Color(0xFFFCA5A5);
+                                                  statusFg = const Color(0xFFB91C1C);
+                                                } else if (diff == 0) {
+                                                  statusBg = const Color(0xFFFFF7ED);      // naranja suave
+                                                  statusBorder = const Color(0xFFFECACA);
+                                                  statusFg = const Color(0xFFB45309);
+                                                } else if (diff <= 2) {
+                                                  statusBg = const Color(0xFFFEFCE8);      // amarillo suave
+                                                  statusBorder = const Color(0xFFFDE68A);
+                                                  statusFg = const Color(0xFF92400E);
+                                                } else {
+                                                  statusBg = const Color(0xFFF1F5FF);      // info
+                                                  statusBorder = const Color(0xFFDCE7FF);
+                                                  statusFg = const Color(0xFF1D4ED8);
+                                                }
+
+                                                return Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                  children: [
+                                                    // ===== Caja 1: ESTADO / ALERTA =====
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                                      decoration: BoxDecoration(
+                                                        color: statusBg,
+                                                        borderRadius: BorderRadius.circular(14),
+                                                        border: Border.all(color: statusBorder, width: 1.2),
+                                                      ),
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(
+                                                            diff < 0
+                                                                ? Icons.error_rounded
+                                                                : (diff == 0 ? Icons.warning_amber_rounded : Icons.notifications_active_rounded),
+                                                            size: 20,
+                                                            color: statusFg,
+                                                          ),
+                                                          const SizedBox(width: 8),
+                                                          Expanded(
+                                                            child: Text(
+                                                              statusText,
+                                                              style: TextStyle(
+                                                                fontSize: 15,
+                                                                fontWeight: diff <= 0 ? FontWeight.w800 : FontWeight.w700,
+                                                                color: statusFg,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
                                                     ),
-                                                  ),
-                                                ],
-                                              ),
+                                                    const SizedBox(height: 8),
+
+                                                    // ===== Caja 2: FECHA =====
+                                                    Container(
+                                                      width: double.infinity,
+                                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFFF7F8FA),
+                                                        borderRadius: BorderRadius.circular(14),
+                                                        border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
+                                                      ),
+                                                      child: Row(
+                                                        children: [
+                                                          const Icon(Icons.schedule, size: 20, color: Color(0xFF64748B)),
+                                                          const SizedBox(width: 8),
+                                                          Expanded(
+                                                            child: Text(
+                                                              (diff < 0)
+                                                                  ? 'Se actualizará la próxima fecha al pagar'
+                                                                  : 'Próxima fecha: ${_fmtFecha(proxima)}',
+                                                              style: const TextStyle(fontSize: 15, color: Color(0xFF374151)),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                );
+                                              },
                                             )
+
+
 
                                           else
                                             Container(

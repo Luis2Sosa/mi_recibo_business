@@ -1015,6 +1015,8 @@ class _ClientesScreenState extends State<ClientesScreen> {
             telefonoServidor: _telefonoServidor,
             // -------- producto ----------
             producto: producto,
+            moraAcumulada: c.moraAcumulada, // 👈 NUEVO
+
           ),
         ),
       );
@@ -1057,6 +1059,8 @@ class _ClientesScreenState extends State<ClientesScreen> {
             servidor: _servidor,
             telefonoServidor: _telefonoServidor,
             producto: c.producto ?? '',
+            moraAcumulada: c.moraAcumulada, // 👈 NUEVO
+
           ),
         ),
       );
