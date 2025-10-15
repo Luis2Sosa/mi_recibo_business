@@ -5,17 +5,18 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart'; // 🌍 formato de moneda automático
 
 class PagoFormScreen extends StatefulWidget {
-  final int saldoAnterior;      // RD$
-  final double tasaInteres;     // %
-  final String periodo;         // Mensual | Quincenal
-  final DateTime proximaFecha;  // sugerida (solo referencia visual, no se usa automática)
+  final int saldoAnterior; // RD$
+  final double tasaInteres; // %
+  final String periodo; // Mensual | Quincenal
+  final DateTime proximaFecha; // sugerida (solo referencia visual, no se usa automática)
   // ✅ NUEVO: true = es préstamo (muestra interés); false = producto/alquiler (sin interés)
   final bool esPrestamo;
   // ✅ OPCIONALES (para la barra premium). No rompen llamadas existentes.
-  final String nombreCliente;   // se muestra a la izquierda (puede ir vacío)
-  final String producto;        // texto libre para detectar arriendo o producto (puede ir vacío)
+  final String nombreCliente; // se muestra a la izquierda (puede ir vacío)
+  final String producto; // texto libre para detectar arriendo o producto (puede ir vacío)
   // 👇 Monto de mora vigente al momento de cobrar (solo productos/alquiler)
   final int moraActual;
+  final bool autoFecha; // 👈 NUEVO: controla si la fecha es automática
 
   const PagoFormScreen({
     super.key,
@@ -27,6 +28,7 @@ class PagoFormScreen extends StatefulWidget {
     this.nombreCliente = '',
     this.producto = '',
     this.moraActual = 0,
+    this.autoFecha = true,
   });
 
   @override
@@ -41,6 +43,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   final _capitalCtrl = TextEditingController();
 
   DateTime? _proxima;
+  late DateTime _baseProximaLocal; // fecha base normalizada (local + 12:00)
   int _pagoInteres = 0;
   int _pagoCapital = 0;
   bool _btnContinuarBusy = false;
@@ -50,7 +53,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
 
   int get _totalPagado {
     final base = _pagoCapital + (widget.esPrestamo ? _pagoInteres : 0);
-// 👇 si no es préstamo (producto/alquiler), trata la mora como interés
+    // 👇 si no es préstamo (producto/alquiler), trata la mora como interés
     final moraComoInteres = (!widget.esPrestamo && widget.moraActual > 0) ? widget.moraActual : 0;
     return base + moraComoInteres;
   }
@@ -70,6 +73,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   void initState() {
     super.initState();
     _proxima = null;
+    _baseProximaLocal = _atNoon(widget.proximaFecha.toLocal());
 
     if (widget.esPrestamo) {
       _interesCtrl.text = _interesMax.toString();
@@ -139,6 +143,40 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
 
   DateTime _atNoon(DateTime d) => DateTime(d.year, d.month, d.day, 12);
 
+  /// Suma 1 mes conservando el “día” original cuando sea posible.
+  /// Si el próximo mes no tiene ese día (ej. 31→febrero), cae al último día del mes.
+  DateTime _addOneMonthSameDay(DateTime d) {
+    final nextMonth = DateTime(d.year, d.month + 1, 1);
+    final lastDayNextMonth = DateTime(nextMonth.year, nextMonth.month + 1, 0).day;
+    final day = d.day.clamp(1, lastDayNextMonth);
+    return DateTime(nextMonth.year, nextMonth.month, day, 12); // anclado a 12:00
+  }
+
+  /// ✅ Nuevo comportamiento real:
+  /// - Arriendo → siempre +30 días desde la fecha guardada.
+  /// - Producto → 15 o 30 días según periodo.
+  /// - Préstamo → 15 o 30 días según periodo.
+  /// Todo parte desde la fecha base (no desde hoy).
+  DateTime _calcNextDate(DateTime base) {
+    final esArriendo = _esArriendoDesdeTexto(widget.producto);
+
+    int deltaDias;
+    if (esArriendo) {
+      deltaDias = 30;
+    } else if (widget.esPrestamo) {
+      deltaDias = widget.periodo.toLowerCase() == 'quincenal' ? 15 : 30;
+    } else {
+      deltaDias = widget.periodo.toLowerCase().contains('15') ||
+          widget.periodo.toLowerCase().contains('quin')
+          ? 15
+          : 30;
+    }
+
+    // Suma desde la fecha base guardada (no desde hoy)
+    final next = _atNoon(base.add(Duration(days: deltaDias)));
+    return next;
+  }
+
   // === Helper para detectar ARRIENDO por texto ===
   bool _esArriendoDesdeTexto(String? p) {
     if (p == null) return false;
@@ -156,14 +194,18 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
     final kb = MediaQuery.of(context).viewInsets.bottom;
     final bool tecladoAbierto = kb > 0.0;
 
-    final double baseDown = widget.esPrestamo ? 180.0 : 220.0; // sube el marco solo si es préstamo
-    final double translateY = tecladoAbierto ? 30.0 : baseDown;
+    print('[PagoFormScreen] base local: $_baseProximaLocal');
+
+    final double baseDown = widget.esPrestamo ? 180.0 : 220.0;
+    // 📱 Si el teclado está arriba, bajamos más el marco
+    final double translateY = tecladoAbierto ? 1.0 : (baseDown + 80.0);
+
+
 
     final size = MediaQuery.of(context).size;
     final double usableH = size.height - (tecladoAbierto ? kb : 0.0) - 8.0;
     final double maxCardH = tecladoAbierto ? 500.0 : 580.0;
     final double availableHeight = usableH.clamp(260.0, maxCardH);
-    // 👇 Ajuste de altura solo para préstamos (baja un poco el marco transparente)
     final double adjustedHeight = widget.esPrestamo ? availableHeight + 30.0 : availableHeight;
     final double bottomPad = tecladoAbierto ? 12.0 : 0.0;
 
@@ -172,17 +214,13 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
         ? const ClampingScrollPhysics()
         : const NeverScrollableScrollPhysics();
 
-    // NUEVO: ajuste de altura y zona segura inferior
-    final double safeBottom = MediaQuery.of(context).padding.bottom;
+    // ✅ se agrega esta línea que faltaba
     final double extraBottomSafe = 0.0;
 
     final glassWhite = Colors.white.withOpacity(0.12);
-
-    // Etiqueta derecha (tipo)
     final esArriendo = _esArriendoDesdeTexto(widget.producto);
-    final String tipoLabel = widget.esPrestamo
-        ? 'Préstamo'
-        : (esArriendo ? 'Arriendo' : 'Producto');
+    final String tipoLabel =
+    widget.esPrestamo ? 'Préstamo' : (esArriendo ? 'Arriendo' : 'Producto');
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -225,9 +263,11 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                   child: Transform.translate(
                     offset: Offset(0, translateY),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: SizedBox(
-                        height: adjustedHeight + 20, // 🔥 alarga el marco transparente 40px más
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10), // 👈 deja más aire abajo (antes 0 o 20)
+                      child: Container(
+                        constraints: BoxConstraints(
+                          maxHeight: adjustedHeight, // ✅ elimina el espacio vacío al fondo
+                        ),
                         child: Container(
                           decoration: BoxDecoration(
                             color: glassWhite,
@@ -393,76 +433,94 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                           _resumen('Saldo nuevo', _formatCurrency(_saldoNuevoConInteres)),
                                           const SizedBox(height: 12),
 
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFF7F8FA),
-                                              borderRadius: BorderRadius.circular(14),
-                                              border: Border.all(
-                                                color: _proxima == null
-                                                    ? const Color(0xFFEF4444)
-                                                    : const Color(0xFFE5E7EB),
-                                                width: 1.2,
+                                          // === Próxima fecha (auto vs manual) ===
+                                          if (widget.autoFecha)
+                                            Container(
+                                              width: double.infinity,
+                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFF7F8FA),
+                                                borderRadius: BorderRadius.circular(14),
+                                                border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  const Icon(Icons.schedule, size: 20, color: Color(0xFF64748B)),
+                                                  const SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: Text(
+                                                      // 👈 Mostrar la fecha GUARDADA, no la calculada
+                                                      'Próxima fecha: ${_fmtFecha(_baseProximaLocal)}',
+                                                      style: const TextStyle(fontSize: 15, color: Color(0xFF374151)),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            )
+
+                                          else
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFF7F8FA),
+                                                borderRadius: BorderRadius.circular(14),
+                                                border: Border.all(
+                                                  color: _proxima == null ? const Color(0xFFEF4444) : const Color(0xFFE5E7EB),
+                                                  width: 1.2,
+                                                ),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          _proxima == null
+                                                              ? 'Próxima fecha: (selecciona)'
+                                                              : 'Próxima fecha: ${_fmtFecha(_proxima!)}',
+                                                          style: TextStyle(
+                                                            fontSize: 15,
+                                                            color: _proxima == null ? const Color(0xFFEF4444) : const Color(0xFF374151),
+                                                            fontWeight: _proxima == null ? FontWeight.w700 : FontWeight.w400,
+                                                          ),
+                                                        ),
+                                                        if (_proxima == null) const SizedBox(height: 4),
+                                                        if (_proxima == null)
+                                                          const Text(
+                                                            'Debes elegir una fecha de pago',
+                                                            style: TextStyle(fontSize: 12.5, color: Color(0xFFEF4444), fontWeight: FontWeight.w600),
+                                                          ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  TextButton.icon(
+                                                    icon: const Icon(Icons.date_range),
+                                                    label: const Text('Elegir fecha'),
+                                                    onPressed: (_pagoCapital <= widget.saldoAnterior)
+                                                        ? () async {
+                                                      final hoy = DateTime.now();
+                                                      final hoy0 = DateTime(hoy.year, hoy.month, hoy.day);
+                                                      final sel = await showDatePicker(
+                                                        context: context,
+                                                        initialDate: _proxima ?? hoy0,
+                                                        firstDate: hoy0,
+                                                        lastDate: DateTime(hoy.year + 5),
+                                                      );
+                                                      if (sel != null) {
+                                                        setState(() => _proxima = _atNoon(sel));
+                                                        FocusScope.of(context).unfocus();
+                                                      }
+                                                    }
+                                                        : null,
+                                                    style: TextButton.styleFrom(
+                                                      foregroundColor: const Color(0xFF2563EB),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
-                                            child: Row(
-                                              children: [
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      Text(
-                                                        _proxima == null
-                                                            ? 'Próxima fecha: (selecciona)'
-                                                            : 'Próxima fecha: ${_fmtFecha(_proxima!)}',
-                                                        style: TextStyle(
-                                                          fontSize: 15,
-                                                          color: _proxima == null
-                                                              ? const Color(0xFFEF4444)
-                                                              : const Color(0xFF374151),
-                                                          fontWeight: _proxima == null
-                                                              ? FontWeight.w700
-                                                              : FontWeight.w400,
-                                                        ),
-                                                      ),
-                                                      if (_proxima == null) const SizedBox(height: 4),
-                                                      if (_proxima == null)
-                                                        const Text(
-                                                          'Debes elegir una fecha de pago',
-                                                          style: TextStyle(
-                                                              fontSize: 12.5,
-                                                              color: Color(0xFFEF4444),
-                                                              fontWeight: FontWeight.w600),
-                                                        ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                TextButton.icon(
-                                                  icon: const Icon(Icons.date_range),
-                                                  label: const Text('Elegir fecha'),
-                                                  onPressed: (_pagoCapital <= widget.saldoAnterior)
-                                                      ? () async {
-                                                    final hoy = DateTime.now();
-                                                    final hoy0 = DateTime(hoy.year, hoy.month, hoy.day);
-                                                    final sel = await showDatePicker(
-                                                      context: context,
-                                                      initialDate: _proxima ?? hoy0,
-                                                      firstDate: hoy0,
-                                                      lastDate: DateTime(hoy.year + 5),
-                                                    );
-                                                    if (sel != null) {
-                                                      setState(() => _proxima = _atNoon(sel));
-                                                      FocusScope.of(context).unfocus();
-                                                    }
-                                                  }
-                                                      : null,
-                                                  style: TextButton.styleFrom(
-                                                    foregroundColor: const Color(0xFF2563EB),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
+
                                           const SizedBox(height: 16),
 
                                           SizedBox(
@@ -479,11 +537,17 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                   fontWeight: FontWeight.w800,
                                                 ),
                                               ),
-                                              onPressed: (_formOk && _proxima != null && !_btnContinuarBusy)
+
+                                              onPressed: (_formOk && (widget.autoFecha || _proxima != null) && !_btnContinuarBusy)
                                                   ? () async {
                                                 HapticFeedback.lightImpact();
                                                 FocusScope.of(context).unfocus();
                                                 setState(() => _btnContinuarBusy = true);
+                                                final DateTime proximaOut = widget.autoFecha
+                                                    ? _calcNextDate(_baseProximaLocal)
+                                                    : _proxima!;
+
+
                                                 Navigator.pop(context, {
                                                   'pagoInteres': widget.esPrestamo ? _pagoInteres : 0,
                                                   'pagoCapital': _pagoCapital,
@@ -491,8 +555,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                   'moraCobrada': (!widget.esPrestamo && widget.moraActual > 0) ? widget.moraActual : 0,
                                                   'saldoAnterior': widget.saldoAnterior,
                                                   'saldoNuevo': _saldoNuevo,
-                                                  'proximaFecha': _proxima,
-                                                  'moraCobrada': widget.moraActual, // 👈 agrega esta línea
+                                                  'proximaFecha': proximaOut,
                                                 });
                                                 if (mounted) setState(() => _btnContinuarBusy = false);
                                               }

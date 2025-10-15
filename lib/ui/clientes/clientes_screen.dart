@@ -567,33 +567,130 @@ class _ClientesScreenState extends State<ClientesScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    if (!_esSaldado(c)) {
-      _showBanner('Solo puedes renovar arriendos saldados.', color: const Color(0xFF417CDE));
-      return;
-    }
+    // 🟠 Confirmación estilo ALQUILER (naranja)
+    final bool? confirmar = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withOpacity(0.55),
+      builder: (_) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Avatar naranja (igual “halo” que usas en alquiler)
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7ED),                  // fondo suave naranja
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFFDE68A)), // borde suave
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.autorenew_rounded,
+                    size: 26,
+                    color: Color(0xFFF59E0B), // naranja principal alquiler
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  '¿Renovar pagado?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Esto renovará automáticamente el arriendo para el próximo pago.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF6B7280),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: TextButton.styleFrom(
+                          backgroundColor: const Color(0xFFF3F4F6),
+                          foregroundColor: const Color(0xFF111827),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: TextButton.styleFrom(
+                          backgroundColor: const Color(0xFFF59E0B), // botón naranja alquiler
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        child: const Text('Sí, renovar'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
 
-    final int nuevoSaldo = c.capitalInicial;
-    final docRef = FirebaseFirestore.instance
-        .collection('prestamistas')
-        .doc(uid)
-        .collection('clientes')
-        .doc(c.id);
+
+    if (confirmar != true) return;
+
     try {
-      final DateTime prox = _atNoon(c.proximaFecha);
+      final docRef = FirebaseFirestore.instance
+          .collection('prestamistas')
+          .doc(uid)
+          .collection('clientes')
+          .doc(c.id);
+
+      // Base al mediodía para evitar TZ: próxima fecha +1 mes
+      final base = _atNoon(c.proximaFecha);
+      final prox = DateTime(base.year, base.month + 1, base.day, 12);
+
       await docRef.set({
-        'saldoActual': nuevoSaldo,
-        'saldoAnterior': nuevoSaldo,
+        'saldoActual': c.capitalInicial,
+        'saldoAnterior': c.capitalInicial,
         'saldado': false,
         'estado': 'al_dia',
         'proximaFecha': Timestamp.fromDate(prox),
         'venceEl': Timestamp.fromDate(prox),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-      _showBanner('Arriendo renovado. Cliente al día ✅', color: const Color(0xFF417CDE));
+
+      if (mounted) {
+        _showBanner(
+          '✅ Renovación completada · Cliente renovado para el próximo pago',
+          color: const Color(0xFF417CDE),
+        );
+      }
     } catch (e) {
-      _showBanner('Error al renovar: $e', color: const Color(0xFF417CDE));
+      _showBanner('Error al renovar: $e', color: const Color(0xFFE11D48));
     }
   }
+
 
   void _mostrarOpcionesCliente(Cliente c) {
     bool _cerrado = false; // para no cerrar si ya se cerró manualmente
@@ -723,6 +820,26 @@ class _ClientesScreenState extends State<ClientesScreen> {
                       },
                     ),
                     const Divider(height: 1, color: Color(0xFFEFF1F5)),
+
+                    // ✅ NUEVO: Renovar pagado (vencido, hoy o al día)
+                    if (_esArriendo(c)) ...[
+                      if (_estadoDe(c) == EstadoVenc.vencido ||
+                          _estadoDe(c) == EstadoVenc.hoy ||
+                          _estadoDe(c) == EstadoVenc.alDia) ...[
+                        _actionItem(
+                          title: 'Renovar pagado',
+                          icon: Icons.autorenew_rounded,
+                          color: const Color(0xFF0EA5E9),
+                          onTap: () {
+                            _cerrado = true;
+                            Navigator.pop(sheetCtx);
+                            _renovarArriendo(c);
+                          },
+                        ),
+                        const Divider(height: 1, color: Color(0xFFEFF1F5)),
+                      ],
+                    ],
+
                     if (_esArriendo(c) && _esSaldado(c)) ...[
                       _actionItem(
                         title: 'Renovar',
@@ -847,49 +964,121 @@ class _ClientesScreenState extends State<ClientesScreen> {
     }
   }
 
-  // Abrir detalle y pasar datos del prestamista al recibo
   void _abrirDetalleYGuardar(Cliente c, String codigoCorto) async {
-    final estadoAntes = _estadoDe(c);
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ClienteDetalleScreen(
-          // -------- cliente ----------
-          id: c.id,
-          codigo: codigoCorto,
-          nombreCompleto: c.nombreCompleto,
-          telefono: c.telefono,
-          direccion: c.direccion,
-          saldoActual: c.saldoActual,
-          tasaInteres: c.tasaInteres,
-          periodo: c.periodo,
-          proximaFecha: c.proximaFecha,
-          // -------- prestamista ------
-          empresa: _empresa,
-          servidor: _servidor,
-          telefonoServidor: _telefonoServidor,
-          // -------- producto ----------
-          producto: c.producto ?? '',
+    // Siempre lee datos frescos antes de abrir detalles/pago
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('prestamistas')
+          .doc(uid)
+          .collection('clientes')
+          .doc(c.id)
+          .get();
+
+      // Si por alguna razón no existe, uso lo que traía la tarjeta
+      final data = (doc.data() ?? {}) as Map<String, dynamic>;
+
+      // Campos “vivos” que pueden haber cambiado (renovación, etc.)
+      final int saldoActual   = (data['saldoActual'] ?? c.saldoActual) as int;
+      final String periodo    = (data['periodo'] ?? c.periodo) as String;
+      final double tasa       = (data['tasaInteres'] ?? c.tasaInteres).toDouble();
+      final String producto   = (data['producto'] ?? c.producto ?? '') as String;
+
+      final DateTime proximaFecha = (() {
+        final v = data['proximaFecha'];
+        if (v is Timestamp) return v.toDate();
+        if (v is DateTime) return v;
+        return c.proximaFecha; // fallback
+      })();
+
+      final estadoAntes = _estadoDe(c);
+
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ClienteDetalleScreen(
+            // -------- cliente ----------
+            id: c.id,
+            codigo: codigoCorto,
+            nombreCompleto: c.nombreCompleto,
+            telefono: c.telefono,
+            direccion: c.direccion,
+            saldoActual: saldoActual,        // ← ya viene fresco
+            tasaInteres: tasa,               // ← ya viene fresco
+            periodo: periodo,                // ← ya viene fresco
+            proximaFecha: proximaFecha,      // ← ya viene fresca
+            // -------- prestamista ------
+            empresa: _empresa,
+            servidor: _servidor,
+            telefonoServidor: _telefonoServidor,
+            // -------- producto ----------
+            producto: producto,
+          ),
         ),
-      ),
-    );
-    if (result != null && result is Map && result['accion'] == 'pago') {
-      final DateTime proximaNueva = result['proximaFecha'] as DateTime? ?? c.proximaFecha;
-      final int d = _diasHasta(proximaNueva);
-      final EstadoVenc estadoDespues = (d < 0)
-          ? EstadoVenc.vencido
-          : (d == 0)
-          ? EstadoVenc.hoy
-          : (d <= 2)
-          ? EstadoVenc.pronto
-          : EstadoVenc.alDia;
-      if (estadoDespues == EstadoVenc.alDia && estadoAntes != EstadoVenc.alDia) {
-        _showBanner('Pago registrado ✅ · Ahora al día', color: const Color(0xFFEFFBF3));
-      } else {
-        _showBanner('Pago guardado correctamente ✅', color: const Color(0xFFEFFBF3));
+      );
+
+      // Mensaje si volvemos desde un pago
+      if (result != null && result is Map && result['accion'] == 'pago') {
+        final DateTime proximaNueva = result['proximaFecha'] as DateTime? ?? proximaFecha;
+        final int d = _diasHasta(proximaNueva);
+        final EstadoVenc estadoDespues = (d < 0)
+            ? EstadoVenc.vencido
+            : (d == 0)
+            ? EstadoVenc.hoy
+            : (d <= 2)
+            ? EstadoVenc.pronto
+            : EstadoVenc.alDia;
+
+        if (estadoDespues == EstadoVenc.alDia && estadoAntes != EstadoVenc.alDia) {
+          _showBanner('Pago registrado ✅ · Ahora al día', color: const Color(0xFFEFFBF3));
+        } else {
+          _showBanner('Pago guardado correctamente ✅', color: const Color(0xFFEFFBF3));
+        }
+      }
+    } catch (_) {
+      // Fallback: si falla la lectura, abrimos con los datos que venían en la tarjeta
+      final estadoAntes = _estadoDe(c);
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ClienteDetalleScreen(
+            id: c.id,
+            codigo: codigoCorto,
+            nombreCompleto: c.nombreCompleto,
+            telefono: c.telefono,
+            direccion: c.direccion,
+            saldoActual: c.saldoActual,
+            tasaInteres: c.tasaInteres,
+            periodo: c.periodo,
+            proximaFecha: c.proximaFecha,
+            empresa: _empresa,
+            servidor: _servidor,
+            telefonoServidor: _telefonoServidor,
+            producto: c.producto ?? '',
+          ),
+        ),
+      );
+      if (result != null && result is Map && result['accion'] == 'pago') {
+        final DateTime proximaNueva = result['proximaFecha'] as DateTime? ?? c.proximaFecha;
+        final int d = _diasHasta(proximaNueva);
+        final EstadoVenc estadoDespues = (d < 0)
+            ? EstadoVenc.vencido
+            : (d == 0)
+            ? EstadoVenc.hoy
+            : (d <= 2)
+            ? EstadoVenc.pronto
+            : EstadoVenc.alDia;
+        if (estadoDespues == EstadoVenc.alDia && estadoAntes != EstadoVenc.alDia) {
+          _showBanner('Pago registrado ✅ · Ahora al día', color: const Color(0xFFEFFBF3));
+        } else {
+          _showBanner('Pago guardado correctamente ✅', color: const Color(0xFFEFFBF3));
+        }
       }
     }
   }
+
 
   // ====== WATCHER de banners (cuenta vencidos/hoy/pronto en TODA la colección) ======
   Widget _bannerListener(String? uid) {

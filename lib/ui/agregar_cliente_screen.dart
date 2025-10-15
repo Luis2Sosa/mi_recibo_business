@@ -883,6 +883,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
           'tasaInteres': tasa,
           'periodo': _esAlquiler ? 'Mensual' : _periodo,
           'proximaFecha': Timestamp.fromDate(proximaDate),
+          'autoFecha': true,
           'updatedAt': FieldValue.serverTimestamp(),
           'mora': moraCfg, // null para otros módulos o si está desactivada
           'esFiado': _esProducto && _moraEnabled,
@@ -921,6 +922,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
           'tasaInteres': tasa,
           'periodo': _esAlquiler ? 'Mensual' : _periodo,
           'proximaFecha': Timestamp.fromDate(proximaDate),   // fecha ancla inicial
+          'autoFecha': true,
           'venceEl': capital == 0 ? FieldValue.delete() : Timestamp.fromDate(venceElDate),
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),

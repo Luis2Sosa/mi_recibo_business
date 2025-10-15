@@ -191,10 +191,10 @@ class ClienteCard extends StatelessWidget {
         ? (cliente.saldoActual * (cliente.tasaInteres / 100)).round()
         : 0;
 
-    // Monto grande:
-    // - préstamo: saldo + interés
-    // - producto/alquiler: solo saldo
-    final int montoPrincipal = cliente.saldoActual + interesPeriodo;
+
+    // Monto grande: SOLO capital (sin interés) para todos los tipos
+    final int montoPrincipal = cliente.saldoActual;
+
 
     // Mora (solo para producto o alquiler)
     final bool tieneMora =

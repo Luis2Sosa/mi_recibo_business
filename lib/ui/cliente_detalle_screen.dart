@@ -75,7 +75,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   bool _tieneCambios = false;
   int _totalPrestado = 0;
   bool _btnPagoBusy = false;
-
+  bool _autoFecha = true; // 👈 NUEVO: por defecto automático
   // ✅ Mora acumulada offline (calculada aquí)
   late int _moraAcumulada; // 👈 NUEVO
 
@@ -101,6 +101,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     Future.microtask(_autoFixEstado);
     Future.microtask(_cargarTotalPrestado);
     Future.microtask(_cargarNota); // <-- lee 'nota' si existe
+    Future.microtask(_cargarFlags); // 👈 NUEVO: lee autoFecha del cliente
+
   }
 
   // =======================
@@ -282,6 +284,28 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     } catch (_) {}
   }
 
+  Future<void> _cargarFlags() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('prestamistas').doc(uid)
+          .collection('clientes').doc(widget.id)
+          .get();
+      final data = snap.data() ?? {};
+      final bool auto = (data['autoFecha'] as bool?) ?? true;
+
+      if (!mounted) return;
+      setState(() {
+        _autoFecha = auto;
+      });
+    } catch (_) {
+      // si falla, dejamos _autoFecha=true por defecto
+    }
+  }
+
+
   Future<void> incrementarTotalPrestado(int monto) async {
     if (monto <= 0) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -351,6 +375,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           nombreCliente: widget.nombreCompleto, // ← izquierda
           producto: widget.producto,           // ← para decidir Producto/Arriendo
           moraActual: _moraAcumulada,          // 👈 pasa la mora al formulario
+          autoFecha: _autoFecha, // 👈 NUEVO: respeta el flag del cliente
+
         ),
       ),
     );
@@ -359,12 +385,15 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     final int pagoInteres   = result['pagoInteres']   as int? ?? 0;
     final int pagoCapital   = result['pagoCapital']   as int? ?? 0;
     final int totalPagado   = result['totalPagado']   as int? ?? (pagoInteres + pagoCapital);
-    final int saldoAnterior = result['salvoAnterior'] as int? ?? result['saldoAnterior'] as int? ?? _saldoActual;
+    final int saldoAnterior = result['saldoAnterior'] as int? ?? _saldoActual;
     final int saldoNuevo    = result['saldoNuevo']    as int? ?? _saldoActual;
     final DateTime prox     = result['proximaFecha']  as DateTime? ?? _proximaFecha;
+    // 🔒 Asegura local + 12:00 antes de avanzar períodos/guardar
+    final DateTime proxLocalBase = _atNoon(prox.toLocal());
+
 
     // 🕛 Normaliza antes de usar/guardar
-    final DateTime proxAlDia = _siguienteFechaAlDia(prox, widget.periodo);
+    final DateTime proxAlDia = _siguienteFechaAlDia(proxLocalBase, widget.periodo);
     final DateTime proxNoon  = _atNoon(proxAlDia);
 
     // 👇 Sumar mora SOLO en producto/alquiler (si hay)
