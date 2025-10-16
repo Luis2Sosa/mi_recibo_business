@@ -152,8 +152,11 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                                 Flexible(
                                   child: Text(
                                     _esProducto
-                                        ? 'Completa el nombre del producto. En este módulo el interés no aplica.'
-                                        : 'Completa los datos del alquiler. El interés no aplica; puedes activar la mora.',
+                                        ? 'Aquí van fiados y alquileres cortos (vehículos/equipos por días o semanas). '
+                                        'Para alquiler mensual de inmueble usa la pestaña Alquiler.'
+                                        : 'Completa los datos del alquiler mensual de inmueble. '
+                                        'El interés no aplica; puedes activar la mora.',
+
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 16,
@@ -485,13 +488,13 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                           children: [
                             const Icon(Icons.local_offer_rounded, color: Color(0xFF94A3B8), size: 18),
                             const SizedBox(width: 6),
-                            Flexible(
+                            const Flexible(
                               child: Text(
-                                _esProducto ? 'Producto' : 'Alquiler / Propiedad',
+                                'Producto / Alquiler (corto–mediano–largo)',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 softWrap: false,
-                                style: const TextStyle(color: Color(0xFF64748B)),
+                                style: TextStyle(color: Color(0xFF64748B)),
                               ),
                             ),
                           ],
@@ -516,8 +519,27 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                       validator: (v) => (v == null || v.trim().isEmpty) ? 'Obligatorio en este módulo' : null,
                     ),
                   ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Color(0xFFE2E8F0)),
+                    ),
+                    child: const Text('Para alquiler de inmuebles, usa la pestaña Alquiler. ' 'Fiados de productos y alquileres de vehículos o equipos van aquí en Productos.',
+                      style: TextStyle(
+                        color: Color(0xFF334155),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        height: 1.25,
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                 ],
+
 
                 Row(
                   children: [
@@ -786,6 +808,26 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     );
   }
 
+  Map<String, String?> _detectarProductoTipo(String nombre) {
+    final s = nombre.toLowerCase();
+
+    // Palabras clave
+    final esGuagua = s.contains('guagua') || s.contains('bus') || s.contains('autobus') || s.contains('autobús');
+    final esMoto   = s.contains('moto') || s.contains('motor');
+    final esCarro  = s.contains('carro') || s.contains('auto') || s.contains('coche') ||
+        s.contains('vehiculo') || s.contains('vehículo') ||
+        s.contains('camioneta') || s.contains('jeepeta') ||
+        s.contains('pickup') || s.contains('camion') || s.contains('camión') || s.contains('taxi');
+
+    if (esGuagua) return {'tipoProducto': 'vehiculo', 'vehiculoTipo': 'guagua'};
+    if (esMoto)   return {'tipoProducto': 'vehiculo', 'vehiculoTipo': 'moto'};
+    if (esCarro)  return {'tipoProducto': 'vehiculo', 'vehiculoTipo': 'carro'};
+
+    // Genérico (no vehículo)
+    return {'tipoProducto': 'generico', 'vehiculoTipo': null};
+  }
+
+
   Future<void> _guardar() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
@@ -821,6 +863,10 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
 
     final String productoTexto =
     _esPrestamo ? '' : _productoCtrl.text.trim(); // requerido por validador arriba
+    // Solo para módulo Productos, calculamos tipo para íconos adaptativos
+    final Map<String, String?> _tipoProd =
+    _esProducto ? _detectarProductoTipo(productoTexto) : {'tipoProducto': null, 'vehiculoTipo': null};
+
     final String nota = _notaCtrl.text.trim();
 
     final DateTime venceElDate = _atNoon(_proximaFecha!);
@@ -887,6 +933,10 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
           'updatedAt': FieldValue.serverTimestamp(),
           'mora': moraCfg, // null para otros módulos o si está desactivada
           'esFiado': _esProducto && _moraEnabled,
+          // 👇 Ícono adaptativo (solo Productos)
+          'tipoProducto': _tipoProd['tipoProducto'],
+          'vehiculoTipo': _tipoProd['vehiculoTipo'],
+
 
         };
 
@@ -929,7 +979,12 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
           'mora': moraCfg,
           'moraAplicadaEnDias': <int>[], // para evitar aplicar dos veces el mismo umbral
           'esFiado': _esProducto && _moraEnabled,
+          // 👇 Ícono adaptativo (solo Productos)
+          'tipoProducto': _tipoProd['tipoProducto'],
+          'vehiculoTipo': _tipoProd['vehiculoTipo'],
+
         });
+
 
         // Métricas
         final metricsRef = FirebaseFirestore.instance

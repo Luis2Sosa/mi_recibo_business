@@ -283,6 +283,8 @@ class ReciboScreen extends StatefulWidget {
   final String cliente;
   final String telefonoCliente;
   final String producto;
+  final String? tipoProducto;   // 'vehiculo' | 'otro'
+  final String? vehiculoTipo;   // 'carro' | 'guagua' | 'moto'
   final String numeroRecibo;
   final DateTime fecha;
   final int capitalInicial;
@@ -309,6 +311,9 @@ class ReciboScreen extends StatefulWidget {
     required this.telefonoCliente,
     required this.numeroRecibo,
     required this.producto,
+    this.tipoProducto,
+    this.vehiculoTipo,
+
     required this.fecha,
     required this.capitalInicial,
     required this.pagoInteres,
@@ -584,6 +589,8 @@ class _ReciboScreenState extends State<ReciboScreen> {
                             cliente: widget.cliente,
                             telefonoCliente: widget.telefonoCliente,
                             producto: widget.producto,
+                            tipoProducto: widget.tipoProducto,
+                            vehiculoTipo: widget.vehiculoTipo,
                             numeroRecibo: _fmtNumReciboStr(widget.numeroRecibo),
                             fecha: widget.fecha,
                             capitalInicial: widget.capitalInicial,
@@ -758,6 +765,9 @@ class _ReceiptContent extends StatelessWidget {
   final String cliente;
   final String telefonoCliente;
   final String producto;
+  final String? tipoProducto; // 👈 nuevo
+  final String? vehiculoTipo; // 👈 nuevo
+
   final String numeroRecibo;
   final DateTime fecha;
   final int capitalInicial;
@@ -780,6 +790,8 @@ class _ReceiptContent extends StatelessWidget {
     required this.cliente,
     required this.telefonoCliente,
     required this.producto,
+    this.tipoProducto, // 👈 nuevo
+    this.vehiculoTipo, // 👈 nuevo
     required this.numeroRecibo,
     required this.fecha,
     required this.capitalInicial,
@@ -811,11 +823,51 @@ class _ReceiptContent extends StatelessWidget {
         t.contains('apartamento') ||
         t.contains('casa');
 
-// Todo lo que no sea préstamo ni arriendo => producto
+    // Todo lo que no sea préstamo ni arriendo => producto
     final bool esProducto = !esPrestamo && !esArriendo;
 
+    // 👇 DETECCIÓN DE VEHÍCULO
+    final bool esVehiculo =
+        (tipoProducto?.toLowerCase().trim() == 'vehiculo') ||
+            ((vehiculoTipo
+                ?.trim()
+                .isNotEmpty ?? false)) ||
+            RegExp(r'\b(carro|auto|moto|motocicleta|guagua|bus)\b',
+                caseSensitive: false)
+                .hasMatch(producto.toLowerCase());
+
+    String vehiculoEtiqueta = (vehiculoTipo ?? '').trim();
+    if (vehiculoEtiqueta.isEmpty) {
+      // Si no vino vehiculoTipo, intenta deducirlo del texto del producto
+      final p = producto.toLowerCase();
+      if (p.contains('moto') || p.contains('motocicleta')) {
+        vehiculoEtiqueta = 'moto';
+      } else if (p.contains('guagua') || p.contains('bus')) {
+        vehiculoEtiqueta = 'guagua';
+      } else if (p.contains('carro') || p.contains('auto')) {
+        vehiculoEtiqueta = 'carro';
+      }
+    }
+
+    // 👇 SELECCIONA ICONO SEGÚN TIPO
+    IconData _vehIcon(String s) {
+      switch (s.toLowerCase()) {
+        case 'moto':
+        case 'motocicleta':
+          return Icons.two_wheeler_rounded;
+        case 'guagua':
+        case 'bus':
+          return Icons.directions_bus_rounded;
+        default:
+          return Icons.directions_car_rounded;
+      }
+    }
+
     Widget label(String t) => Text(t, style: cfg.labelStyle);
-    Widget value(String t) => Text(t, style: cfg.valueStyle, overflow: TextOverflow.ellipsis, maxLines: 1);
+    Widget value(String t) =>
+        Text(t, style: cfg.valueStyle,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1);
     Widget valueStrong(String t) => Text(t, style: cfg.valueStrongStyle);
     Widget valueClient(String t) => Text(t, style: cfg.valueClientStyle);
 
@@ -841,10 +893,12 @@ class _ReceiptContent extends StatelessWidget {
 
     // Interés solo se usa/enseña para PRÉSTAMO
     final int proximoInteres = (saldoActual * (tasaInteres / 100)).round();
-    final int saldoProximoPago = !pagoFinalizado ? (saldoActual + proximoInteres) : 0;
+    final int saldoProximoPago = !pagoFinalizado ? (saldoActual +
+        proximoInteres) : 0;
 
     // ===== Helper fila con ícono =====
-    Widget _rowIcon(IconData icon, String t, String v, {Color? iconBg, Color? iconColor}) {
+    Widget _rowIcon(IconData icon, String t, String v,
+        {Color? iconBg, Color? iconColor}) {
       final bg = iconBg ?? const Color(0xFFEFF6FF);
       final ic = iconColor ?? const Color(0xFF2563EB);
       return Padding(
@@ -863,7 +917,8 @@ class _ReceiptContent extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(t, style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w600)),
+              child: Text(t,
+                  style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w600)),
             ),
             const SizedBox(width: 10),
             Text(v, style: cfg.valueStrongStyle),
@@ -887,16 +942,19 @@ class _ReceiptContent extends StatelessWidget {
                 height: cfg.checkCircleSize,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: cfg.brandTeal, width: cfg.checkBorderWidth),
+                  border: Border.all(
+                      color: cfg.brandTeal, width: cfg.checkBorderWidth),
                 ),
-                child: Icon(Icons.check_rounded, size: cfg.checkIconSize, color: cfg.brandTeal),
+                child: Icon(Icons.check_rounded, size: cfg.checkIconSize,
+                    color: cfg.brandTeal),
               ),
             ),
 
             // ✔ Título
             Padding(
               padding: cfg.titleMargin,
-              child: Center(child: Text(tituloPrincipal, style: cfg.recibidoTitleStyle)),
+              child: Center(
+                  child: Text(tituloPrincipal, style: cfg.recibidoTitleStyle)),
             ),
 
             // ✔ MONTO GRANDE
@@ -955,11 +1013,23 @@ class _ReceiptContent extends StatelessWidget {
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                Text('Tel:',
-                                    style: cfg.valueStyle.copyWith(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black87)),
+                                Text(
+                                  'Tel:',
+                                  style: cfg.valueStyle.copyWith(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black87,
+                                  ),
+                                ),
                                 const SizedBox(width: 6),
-                                Text(telefonoServidor,
-                                    style: cfg.valueStyle.copyWith(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.black87)),
+                                Text(
+                                  telefonoServidor,
+                                  style: cfg.valueStyle.copyWith(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
                               ],
                             ),
                           ],
@@ -969,9 +1039,12 @@ class _ReceiptContent extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Row(mainAxisSize: MainAxisSize.min, children: [ Text(numeroRecibo, style: cfg.valueStrongStyle) ]),
+                          Row(mainAxisSize: MainAxisSize.min, children: [
+                            Text(numeroRecibo, style: cfg.valueStrongStyle)
+                          ]),
                           const SizedBox(height: 4),
-                          Text(fmtFecha(fecha), style: cfg.valueStyle.copyWith(fontWeight: FontWeight.w700)),
+                          Text(fmtFecha(fecha), style: cfg.valueStyle.copyWith(
+                              fontWeight: FontWeight.w700)),
                         ],
                       ),
                     ],
@@ -988,224 +1061,311 @@ class _ReceiptContent extends StatelessWidget {
                   const SizedBox(height: 10),
 
                   // ===== BLOQUE DE PAGO SEGÚN TIPO =====
-                  Container(
-                    constraints: const BoxConstraints(minHeight: 240),
-                    decoration: BoxDecoration(
-                      color: cfg.mint,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: cfg.mintBorder),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
-                    child: pagoFinalizado
-                        ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.verified_rounded, color: cfg.brandTeal, size: 32),
-                        const SizedBox(height: 8),
-                        Text(
-                          esArriendo
-                              ? 'Arriendo saldado'
-                              : esProducto
-                              ? 'Producto pagado por completo'
-                              : 'Préstamo saldado',
-                          style: cfg.valueStrongStyle.copyWith(fontSize: 20),
-                          textAlign: TextAlign.center,
+                  Builder(
+                    builder: (context) {
+                      // Texto base para detección (seguro si 'producto' viene null)
+                      final String t = (producto ?? '').toLowerCase();
+
+                      // Vehículo: deducido por tipo o por palabras clave
+                      final bool esVehiculoLocal =
+                          (tipoProducto?.toLowerCase() == 'vehiculo') ||
+                              (vehiculoTipo != null && vehiculoTipo!.trim()
+                                  .isNotEmpty) ||
+                              t.contains('carro') ||
+                              t.contains('moto') ||
+                              t.contains('guagua') ||
+                              t.contains('bus') ||
+                              t.contains('vehiculo');
+
+                      // Etiqueta visible del vehículo
+                      String vehiculoEtiquetaLocal() {
+                        final s = (vehiculoTipo ?? '').trim().toLowerCase();
+                        if (s.isNotEmpty) return s;
+                        if (t.contains('moto')) return 'moto';
+                        if (t.contains('guagua') || t.contains('bus'))
+                          return 'guagua';
+                        if (t.contains('carro') || t.contains('auto') ||
+                            t.contains('coche')) return 'carro';
+                        return '';
+                      }
+
+                      // Ícono según el tipo
+                      IconData vehIcon(String v) {
+                        switch (v.toLowerCase()) {
+                          case 'moto':
+                            return Icons.two_wheeler_rounded;
+                          case 'guagua':
+                          case 'bus':
+                            return Icons.directions_bus_filled_rounded;
+                          default:
+                            return Icons.directions_car_rounded;
+                        }
+                      }
+
+                      final String vEt = vehiculoEtiquetaLocal();
+
+                      return Container(
+                        constraints: const BoxConstraints(minHeight: 240),
+                        decoration: BoxDecoration(
+                          color: cfg.mint,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: cfg.mintBorder),
                         ),
-                        const SizedBox(height: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 18),
+                        child: pagoFinalizado
+                            ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.verified_rounded, color: cfg.brandTeal,
+                                size: 32),
+                            const SizedBox(height: 8),
+                            Text(
+                              esArriendo
+                                  ? 'Arriendo saldado'
+                                  : esProducto
+                                  ? 'Producto pagado por completo'
+                                  : 'Préstamo saldado',
+                              style: cfg.valueStrongStyle.copyWith(
+                                  fontSize: 20),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 4),
 
-                        // === MOSTRAR MONTO PAGADO Y MORA COBRADA CUANDO SE SALDA ===
-                        const SizedBox(height: 6),
-                        _rowIcon(
-                          Icons.attach_money_rounded,
-                          esArriendo
-                              ? 'Pago de arriendo'
-                              : (esProducto ? 'Pago de producto' : 'Pago realizado'),
-                          pesoSolo(totalPagado),
-                          iconBg: const Color(0xFFFFF7ED),
-                          iconColor: const Color(0xFFB45309),
-                        ),
-
-// 👉 Mostrar producto debajo del pago (solo si es producto)
-                        if (esProducto && producto.trim().isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          _rowIcon(
-                            Icons.shopping_bag_rounded,
-                            'Producto',
-                            producto,
-                            iconBg: const Color(0xFFF3F0FF),
-                            iconColor: const Color(0xFF6D28D9),
-                          ),
-                        ],
-
-                        if (moraCobrada > 0) ...[
-                          const SizedBox(height: 6),
-                          _rowIcon(
-                            Icons.local_fire_department_rounded,
-                            'Mora cobrada',
-                            pesoSolo(moraCobrada),
-                            iconBg: const Color(0xFFFFEBEE),
-                            iconColor: const Color(0xFFE11D48),
-                          ),
-                        ],
-
-                        const SizedBox(height: 50), // 👈 espacio entre el monto y el texto
-                        Text(
-                          esArriendo
-                              ? 'Gracias por ponerte al día con tu alquiler.'
-                              : esProducto
-                              ? (saldoRestante > 0
-                              ? 'Gracias por tu compra. Nos vemos en el próximo pago.'
-                              : '¡Disfruta tu compra! No quedan pagos pendientes.')
-                              : 'No quedan pagos pendientes.',
-                          style: cfg.labelStyle,
-                          textAlign: TextAlign.center,
-                        ),
-
-                      ],
-                    )
-                        : Column(
-                      children: [
-                        // ====== ARRIENDO / ALQUILER ======
-                        if (esArriendo) ...[
-                          _rowIcon(
-                            Icons.home_rounded,
-                            'Pago mensual de arriendo',
-                            pesoSolo(totalPagado),
-                            iconBg: const Color(0xFFFFFAE6),
-                            iconColor: const Color(0xFF92400E),
-                          ),
-
-                          if (moraCobrada > 0) ...[
+                            // === MONTO PAGADO ===
                             const SizedBox(height: 6),
                             _rowIcon(
-                              Icons.local_fire_department_rounded,
-                              'Mora cobrada',
-                              pesoSolo(moraCobrada),
-                              iconBg: const Color(0xFFFFEBEE),
-                              iconColor: const Color(0xFFE11D48),
+                              Icons.attach_money_rounded,
+                              esArriendo
+                                  ? 'Pago de arriendo'
+                                  : (esProducto
+                                  ? 'Pago de producto'
+                                  : 'Pago realizado'),
+                              pesoSolo(totalPagado),
+                              iconBg: const Color(0xFFFFF7ED),
+                              iconColor: const Color(0xFFB45309),
                             ),
-                          ],
 
-                          Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-                          _rowIcon(
-                            Icons.request_quote_rounded,
-                            'Saldo restante',
-                            pesoSolo(saldoActual),
-                            iconBg: const Color(0xFFEFF6FF),
-                            iconColor: const Color(0xFF2563EB),
-                          ),
-                        ]
-                        // ====== PRODUCTO ======
-                        else if (esProducto) ...[
-                          _rowIcon(
-                            Icons.shopping_bag_rounded,
-                            'Pago mensual de producto',
-                            pesoSolo(totalPagado),
-                            iconBg: const Color(0xFFF3F0FF),
-                            iconColor: const Color(0xFF6D28D9),
-                          ),
+                            // 👉 Producto / Vehículo (solo si es producto)
+                            if (esProducto && (producto
+                                .trim()
+                                .isNotEmpty)) ...[
+                              const SizedBox(height: 6),
+                              _rowIcon(
+                                esVehiculoLocal ? vehIcon(vEt) : Icons
+                                    .shopping_bag_rounded,
+                                esVehiculoLocal ? 'Vehículo' : 'Producto',
+                                esVehiculoLocal ? (vEt.isEmpty
+                                    ? 'vehículo'
+                                    : vEt) : producto,
+                                iconBg: esVehiculoLocal ? const Color(
+                                    0xFFEFF6FF) : const Color(0xFFF3F0FF),
+                                iconColor: esVehiculoLocal ? const Color(
+                                    0xFF2563EB) : const Color(0xFF6D28D9),
+                              ),
+                            ],
 
-                          if (moraCobrada > 0) ...[
-                            const SizedBox(height: 6),
-                            _rowIcon(
-                              Icons.local_fire_department_rounded,
-                              'Mora cobrada',
-                              pesoSolo(moraCobrada),
-                              iconBg: const Color(0xFFFFEBEE),
-                              iconColor: const Color(0xFFE11D48),
-                            ),
-                          ],
+                            // 👉 Mora (si aplica)
+                            if (moraCobrada > 0) ...[
+                              const SizedBox(height: 6),
+                              _rowIcon(
+                                Icons.local_fire_department_rounded,
+                                'Mora cobrada',
+                                pesoSolo(moraCobrada),
+                                iconBg: const Color(0xFFFFEBEE),
+                                iconColor: const Color(0xFFE11D48),
+                              ),
+                            ],
 
-                          Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-                          _rowIcon(
-                            Icons.request_quote_rounded,
-                            'Saldo restante',
-                            pesoSolo(saldoActual),
-                            iconBg: const Color(0xFFEFF6FF),
-                            iconColor: const Color(0xFF2563EB),
-                          ),
-
-                          // 👉 Producto ARRIBA del texto
-                          Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-                          _rowIcon(
-                            Icons.shopping_bag_rounded,
-                            'Producto',
-                            producto,
-                            iconBg: const Color(0xFFF3F0FF),
-                            iconColor: const Color(0xFF6D28D9),
-                          ),
-
-                          const SizedBox(height: 16),
-                          Center(
-                            child: Text(
-                              'Gracias por tu compra. Nos vemos en el próximo pago.',
+                            const SizedBox(height: 50),
+                            Text(
+                              esArriendo
+                                  ? 'Gracias por ponerte al día con tu alquiler.'
+                                  : esProducto
+                                  ? (saldoRestante > 0
+                                  ? 'Gracias por tu compra. Nos vemos en el próximo pago.'
+                                  : '¡Disfruta tu compra! No quedan pagos pendientes.')
+                                  : 'No quedan pagos pendientes.',
                               style: cfg.labelStyle,
                               textAlign: TextAlign.center,
                             ),
-                          ),
-                        ]
-
-
-
-                        // ====== PRÉSTAMO ======
-                        else ...[
-                            _rowIcon(
-                              Icons.account_balance_wallet_rounded,
-                              'Monto adeudado',
-                              pesoSolo(saldoAnterior),
-                              iconBg: const Color(0xFFF2F6FD),
-                              iconColor: const Color(0xFF2563EB),
-                            ),
-                            Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-                            _rowIcon(
-                              Icons.trending_up_rounded,
-                              'Pago de interés',
-                              pesoSolo(pagoInteres),
-                              iconBg: const Color(0xFFEFFAF4),
-                              iconColor: const Color(0xFF22C55E),
-                            ),
-                            Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-                            _rowIcon(
-                              Icons.savings_rounded,
-                              'Pago a capital',
-                              pesoSolo(pagoCapital),
-                              iconBg: const Color(0xFFFFF2F6),
-                              iconColor: const Color(0xFFE11D48),
-                            ),
-                            if (saldoActual > 0) ...[
-                              Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                          ],
+                        )
+                            : Column(
+                          children: [
+                            // ====== ARRIENDO / ALQUILER ======
+                            if (esArriendo) ...[
                               _rowIcon(
-                                Icons.request_quote_rounded,
-                                'Próximo pago',
-                                pesoSolo(saldoProximoPago),
+                                Icons.home_rounded,
+                                'Pago mensual de arriendo',
+                                pesoSolo(totalPagado),
                                 iconBg: const Color(0xFFFFFAE6),
                                 iconColor: const Color(0xFF92400E),
                               ),
-                              Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+
+                              if (moraCobrada > 0) ...[
+                                const SizedBox(height: 6),
+                                _rowIcon(
+                                  Icons.local_fire_department_rounded,
+                                  'Mora cobrada',
+                                  pesoSolo(moraCobrada),
+                                  iconBg: const Color(0xFFFFEBEE),
+                                  iconColor: const Color(0xFFE11D48),
+                                ),
+                              ],
+
+                              Divider(height: 14,
+                                  thickness: 1,
+                                  color: cfg.mintDivider),
                               _rowIcon(
-                                Icons.event_rounded,
-                                'Próxima fecha',
-                                fmtFecha(proximaFecha),
+                                Icons.request_quote_rounded,
+                                'Saldo restante',
+                                pesoSolo(saldoActual),
                                 iconBg: const Color(0xFFEFF6FF),
                                 iconColor: const Color(0xFF2563EB),
                               ),
-                            ],
-                          ],
+                            ]
 
-                        // ====== LÍNEA “TIPO/DETALLE” ======
-                        if (!esProducto && producto.trim().isNotEmpty) ...[
-                          Divider(height: 14, thickness: 1, color: cfg.mintDivider),
-                          _rowIcon(
-                            esArriendo ? Icons.home_work_rounded : (esProducto ? Icons.shopping_bag_rounded : Icons.description_rounded),
-                            esArriendo ? 'Arriendo' : (esProducto ? 'Producto' : 'Detalle'),
-                            producto,
-                            iconBg: esArriendo ? const Color(0xFFFFF7ED) : (esProducto ? const Color(0xFFF3F0FF) : const Color(0xFFF2F6FD)),
-                            iconColor: esArriendo ? const Color(0xFFB45309) : (esProducto ? const Color(0xFF6D28D9) : const Color(0xFF2563EB)),
-                          ),
-                        ],
-                      ],
-                    ),
+                            // ====== PRODUCTO ======
+                            else
+                              if (esProducto) ...[
+                                _rowIcon(
+                                  Icons.shopping_bag_rounded,
+                                  'Pago mensual de producto',
+                                  pesoSolo(totalPagado),
+                                  iconBg: const Color(0xFFF3F0FF),
+                                  iconColor: const Color(0xFF6D28D9),
+                                ),
+
+                                if (moraCobrada > 0) ...[
+                                  const SizedBox(height: 6),
+                                  _rowIcon(
+                                    Icons.local_fire_department_rounded,
+                                    'Mora cobrada',
+                                    pesoSolo(moraCobrada),
+                                    iconBg: const Color(0xFFFFEBEE),
+                                    iconColor: const Color(0xFFE11D48),
+                                  ),
+                                ],
+
+                                Divider(height: 14,
+                                    thickness: 1,
+                                    color: cfg.mintDivider),
+                                _rowIcon(
+                                  Icons.request_quote_rounded,
+                                  'Saldo restante',
+                                  pesoSolo(saldoActual),
+                                  iconBg: const Color(0xFFEFF6FF),
+                                  iconColor: const Color(0xFF2563EB),
+                                ),
+
+                                // 👉 Producto / Vehículo ARRIBA del texto
+                                Divider(height: 14,
+                                    thickness: 1,
+                                    color: cfg.mintDivider),
+                                _rowIcon(
+                                  esVehiculoLocal ? vehIcon(vEt) : Icons
+                                      .shopping_bag_rounded,
+                                  esVehiculoLocal ? 'Vehículo' : 'Producto',
+                                  esVehiculoLocal ? (vEt.isEmpty
+                                      ? 'vehículo'
+                                      : vEt) : producto,
+                                  iconBg: esVehiculoLocal ? const Color(
+                                      0xFFEFF6FF) : const Color(0xFFF3F0FF),
+                                  iconColor: esVehiculoLocal ? const Color(
+                                      0xFF2563EB) : const Color(0xFF6D28D9),
+                                ),
+
+                                const SizedBox(height: 16),
+                                Center(
+                                  child: Text(
+                                    'Gracias por tu compra. Nos vemos en el próximo pago.',
+                                    style: cfg.labelStyle,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ]
+
+                              // ====== PRÉSTAMO ======
+                              else
+                                ...[
+                                  _rowIcon(
+                                    Icons.account_balance_wallet_rounded,
+                                    'Monto adeudado',
+                                    pesoSolo(saldoAnterior),
+                                    iconBg: const Color(0xFFF2F6FD),
+                                    iconColor: const Color(0xFF2563EB),
+                                  ),
+                                  Divider(height: 14,
+                                      thickness: 1,
+                                      color: cfg.mintDivider),
+                                  _rowIcon(
+                                    Icons.trending_up_rounded,
+                                    'Pago de interés',
+                                    pesoSolo(pagoInteres),
+                                    iconBg: const Color(0xFFEFFAF4),
+                                    iconColor: const Color(0xFF22C55E),
+                                  ),
+                                  Divider(height: 14,
+                                      thickness: 1,
+                                      color: cfg.mintDivider),
+                                  _rowIcon(
+                                    Icons.savings_rounded,
+                                    'Pago a capital',
+                                    pesoSolo(pagoCapital),
+                                    iconBg: const Color(0xFFFFF2F6),
+                                    iconColor: const Color(0xFFE11D48),
+                                  ),
+                                  if (saldoActual > 0) ...[
+                                    Divider(height: 14,
+                                        thickness: 1,
+                                        color: cfg.mintDivider),
+                                    _rowIcon(
+                                      Icons.request_quote_rounded,
+                                      'Próximo pago',
+                                      pesoSolo(saldoProximoPago),
+                                      iconBg: const Color(0xFFFFFAE6),
+                                      iconColor: const Color(0xFF92400E),
+                                    ),
+                                    Divider(height: 14,
+                                        thickness: 1,
+                                        color: cfg.mintDivider),
+                                    _rowIcon(
+                                      Icons.event_rounded,
+                                      'Próxima fecha',
+                                      fmtFecha(proximaFecha),
+                                      iconBg: const Color(0xFFEFF6FF),
+                                      iconColor: const Color(0xFF2563EB),
+                                    ),
+                                  ],
+                                ],
+                          ],
+                        ),
+                      );
+                    },
                   ),
+
+                  // ====== LÍNEA “TIPO/DETALLE” ======
+                  if (!esProducto && producto
+                      .trim()
+                      .isNotEmpty) ...[
+                    Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+                    _rowIcon(
+                      esArriendo ? Icons.home_work_rounded : (esProducto ? Icons
+                          .shopping_bag_rounded : Icons.description_rounded),
+                      esArriendo ? 'Arriendo' : (esProducto
+                          ? 'Producto'
+                          : 'Detalle'),
+                      producto,
+                      iconBg: esArriendo ? const Color(0xFFFFF7ED) : (esProducto
+                          ? const Color(0xFFF3F0FF)
+                          : const Color(0xFFF2F6FD)),
+                      iconColor: esArriendo
+                          ? const Color(0xFFB45309)
+                          : (esProducto ? const Color(0xFF6D28D9) : const Color(
+                          0xFF2563EB)),
+                    ),
+                  ],
                 ],
               ),
             ),

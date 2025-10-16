@@ -51,9 +51,9 @@ class _Content extends StatelessWidget {
       borderRadius: BorderRadius.circular(24),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.16), // ↑ Más sólida
+          color: Colors.white.withOpacity(.16),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withOpacity(.34)), // ↑ contraste
+          border: Border.all(color: Colors.white.withOpacity(.34)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(.25),
@@ -87,7 +87,6 @@ class _ScrollableBody extends StatelessWidget {
           _SectionTitle('Rutas principales'),
           SizedBox(height: 10),
 
-          // Tarjetas HALO
           _HaloCard(
             color: Color(0xFF2563EB), // Azul préstamo
             icon: Icons.request_quote_rounded,
@@ -99,25 +98,27 @@ class _ScrollableBody extends StatelessWidget {
             ],
           ),
           SizedBox(height: 10),
+
           _HaloCard(
             color: Color(0xFF22C55E), // Verde productos fiados
             icon: Icons.shopping_bag_rounded,
-            title: 'Fiado = Productos a crédito',
+            title: 'Productos (fiado) y alquiler corto',
             bullets: [
-              '“Fiado” aquí significa productos entregados a crédito (celulares, electrodomésticos, repuestos, etc.).',
-              'Lleva el saldo pendiente y abonos con claridad por cliente.',
-              'Alertas de vencimiento y comprobantes listos para compartir por WhatsApp.',
+              'Vende a crédito y gestiona saldos por cliente.',
+              'Alquila vehículos o equipos por días o semanas desde esta sección.',
+              'Alertas de vencimiento y comprobantes listos para WhatsApp.',
             ],
           ),
           SizedBox(height: 10),
+
           _HaloCard(
             color: Color(0xFFF59E0B), // Naranja alquiler
             icon: Icons.house_rounded,
-            title: 'Arrendado = Alquiler',
+            title: 'Alquiler de inmuebles (mensual)',
             bullets: [
-              'Administra alquileres de casas, apartamentos, locales o habitaciones.',
-              'Registra pagos mensuales y controla renovaciones automáticamente.',
-              'Envío de recordatorios cortos y efectivos; historial y contratos organizados.',
+              'Casas, apartamentos, locales o habitaciones con ciclo mensual.',
+              'Registra pagos y renueva automáticamente.',
+              'Recordatorios y historial de cada inquilino.',
             ],
           ),
 
@@ -127,14 +128,15 @@ class _ScrollableBody extends StatelessWidget {
 
           _SectionTitle('Para profesionales'),
           SizedBox(height: 10),
+
           _HaloCard(
-            color: Color(0xFF111827), // Gris oscuro elegante
+            color: Color(0xFF111827),
             icon: Icons.build_rounded,
-            title: 'Soy Profesional (independientes y oficios)',
+            title: 'Profesionales y oficios',
             bullets: [
               'Crea cotizaciones elegantes y genera recibos en segundos.',
-              'Registra ingresos/gastos de manera simple desde el móvil.',
-              'Comunicación directa con tus clientes por WhatsApp.',
+              'Registra ingresos y gastos fácilmente desde tu móvil.',
+              'Comunicación directa con clientes por WhatsApp.',
             ],
           ),
 
@@ -158,8 +160,8 @@ class _IntroPitch extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: const [
           Text(
-            'Mi Recibo Business organiza tu cartera de clientes y registra pagos con claridad. '
-                'Genera recibos elegantes, envía recordatorios por WhatsApp y consulta historiales en segundos.\n\n'
+            'Mi Recibo Business organiza tu cartera de clientes para préstamos, productos fiados y alquileres. '
+                'Genera recibos profesionales, envía recordatorios por WhatsApp y consulta historiales en segundos.\n\n'
                 'Importante: la app NO mueve dinero; es una herramienta de control y seguimiento pensada para el día a día.',
             style: TextStyle(
               color: Colors.white,
@@ -183,9 +185,9 @@ class _HaloIntroPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.16), // ↑ Más fuerte
+        color: Colors.white.withOpacity(.16),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(.34)), // ↑ contraste
+        border: Border.all(color: Colors.white.withOpacity(.34)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(.25),
@@ -394,20 +396,17 @@ class _BenefitsBlock extends StatelessWidget {
         children: const [
           _BenefitRow(
             icon: Icons.verified_rounded,
-            text:
-            'Recibos elegantes y consistentes con tu marca: compártelos por WhatsApp en un toque.',
+            text: 'Recibos elegantes y consistentes con tu marca: compártelos por WhatsApp en un toque.',
           ),
           SizedBox(height: 10),
           _BenefitRow(
             icon: Icons.alarm_rounded,
-            text:
-            'Recordatorios por tipo (préstamo, productos fiados, alquiler) con mensajes claros.',
+            text: 'Recordatorios por tipo (préstamo, productos/fiado y alquiler) con mensajes claros.',
           ),
           SizedBox(height: 10),
           _BenefitRow(
             icon: Icons.analytics_rounded,
-            text:
-            'Historial por cliente, control de renovaciones y notificaciones diarias a las 9:00 a. m.',
+            text: 'Historial por cliente, control de renovaciones y métricas básicas.',
           ),
           SizedBox(height: 12),
           _FooterQuote(),
@@ -459,7 +458,7 @@ class _FooterQuote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(
-      'Más que un recibo: la herramienta inteligente que transforma el trabajo diario en Latinoamérica.',
+      'Más que un recibo: la herramienta que organiza y profesionaliza tu trabajo diario.',
       textAlign: TextAlign.center,
       style: TextStyle(
         color: Colors.white.withOpacity(.95),

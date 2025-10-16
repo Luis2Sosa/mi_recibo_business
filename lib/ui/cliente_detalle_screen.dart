@@ -14,8 +14,6 @@ import '../core/notifications_plus.dart';
 // 📲 Envíos por WhatsApp (Bloque 3)
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:firebase_auth/firebase_auth.dart';
-
 class ClienteDetalleScreen extends StatefulWidget {
   // --------- Datos del cliente ---------
   final String id;
@@ -28,6 +26,9 @@ class ClienteDetalleScreen extends StatefulWidget {
   final String periodo;
   final DateTime proximaFecha;
   final String producto;
+  final String? tipoProducto;   // 'vehiculo' | 'otro'
+  final String? vehiculoTipo;   // 'carro' | 'guagua' | 'moto'
+
 
   // --------- Datos del prestamista ---------
   final String empresa;
@@ -51,6 +52,9 @@ class ClienteDetalleScreen extends StatefulWidget {
     required this.servidor,
     required this.telefonoServidor,
     required this.producto,
+    this.tipoProducto,
+    this.vehiculoTipo,
+
     required this.moraAcumulada, // 👈 NUEVO
 
   });
@@ -95,6 +99,48 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   String? _nota;
 
   bool get _estaSaldado => _saldoActual <= 0;
+
+  IconData _iconoProducto() {
+    final p    = (widget.producto).toLowerCase().trim();
+    final tipo = (widget.tipoProducto ?? '').toLowerCase();
+    final veh  = (widget.vehiculoTipo ?? '').toLowerCase();
+
+    // 1) Si es alquiler de inmueble → casa
+    final esInmueble = p.contains('alquiler') ||
+        p.contains('arriendo') ||
+        p.contains('renta') ||
+        p.contains('casa') ||
+        p.contains('apart');
+    if (esInmueble) return Icons.house_rounded;
+
+    // 2) Si marcaste que es vehículo, respeta el tipo
+    if (tipo == 'vehiculo') {
+      if (veh == 'carro' || veh == 'auto' || veh == 'vehiculo') {
+        return Icons.directions_car_filled_rounded;
+      }
+      if (veh == 'guagua' || veh == 'bus' || veh == 'minibus') {
+        return Icons.directions_bus_filled_rounded;
+      }
+      if (veh == 'moto' || veh == 'motor') {
+        return Icons.two_wheeler_rounded;
+      }
+    }
+
+    // 3) Fallback por texto (por si no llegaron los campos)
+    if (p.contains('carro') || p.contains('auto') || p.contains('vehí')) {
+      return Icons.directions_car_filled_rounded;
+    }
+    if (p.contains('guagua') || p.contains('bus') || p.contains('mini')) {
+      return Icons.directions_bus_filled_rounded;
+    }
+    if (p.contains('moto') || p.contains('motor')) {
+      return Icons.two_wheeler_rounded;
+    }
+
+    // 4) Otro producto → bolsita
+    return Icons.shopping_bag_rounded;
+  }
+
 
   @override
   void initState() {
@@ -1205,13 +1251,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                               child: Align(
                                                 alignment: Alignment.center,
                                                 child: Icon(
-                                                  (widget.producto.toLowerCase().contains('alquiler') ||
-                                                      widget.producto.toLowerCase().contains('arriendo') ||
-                                                      widget.producto.toLowerCase().contains('renta') ||
-                                                      widget.producto.toLowerCase().contains('casa') ||
-                                                      widget.producto.toLowerCase().contains('apartamento'))
-                                                      ? Icons.house_rounded
-                                                      : Icons.shopping_bag_rounded,
+                                                  _iconoProducto(),           // 👈 usa el helper
                                                   size: 18,
                                                   color: const Color(0xFF7C3AED),
                                                 ),
