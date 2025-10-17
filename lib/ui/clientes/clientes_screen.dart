@@ -1,5 +1,6 @@
 // lib/clientes/clientes_screen.dart
 
+import '../recibo_screen.dart';
 import 'auto_filtro_service.dart';
 
 import 'dart:async';
@@ -563,11 +564,11 @@ class _ClientesScreenState extends State<ClientesScreen> {
     );
   }
 
-  Future<void> _renovarArriendo(Cliente c) async {
+  Future<void> _renovarArriendo(Cliente c, {bool generarRecibo = false}) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    // 🟠 Confirmación estilo ALQUILER (naranja)
+    // ——— Diálogo con acciones ———
     final bool? confirmar = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -581,48 +582,21 @@ class _ClientesScreenState extends State<ClientesScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Avatar naranja (igual “halo” que usas en alquiler)
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF7ED),                  // fondo suave naranja
-                    shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFFFDE68A)), // borde suave
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.autorenew_rounded,
-                    size: 26,
-                    color: Color(0xFFF59E0B), // naranja principal alquiler
-                  ),
-                ),
+                const Icon(Icons.autorenew_rounded, size: 38, color: Color(0xFFF59E0B)),
                 const SizedBox(height: 14),
-                const Text(
-                  '¿Renovar pagado?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
+                const Text('¿Renovar pagado?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 8),
                 const Text(
-                  'Esto renovará automáticamente el arriendo para el próximo pago.',
+                  'Esto renovará automáticamente el arriendo y generará su recibo.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF6B7280),
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
                 ),
                 const SizedBox(height: 18),
                 Row(
                   children: [
                     Expanded(
                       child: TextButton(
-                        onPressed: () => Navigator.pop(context, false),
+                        onPressed: () => Navigator.of(context).pop(false),
                         style: TextButton.styleFrom(
                           backgroundColor: const Color(0xFFF3F4F6),
                           foregroundColor: const Color(0xFF111827),
@@ -636,9 +610,9 @@ class _ClientesScreenState extends State<ClientesScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextButton(
-                        onPressed: () => Navigator.pop(context, true),
+                        onPressed: () => Navigator.of(context).pop(true),
                         style: TextButton.styleFrom(
-                          backgroundColor: const Color(0xFFF59E0B), // botón naranja alquiler
+                          backgroundColor: const Color(0xFFF59E0B),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -656,7 +630,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
       },
     );
 
-
     if (confirmar != true) return;
 
     try {
@@ -666,9 +639,12 @@ class _ClientesScreenState extends State<ClientesScreen> {
           .collection('clientes')
           .doc(c.id);
 
-      // Base al mediodía para evitar TZ: próxima fecha +1 mes
+      // próxima fecha al mediodía del mismo día + 1 mes
       final base = _atNoon(c.proximaFecha);
       final prox = DateTime(base.year, base.month + 1, base.day, 12);
+
+      // el pago del alquiler es el capitalInicial (renta)
+      final int pago = c.capitalInicial;
 
       await docRef.set({
         'saldoActual': c.capitalInicial,
@@ -678,18 +654,56 @@ class _ClientesScreenState extends State<ClientesScreen> {
         'proximaFecha': Timestamp.fromDate(prox),
         'venceEl': Timestamp.fromDate(prox),
         'updatedAt': FieldValue.serverTimestamp(),
+        'totalCobrado': FieldValue.increment(pago), // sumar al histórico cobrado
       }, SetOptions(merge: true));
 
-      if (mounted) {
-        _showBanner(
-          '✅ Renovación completada · Cliente renovado para el próximo pago',
-          color: const Color(0xFF417CDE),
-        );
+      if (!mounted) return;
+
+      if (!generarRecibo) {
+        _showBanner('✅ Renovación completada', color: const Color(0xFF417CDE));
+        return;
       }
+
+      // ——— Recibo ———
+      final String numeroSec = (DateTime.now().millisecondsSinceEpoch % 1000000)
+          .toString()
+          .padLeft(6, '0');
+      final String numeroRecibo = 'REC-$numeroSec';
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ReciboScreen(
+            empresa: _empresa,
+            servidor: _servidor,
+            telefonoServidor: _telefonoServidor,
+            cliente: c.nombreCompleto,
+            telefonoCliente: c.telefono,
+            numeroRecibo: numeroRecibo,
+            producto: c.producto ?? 'Alquiler',
+            fecha: DateTime.now(),
+            capitalInicial: c.capitalInicial,
+            pagoInteres: 0,
+            pagoCapital: pago,
+            totalPagado: pago,
+            saldoAnterior: c.capitalInicial,
+            saldoRestante: 0,
+            saldoActual: 0,
+            proximaFecha: prox,
+            tasaInteres: 0,
+            moraCobrada: 0,
+          ),
+        ),
+      );
+
+      // banner al volver del recibo
+      _showBanner('Renovación completada ✅ · Recibo generado', color: const Color(0xFF417CDE));
     } catch (e) {
       _showBanner('Error al renovar: $e', color: const Color(0xFFE11D48));
     }
   }
+
+
 
 
   void _mostrarOpcionesCliente(Cliente c) {
@@ -821,38 +835,21 @@ class _ClientesScreenState extends State<ClientesScreen> {
                     ),
                     const Divider(height: 1, color: Color(0xFFEFF1F5)),
 
-                    // ✅ NUEVO: Renovar pagado (vencido, hoy o al día)
+                    // ✅ Renovar pagado (siempre que sea alquiler; sin importar el estado: vencido, hoy, al día o saldado)
                     if (_esArriendo(c)) ...[
-                      if (_estadoDe(c) == EstadoVenc.vencido ||
-                          _estadoDe(c) == EstadoVenc.hoy ||
-                          _estadoDe(c) == EstadoVenc.alDia) ...[
-                        _actionItem(
-                          title: 'Renovar pagado',
-                          icon: Icons.autorenew_rounded,
-                          color: const Color(0xFF0EA5E9),
-                          onTap: () {
-                            _cerrado = true;
-                            Navigator.pop(sheetCtx);
-                            _renovarArriendo(c);
-                          },
-                        ),
-                        const Divider(height: 1, color: Color(0xFFEFF1F5)),
-                      ],
-                    ],
-
-                    if (_esArriendo(c) && _esSaldado(c)) ...[
                       _actionItem(
-                        title: 'Renovar',
+                        title: 'Renovar Alquiler',
                         icon: Icons.autorenew_rounded,
-                        color: const Color(0xFF16A34A),
+                        color: const Color(0xFF0EA5E9),
                         onTap: () {
                           _cerrado = true;
                           Navigator.pop(sheetCtx);
-                          _renovarArriendo(c);
+                          _renovarArriendo(c, generarRecibo: true); // ← genera recibo y suma al histórico
                         },
                       ),
                       const Divider(height: 1, color: Color(0xFFEFF1F5)),
                     ],
+
                     _actionItem(
                       title: 'Cancelar',
                       icon: Icons.close_rounded,

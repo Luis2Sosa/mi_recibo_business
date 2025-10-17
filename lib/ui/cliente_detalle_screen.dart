@@ -86,6 +86,9 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   bool _autoFecha = true; // 👈 NUEVO: por defecto automático
   // ✅ Mora acumulada offline (calculada aquí)
   late int _moraAcumulada; // 👈 NUEVO
+  // 👇 Pago inicial (solo para productos)
+  int _pagoInicial = 0;
+
 
   // Es PRÉSTAMO solo si el campo producto está vacío
   // o si explícitamente contiene palabras de préstamo.
@@ -152,6 +155,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     Future.microtask(_cargarTotalPrestado);
     Future.microtask(_cargarNota); // <-- lee 'nota' si existe
     Future.microtask(_cargarFlags); // 👈 NUEVO: lee autoFecha del cliente
+    Future.microtask(_cargarPagoInicial);
+
 
   }
 
@@ -293,29 +298,67 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     try {
       final snap = await ref.get();
       final data = snap.data() ?? {};
-      final int capitalInicial = (data['capitalInicial'] ?? 0) is int
-          ? (data['capitalInicial'] ?? 0)
-          : 0;
-      final int fallbackSaldoAnterior = (data['saldoAnterior'] ?? 0) is int
-          ? (data['saldoAnterior'] ?? 0)
-          : 0;
+
+      // ¿Este cliente es "Producto" o "Alquiler"?
+      final pTxt = (widget.producto).toLowerCase();
+      final esInmueble = pTxt.contains('alquiler') ||
+          pTxt.contains('arriendo') ||
+          pTxt.contains('renta') ||
+          pTxt.contains('casa') ||
+          pTxt.contains('apart');
+      final esProducto = !_esPrestamo && !esInmueble;
+
       int total = 0;
 
-      if (data.containsKey('totalPrestado')) {
-        final dynamic raw = data['totalPrestado'];
-        if (raw is int) total = raw;
-        if (raw is double) total = raw.round();
+      if (esProducto) {
+        // 1) Prioriza el total explícito del flujo de productos
+        final rawTotal = data['productoMontoTotal'];
+        if (rawTotal is int) total = rawTotal;
+        if (rawTotal is double) total = rawTotal.round();
+
+        // 2) Intentar clave antigua/migraciones
+        if (total <= 0) {
+          final rawMonto = data['montoProducto'];
+          if (rawMonto is int) total = rawMonto;
+          if (rawMonto is double) total = rawMonto.round();
+        }
+
+        // 3) Fallback: capitalInicial (saldo restante) + pago inicial
+        if (total <= 0) {
+          final cap = (data['capitalInicial'] is num) ? (data['capitalInicial'] as num).round() : 0;
+          final iniRaw = data.containsKey('productoPagoInicial')
+              ? data['productoPagoInicial']
+              : data['pagoInicial'];
+          final ini = (iniRaw is num) ? iniRaw.round() : 0;
+          total = cap + ini;
+        }
+      } else if (esInmueble) {
+        // 👈 ALQUILER: leer el histórico cobrado (lo incrementas en renovaciones/pagos)
+        final rawCobrado = data['totalCobrado'];
+        if (rawCobrado is int) total = rawCobrado;
+        if (rawCobrado is double) total = rawCobrado.round();
+
+        // Fallback si aún no existe el campo
+        if (total <= 0) total = 0;
       } else {
-        total = capitalInicial > 0 ? capitalInicial : fallbackSaldoAnterior;
-        await ref.set(
-            {'totalPrestado': total, 'updatedAt': FieldValue.serverTimestamp() },
-            SetOptions(merge: true));
+        // Préstamo → como lo tenías (totalPrestado / fallback)
+        if (data.containsKey('totalPrestado')) {
+          final raw = data['totalPrestado'];
+          if (raw is int) total = raw;
+          if (raw is double) total = raw.round();
+        } else {
+          final capitalInicial = (data['capitalInicial'] is num) ? (data['capitalInicial'] as num).round() : 0;
+          final fallbackSaldoAnterior = (data['saldoAnterior'] is num) ? (data['saldoAnterior'] as num).round() : 0;
+          total = capitalInicial > 0 ? capitalInicial : fallbackSaldoAnterior;
+          await ref.set({'totalPrestado': total, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+        }
       }
 
       if (!mounted) return;
       setState(() => _totalPrestado = total);
     } catch (_) {}
   }
+
 
   Future<void> _cargarNota() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -354,6 +397,29 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       // si falla, dejamos _autoFecha=true por defecto
     }
   }
+
+  // 👇 Cargar el pago inicial solo para productos (prioriza productoPagoInicial)
+  Future<void> _cargarPagoInicial() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('prestamistas').doc(uid)
+          .collection('clientes').doc(widget.id)
+          .get();
+      final data = snap.data() ?? {};
+
+      final raw = data.containsKey('productoPagoInicial')
+          ? data['productoPagoInicial']
+          : data['pagoInicial'];
+      final val = (raw is int) ? raw : (raw is double ? raw.round() : 0);
+
+      if (!mounted) return;
+      setState(() => _pagoInicial = val);
+    } catch (_) {/* ignore */}
+  }
+
 
 
   Future<void> incrementarTotalPrestado(int monto) async {
@@ -510,6 +576,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           telefonoCliente: widget.telefono,
           numeroRecibo: numeroRecibo,
           producto: widget.producto,
+          tipoProducto: widget.tipoProducto,
+          vehiculoTipo: widget.vehiculoTipo,
           fecha: DateTime.now(),
           capitalInicial: saldoAnterior,
           pagoInteres: pagoInteres,
@@ -538,6 +606,16 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           final current = (snap.data()?['nextReciboCliente'] ?? 0) as int;
           final next = current + 1;
 
+          // Tomar valores del producto para el recibo (si aplica)
+          final dataCli = snap.data() ?? {};
+          final int? montoTotalProd =
+          (dataCli['productoMontoTotal'] as num?)?.toInt();
+          final int? pagoInicialProd =
+              (dataCli['productoPagoInicial'] as num?)?.toInt() ??
+                  (dataCli['pagoInicial'] as num?)?.toInt();
+
+
+
           final Map<String, dynamic> updates = {
             'saldoActual': saldoNuevo,
             'proximaFecha': Timestamp.fromDate(proxNoon),
@@ -565,6 +643,14 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           'tasaInteres': widget.tasaInteres,
           'producto': widget.producto,
         });
+
+        // 👇 Si es ALQUILER, acumula al histórico cobrado
+        if (esAlquiler) {
+          await clienteRef.set({
+            'totalCobrado': FieldValue.increment(totalConMora),
+          }, SetOptions(merge: true));
+        }
+
 
         final metricsRef = FirebaseFirestore.instance
             .collection('prestamistas').doc(uid)
@@ -1288,16 +1374,34 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                     child: Column(
                                       children: [
                                         _rowStyled(
-                                          'Total histórico',
+                                          esProducto
+                                              ? 'Monto total'
+                                              : (esAlquiler ? 'Total cobrado' : 'Total histórico'),
                                           _rd(_totalPrestado),
                                           labelInk,
                                           valueBlue,
                                         ),
+
                                         const Divider(
                                           height: 14,
                                           thickness: 1,
                                           color: Color(0xFFE7F0EA),
                                         ),
+
+                                        // 🟢 Mostrar “Pago inicial” solo en Productos y si existe
+                                        if (esProducto && _pagoInicial > 0) ...[
+                                          _rowStyled(
+                                            'Pago inicial',
+                                            _rd(_pagoInicial),
+                                            labelInk,
+                                            valueStyle.copyWith(
+                                              color: const Color(0xFF059669), // verde
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                          const Divider(height: 14, thickness: 1, color: Color(0xFFE7F0EA)),
+                                        ],
+
 
                                         _rowStyled(
                                           'Saldo actual pendiente',
