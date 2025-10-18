@@ -69,7 +69,9 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
   int get _pagoInicial =>
       int.tryParse(_pagoInicialCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
 
-  int get _saldoRestante => (_montoProducto - _pagoInicial).clamp(0, 999999999);
+  int get _saldoRestante =>
+      ((_montoProducto - _pagoInicial).clamp(0, 999999999)).toInt();
+
 
   late String _periodo;
   DateTime? _proximaFecha;
@@ -99,109 +101,6 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
   double _moraValor = 10;                // 10% o monto fijo
   bool _mora15 = true, _mora30 = false;  // solo 15 y 30; 15 activo por defecto
 
-  // === Hint flotante (consejo) ===
-  final LayerLink _hintLink = LayerLink();
-  OverlayEntry? _hintEntry;
-  bool _hintMostrado = false;
-
-  void _showProductoHint([double keyboardInset = 0]) {
-    if (_hintMostrado || _esPrestamo) return; // solo tiene sentido si hay Producto/Alquiler
-    _hintMostrado = true;
-
-    _hintEntry = OverlayEntry(
-      builder: (context) {
-        double opacity = 0.5;
-        Offset offset = const Offset(0, .04);
-        return StatefulBuilder(
-          builder: (context, setLocal) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              setLocal(() {
-                opacity = 1.0;
-                offset = Offset.zero;
-              });
-            });
-
-            return IgnorePointer(
-              ignoring: true,
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: 16,
-                    right: 16,
-                    bottom: (keyboardInset > 0 ? keyboardInset : MediaQuery.of(context).viewInsets.bottom) + 24,
-                    child: AnimatedSlide(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOut,
-                      offset: offset,
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOut,
-                        opacity: opacity,
-                        child: Material(
-                          color: Colors.transparent,
-                          child: Container(
-                            constraints: const BoxConstraints(maxWidth: 360),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [Color(0xFF1B3CA9), Color(0xFF0A5F4F)],
-                              ),
-                              borderRadius: BorderRadius.circular(14),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(.35),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.info_outline, size: 16, color: Colors.white70),
-                                const SizedBox(width: 8),
-                                Flexible(
-                                  child: Text(
-                                    _esProducto
-                                        ? 'Aquí van fiados y alquileres cortos (vehículos/equipos por días o semanas). '
-                                        'Para alquiler mensual de inmueble usa la pestaña Alquiler.'
-                                        : 'Completa los datos del alquiler mensual de inmueble. '
-                                        'El interés no aplica; puedes activar la mora.',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      height: 1.25,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    final overlay = Overlay.of(context);
-    if (_hintEntry != null && overlay != null) {
-      overlay.insert(_hintEntry!);
-      Future.delayed(const Duration(milliseconds: 2500), () {
-        _hintEntry?.remove();
-        _hintEntry = null;
-      });
-    }
-  }
 
   @override
   void initState() {
@@ -355,11 +254,8 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
   @override
   Widget build(BuildContext context) {
     final double h = MediaQuery.of(context).size.height;
-    final double bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    if (bottomInset > 0 && !_hintMostrado) {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _showProductoHint(bottomInset));
-    }
+
+
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -442,10 +338,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.5,
                     shadows: [
-                      Shadow(
-                          color: Colors.black26,
-                          blurRadius: 6,
-                          offset: Offset(0, 2))
+                      Shadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2))
                     ],
                   ),
                 ),
@@ -454,9 +347,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
               Text(
                 _moduloLabel, // 👈 subtítulo con el nombre del módulo
                 style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700),
+                    color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w700),
               ),
             ],
           ),
@@ -529,8 +420,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _notaCtrl,
-                  decoration:
-                  _deco('Nota (opcional)', icon: Icons.note_alt_outlined),
+                  decoration: _deco('Nota (opcional)', icon: Icons.note_alt_outlined),
                   maxLines: 3,
                   textInputAction: TextInputAction.newline,
                 ),
@@ -538,66 +428,70 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
 
                 // === Producto/Alquiler (solo cuando NO es Préstamo) ===
                 if (!_esPrestamo) ...[
-                  CompositedTransformTarget(
-                    link: _hintLink,
-                    child: TextFormField(
-                      controller: _productoCtrl,
-                      decoration: InputDecoration(
-                        label: Row(
-                          mainAxisSize: MainAxisSize.max,
-                          children: [
-                            const Icon(Icons.local_offer_rounded,
-                                color: Color(0xFF94A3B8), size: 18),
-                            const SizedBox(width: 6),
-                            const Flexible(
-                              child: Text(
-                                'Producto / Alquiler (corto–mediano–largo)',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                softWrap: false,
-                                style: TextStyle(color: Color(0xFF64748B)),
-                              ),
+                  // ⬇️ CAMBIO: icono + etiqueta según módulo
+                  TextFormField(
+                    controller: _productoCtrl,
+                    decoration: InputDecoration(
+                      label: Row(
+                        mainAxisSize: MainAxisSize.max,
+                        children: [
+                          Icon(
+                            _esAlquiler ? Icons.house_rounded : Icons.local_offer_rounded,
+                            color: const Color(0xFF94A3B8),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              _esAlquiler
+                                  ? 'Arriendo / Alquiler de inmuebles'
+                                  : 'Producto o servicio',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              softWrap: false,
+                              style: const TextStyle(color: Color(0xFF64748B)),
                             ),
-                          ],
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide:
-                          const BorderSide(color: Color(0xFF2563EB), width: 1.5),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14, horizontal: 16),
+                          ),
+                        ],
                       ),
-                      textInputAction: TextInputAction.next,
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Obligatorio en este módulo'
-                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding:
+                      const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                     ),
+                    textInputAction: TextInputAction.next,
+                    validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Obligatorio en este módulo' : null,
                   ),
+
                   const SizedBox(height: 6),
+
+                  // ⬇️ CAMBIO: texto de ayuda según módulo
                   Container(
                     width: double.infinity,
-                    padding:
-                    const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
                     decoration: BoxDecoration(
-                      color: Color(0xFFF1F5F9),
+                      color: const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Color(0xFFE2E8F0)),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
-                    child: const Text(
-                      'Para alquiler de inmuebles, usa la pestaña Alquiler. '
-                          'Fiados de productos y alquileres de vehículos o equipos van aquí en Productos.',
-                      style: TextStyle(
+                    child: Text(
+                      _esAlquiler
+                          ? 'Completa los datos del alquiler mensual de inmueble. El interés no aplica; puedes activar la mora.'
+                          : 'Para alquiler de inmuebles, usa la pestaña Alquiler. Fiados de productos y alquileres de vehículos o equipos van aquí en Productos.',
+                      style: const TextStyle(
                         color: Color(0xFF334155),
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
@@ -605,30 +499,28 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 8),
 
-                  // === Panel de “Monto del producto / Pago inicial / Saldo restante” (solo Productos) ===
+                  // === Panel de “Monto del producto / Pago inicial / Saldo restante” (solo Productos)
                   if (_esProducto) ...[
                     const SizedBox(height: 8),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Color(0xFFF7F8FA),
+                        color: const Color(0xFFF7F8FA),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Color(0xFFE5E7EB), width: 1.2),
+                        border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
                       ),
                       child: Column(
                         children: [
                           TextFormField(
                             controller: _montoProductoCtrl,
                             keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly
-                            ],
-                            decoration: _deco(
-                                'Monto del producto (precio total)',
-                                icon: Icons.sell_rounded),
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration:
+                            _deco('Monto del producto (precio total)', icon: Icons.sell_rounded),
                             validator: (v) {
                               final n = int.tryParse(
                                   (v ?? '').replaceAll(RegExp(r'[^0-9]'), '')) ??
@@ -641,20 +533,16 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                           TextFormField(
                             controller: _pagoInicialCtrl,
                             keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly
-                            ],
-                            decoration: _deco('Pago inicial (opcional)',
-                                icon: Icons.price_check_rounded),
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration:
+                            _deco('Pago inicial (opcional)', icon: Icons.price_check_rounded),
                             validator: (v) {
                               final total = _montoProducto;
-                              final ini = int.tryParse((v ?? '')
-                                  .replaceAll(RegExp(r'[^0-9]'), '')) ??
+                              final ini = int.tryParse(
+                                  (v ?? '').replaceAll(RegExp(r'[^0-9]'), '')) ??
                                   0;
                               if (ini < 0) return 'No puede ser negativo';
-                              if (ini > total) {
-                                return 'No debe exceder el monto del producto';
-                              }
+                              if (ini > total) return 'No debe exceder el monto del producto';
                               return null;
                             },
                             onChanged: (_) => _syncProductoCapital(),
@@ -662,31 +550,28 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                           const SizedBox(height: 8),
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 10, horizontal: 12),
+                            padding:
+                            const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Color(0xFFE5E7EB)),
+                              border: Border.all(color: const Color(0xFFE5E7EB)),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.calculate_rounded,
-                                    color: Color(0xFF2563EB)),
+                                const Icon(Icons.calculate_rounded, color: Color(0xFF2563EB)),
                                 const SizedBox(width: 8),
                                 const Expanded(
                                   child: Text(
                                     'Saldo restante',
                                     style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF0F172A)),
+                                        fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
                                   ),
                                 ),
                                 Text(
                                   '\$ ${_saldoRestante.toString()}',
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                      color: Color(0xFF0F172A)),
+                                      fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
                                 ),
                               ],
                             ),
@@ -694,14 +579,13 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                         ],
                       ),
                     ),
-                  ]
+                  ],
                 ],
 
                 Row(
                   children: [
                     Expanded(
                       child: _esProducto
-                      // 🔒 En Productos: mostrar el valor pero no permitir edición
                           ? AbsorbPointer(
                         child: TextFormField(
                           controller: _capitalCtrl,
@@ -711,7 +595,6 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                           ),
                         ),
                       )
-                      // ✏️ En Préstamo/Alquiler: editable como antes
                           : TextFormField(
                         controller: _capitalCtrl,
                         keyboardType: TextInputType.number,
@@ -719,35 +602,27 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                         decoration: _deco(montoLabel, icon: Icons.payments),
                         textInputAction:
                         _esPrestamo ? TextInputAction.next : TextInputAction.done,
-                        validator: (v) => (v == null || v.isEmpty) ? 'Obligatorio' : null,
+                        validator: (v) =>
+                        (v == null || v.isEmpty) ? 'Obligatorio' : null,
                       ),
                     ),
-
                     const SizedBox(width: 12),
-
-                    // % Interés solo en Préstamo
                     if (_esPrestamo)
                       Expanded(
                         child: TextFormField(
                           controller: _tasaCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
+                          keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                           inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                                RegExp(r'[0-9.,]'))
+                            FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))
                           ],
-                          decoration:
-                          _deco('% Interés', icon: Icons.percent),
+                          decoration: _deco('% Interés', icon: Icons.percent),
                           validator: (v) {
                             if (!_esPrestamo) return null;
-                            if (v == null || v.isEmpty) {
-                              return 'Obligatorio';
-                            }
+                            if (v == null || v.isEmpty) return 'Obligatorio';
                             final x = double.tryParse(v.replaceAll(',', '.'));
                             if (x == null) return 'Número inválido';
-                            if (x < 0 || x > 100) {
-                              return 'Debe ser entre 0 y 100';
-                            }
+                            if (x < 0 || x > 100) return 'Debe ser entre 0 y 100';
                             return null;
                           },
                           textInputAction: TextInputAction.done,
@@ -760,13 +635,11 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                 if (_esAlquiler || _esProducto) ...[
                   const SizedBox(height: 14),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF7F8FA),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                          color: const Color(0xFFE5E7EB), width: 1.2),
+                      border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -784,12 +657,10 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                               activeColor: const Color(0xFF2563EB),
                               inactiveTrackColor: const Color(0xFFCBD5E1),
                               inactiveThumbColor: const Color(0xFF94A3B8),
-                              onChanged: (v) =>
-                                  setState(() => _moraEnabled = v),
+                              onChanged: (v) => setState(() => _moraEnabled = v),
                             ),
                           ],
                         ),
-
                         if (!_moraEnabled)
                           Padding(
                             padding: const EdgeInsets.only(top: 6),
@@ -811,7 +682,6 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                               ),
                             ),
                           ),
-
                         if (_moraEnabled) ...[
                           const SizedBox(height: 8),
                           Row(
@@ -819,15 +689,13 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                               ChoiceChip(
                                 label: const Text('Porcentaje'),
                                 selected: _moraTipo == 'porcentaje',
-                                onSelected: (_) =>
-                                    setState(() => _moraTipo = 'porcentaje'),
+                                onSelected: (_) => setState(() => _moraTipo = 'porcentaje'),
                               ),
                               const SizedBox(width: 8),
                               ChoiceChip(
                                 label: const Text('Monto fijo'),
                                 selected: _moraTipo == 'fijo',
-                                onSelected: (_) =>
-                                    setState(() => _moraTipo = 'fijo'),
+                                onSelected: (_) => setState(() => _moraTipo = 'fijo'),
                               ),
                             ],
                           ),
@@ -835,11 +703,9 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                           TextFormField(
                             initialValue: _moraValor.toString(),
                             keyboardType:
-                            const TextInputType.numberWithOptions(
-                                decimal: true),
+                            const TextInputType.numberWithOptions(decimal: true),
                             inputFormatters: [
-                              FilteringTextInputFormatter.allow(
-                                  RegExp(r'[0-9.,]'))
+                              FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))
                             ],
                             decoration: _deco(
                               _moraTipo == 'porcentaje'
@@ -847,14 +713,11 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                                   : 'Valor de mora (monto)',
                             ),
                             onChanged: (v) => _moraValor =
-                                double.tryParse(v.replaceAll(',', '.')) ??
-                                    _moraValor,
+                                double.tryParse(v.replaceAll(',', '.')) ?? _moraValor,
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            'Aplicar si pasan:',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
+                          const Text('Aplicar si pasan:',
+                              style: TextStyle(fontWeight: FontWeight.w600)),
                           const SizedBox(height: 4),
                           Wrap(
                             spacing: 8,
@@ -862,14 +725,12 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                               FilterChip(
                                 label: const Text('15 días'),
                                 selected: _mora15,
-                                onSelected: (s) =>
-                                    setState(() => _mora15 = s),
+                                onSelected: (s) => setState(() => _mora15 = s),
                               ),
                               FilterChip(
                                 label: const Text('30 días'),
                                 selected: _mora30,
-                                onSelected: (s) =>
-                                    setState(() => _mora30 = s),
+                                onSelected: (s) => setState(() => _mora30 = s),
                               ),
                             ],
                           ),
@@ -882,8 +743,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    const Text('Período:',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    const Text('Período:', style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(width: 12),
                     ChoiceChip(
                       label: const Text('Mensual'),
@@ -891,9 +751,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                       onSelected: (_) => setState(() => _periodo = 'Mensual'),
                       selectedColor: const Color(0xFF2563EB),
                       labelStyle: TextStyle(
-                        color: _periodo == 'Mensual'
-                            ? Colors.white
-                            : const Color(0xFF1F2937),
+                        color: _periodo == 'Mensual' ? Colors.white : const Color(0xFF1F2937),
                         fontWeight: FontWeight.w600,
                       ),
                       side: BorderSide(
@@ -907,13 +765,11 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                       ChoiceChip(
                         label: const Text('Quincenal'),
                         selected: _periodo == 'Quincenal',
-                        onSelected: (_) =>
-                            setState(() => _periodo = 'Quincenal'),
+                        onSelected: (_) => setState(() => _periodo = 'Quincenal'),
                         selectedColor: const Color(0xFF2563EB),
                         labelStyle: TextStyle(
-                          color: _periodo == 'Quincenal'
-                              ? Colors.white
-                              : const Color(0xFF1F2937),
+                          color:
+                          _periodo == 'Quincenal' ? Colors.white : const Color(0xFF1F2937),
                           fontWeight: FontWeight.w600,
                         ),
                         side: BorderSide(
@@ -928,8 +784,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                 const Divider(height: 1, color: Color(0xFFE5E7EB)),
                 const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF7F8FA),
                     borderRadius: BorderRadius.circular(14),
@@ -966,8 +821,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                             label: const Text('Elegir fecha'),
                             onPressed: () async {
                               final hoy = DateTime.now();
-                              final hoy0 =
-                              DateTime(hoy.year, hoy.month, hoy.day);
+                              final hoy0 = DateTime(hoy.year, hoy.month, hoy.day);
                               final sel = await showDatePicker(
                                 context: context,
                                 initialDate: _proximaFecha ?? hoy0,
@@ -1006,14 +860,12 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                       backgroundColor: const Color(0xFF2563EB),
                       foregroundColor: Colors.white,
                       shape: const StadiumBorder(),
-                      textStyle: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w700),
+                      textStyle:
+                      const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                       elevation: 4,
-                      shadowColor:
-                      const Color(0xFF2563EB).withOpacity(0.35),
+                      shadowColor: const Color(0xFF2563EB).withOpacity(0.35),
                     ),
-                    onPressed:
-                    (_guardando || _proximaFecha == null) ? null : _guardar,
+                    onPressed: (_guardando || _proximaFecha == null) ? null : _guardar,
                     child: Text(_guardando ? 'Guardando…' : 'Guardar'),
                   ),
                 ),
@@ -1024,6 +876,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
       ],
     );
   }
+
 
   Map<String, String?> _detectarProductoTipo(String nombre) {
     final s = nombre.toLowerCase();

@@ -473,6 +473,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
         .doc(uid)
         .collection('clientes')
         .doc(docId);
+
     try {
       // 1) Actualiza datos generales
       final Map<String, dynamic> update = {
@@ -510,13 +511,38 @@ class _ClientesScreenState extends State<ClientesScreen> {
         };
         await docRef.set(ren, SetOptions(merge: true));
 
-        // Sumar SOLO el extra prestado (si hay)
+        // Sumar SOLO el extra prestado (si hay) — aplica a préstamos
         final int extra = nuevoCapital - c.saldoActual;
         if (extra > 0) {
           await docRef.set({
             'totalPrestado': FieldValue.increment(extra),
           }, SetOptions(merge: true));
         }
+
+        // ===========================
+        // NUEVO (OPCIONAL): Si es ALQUILER y se marcó renovar,
+        // registra el pago del mes en el historial y suma a totalCobrado.
+        // ===========================
+        if (_esArriendo(c)) {
+          final int pagoRenta = nuevoCapital; // la renta mensual es el capitalInicial vigente
+          await docRef.collection('pagos').add({
+            'fecha': FieldValue.serverTimestamp(),
+            'pagoInteres': 0,
+            'pagoCapital': pagoRenta,
+            'moraCobrada': 0,
+            'totalPagado': pagoRenta,
+            'saldoAnterior': nuevoCapital,
+            'saldoNuevo': 0,
+            'periodo': 'Mensual',
+            'tasaInteres': 0.0,
+            'producto': producto ?? 'Alquiler',
+          });
+          await docRef.set({
+            'totalCobrado': FieldValue.increment(pagoRenta),
+          }, SetOptions(merge: true));
+        }
+        // ===========================
+
         _showBanner('Renovación aplicada ✅', color: const Color(0xFF417CDE));
       } else {
         _showBanner('Cliente actualizado ✅', color: const Color(0xFF417CDE));
@@ -639,9 +665,16 @@ class _ClientesScreenState extends State<ClientesScreen> {
           .collection('clientes')
           .doc(c.id);
 
-      // próxima fecha al mediodía del mismo día + 1 mes
+      DateTime _addOneMonthSameDay(DateTime d) {
+        final nextMonth = DateTime(d.year, d.month + 1, 1);
+        final lastDayNextMonth = DateTime(nextMonth.year, nextMonth.month + 1, 0).day;
+        final day = d.day.clamp(1, lastDayNextMonth);
+        return DateTime(nextMonth.year, nextMonth.month, day, 12);
+      }
+
       final base = _atNoon(c.proximaFecha);
-      final prox = DateTime(base.year, base.month + 1, base.day, 12);
+      final prox = _addOneMonthSameDay(base);
+
 
       // el pago del alquiler es el capitalInicial (renta)
       final int pago = c.capitalInicial;
@@ -1117,6 +1150,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
             proximaFecha: (data['proximaFecha'] is Timestamp)
                 ? (data['proximaFecha'] as Timestamp).toDate()
                 : DateTime.now(),
+            mora: (data['mora'] is Map)
+                ? Map<String, dynamic>.from(data['mora'] as Map)
+                : null,
+
           );
         }).toList();
 

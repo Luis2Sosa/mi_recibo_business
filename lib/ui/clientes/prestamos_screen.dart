@@ -102,10 +102,10 @@ class PrestamosScreen extends StatelessWidget {
                 ? (data['proximaFecha'] as Timestamp).toDate()
                 : DateTime.now(),
 
-            // 👇 PÉGALO AQUÍ (NUEVO: pasa la config de mora al modelo)
-            mora: (data['mora'] != null)
+            mora: (data['mora'] is Map)
                 ? Map<String, dynamic>.from(data['mora'] as Map)
                 : null,
+
           );
         }).toList();
 

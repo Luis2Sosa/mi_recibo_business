@@ -74,9 +74,9 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     );
   }
 
-  static const double _logoHeight = 350;
+  static const double _logoHeight = 310;
   static const double _logoTop = -80;
-  static const double _contentTop = 150;
+  static const double _contentTop = 110;
 
   late int _saldoActual;
   late DateTime _proximaFecha;

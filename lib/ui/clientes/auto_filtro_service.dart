@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'clientes_shared.dart'; // trae FiltroClientes
 
+
 class AutoFiltroService {
   /// Reglas:
   /// 1) Si hay urgentes (vencidos, hoy, o en 1–2 días), ir a la sección con MÁS urgentes.
@@ -68,24 +69,29 @@ class AutoFiltroService {
     for (final d in qs.docs) {
       final data = d.data() as Map<String, dynamic>;
 
-      // saldoActual como int seguro
-      final int saldoActual = (data['saldoActual'] ?? 0) is int
-          ? (data['saldoActual'] as int)
-          : int.tryParse('${data['saldoActual'] ?? 0}') ?? 0;
+      // saldoActual como int seguro (soporta posible typo 'salvoActual')
+      final dynamic rawSaldo = data['salvoActual'] ?? data['saldoActual'] ?? 0;
+      final int saldoActual = (rawSaldo is int) ? rawSaldo : int.tryParse('$rawSaldo') ?? 0;
 
       if (saldoActual <= 0) continue; // ignorar saldados
 
       final filtro = _tipoDe(data);
 
-      // proximaFecha a DateTime
-      DateTime prox;
-      final raw = data['proximaFecha'];
-      if (raw is Timestamp) {
-        prox = raw.toDate();
-      } else if (raw is String) {
-        prox = DateTime.tryParse(raw) ?? DateTime.now();
-      } else {
-        prox = DateTime.now();
+      // Todo con saldo > 0 cuenta como activo
+      activos[filtro] = (activos[filtro] ?? 0) + 1;
+
+      // proximaFecha a DateTime (si no hay fecha válida, no se considera "urgente")
+      final rawPF = data['proximaFecha'];
+      DateTime? prox;
+      if (rawPF is Timestamp) {
+        prox = rawPF.toDate();
+      } else if (rawPF is String) {
+        prox = DateTime.tryParse(rawPF);
+      }
+
+      if (prox == null) {
+        // Sin fecha válida: no sumar a urgentes
+        continue;
       }
 
       final dd = _diasHasta(prox);
@@ -94,9 +100,6 @@ class AutoFiltroService {
       if (dd <= 2) {
         urgentes[filtro] = (urgentes[filtro] ?? 0) + 1;
       }
-
-      // Todo con saldo > 0 cuenta como activo
-      activos[filtro] = (activos[filtro] ?? 0) + 1;
     }
 
     // 1) Priorizar por URGENTES

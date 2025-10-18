@@ -1,4 +1,3 @@
-import 'dart:math' as MainSize;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -306,19 +305,22 @@ class HistorialScreen extends StatelessWidget {
                                                 final d = e.data();
 
                                                 // Candidatos comunes en tus colecciones
-                                                int capital = (d['pagoCapital'] ??
+                                                final numCapital = (d['pagoCapital'] ??
                                                     d['capital'] ??
                                                     d['abonoCapital'] ??
                                                     d['abono'] ??
                                                     d['pago'] ??
-                                                    0) as int;
+                                                    0) as num;
+                                                final int capital = numCapital.toInt();
 
-                                                int? totalMaybe = (d['totalPagado'] ??
+                                                final num? numTotalMaybe = (d['totalPagado'] ??
                                                     d['monto'] ??
-                                                    d['pago']) as int?;
-                                                int interes = (d['pagoInteres'] ??
-                                                    d['interes']) as int? ??
-                                                    0;
+                                                    d['pago']) as num?;
+                                                int? totalMaybe = numTotalMaybe?.toInt();
+
+                                                final num? numInteres = (d['pagoInteres'] ?? d['interes']) as num?;
+                                                int interes = (numInteres ?? 0).toInt();
+
 
                                                 if (totalMaybe == null) {
                                                   // si no hay total explícito, suma capital+interés

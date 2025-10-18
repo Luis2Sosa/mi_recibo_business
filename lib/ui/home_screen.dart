@@ -405,8 +405,8 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.only(top: 110), // lo baja más
       child: Center(
         child: SizedBox(
-          width: 320,
-          height: 60,
+          width: 260,
+          height: 48,
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: const LinearGradient(
@@ -447,16 +447,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   Icon(
                     Icons.info_outline_rounded,
                     color: Colors.white,
-                    size: 28, // más grande
+                    size: 22, // más grande
                   ),
                   SizedBox(width: 12),
                   Text(
                     'Sobre Mi Recibo Business',
                     style: TextStyle(
-                      fontSize: 19, // más grande
+                      fontSize: 15, // más grande
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
-                      letterSpacing: 0.6,
+                      letterSpacing: 0.4,
                     ),
                   ),
                 ],

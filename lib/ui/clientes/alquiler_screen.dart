@@ -122,7 +122,10 @@ class AlquilerScreen extends StatelessWidget {
             proximaFecha: (data['proximaFecha'] is Timestamp)
                 ? (data['proximaFecha'] as Timestamp).toDate()
                 : DateTime.now(),
-            mora: data['mora'] as Map<String, dynamic>?, // 👈 ÚNICA LÍNEA NUEVA
+            mora: (data['mora'] is Map)
+                ? Map<String, dynamic>.from(data['mora'] as Map)
+                : null,
+
           );
         }).toList();
 
