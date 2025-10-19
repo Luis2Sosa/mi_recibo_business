@@ -9,10 +9,14 @@ import 'pago_form_screen.dart';
 import 'recibo_screen.dart';
 import 'historial_screen.dart';
 import 'widgets/app_frame.dart'; // <-- ruta desde lib/ui/
+
 // 🚀 Notificaciones Plus
 import '../core/notifications_plus.dart';
 // 📲 Envíos por WhatsApp (Bloque 3)
 import 'package:url_launcher/url_launcher.dart';
+import 'guardar_pago_y_kpis.dart';
+
+
 
 class ClienteDetalleScreen extends StatefulWidget {
   // --------- Datos del cliente ---------
@@ -522,59 +526,18 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     final int moraCobrada = (result['moraCobrada'] as int?) ?? (esProdOAlq ? _moraAcumulada : 0);
     final int totalConMora = totalPagado + moraCobrada;
 
-    // ✅ 2) ABRIR SIEMPRE EL RECIBO (OFFLINE/ONLINE)
-    //    Navegamos primero (optimista). Guardaremos después.
-    //    Leer perfil actualizado si hay internet, si no, usar los que llegaron al screen.
-    String empresa = widget.empresa;
-    String servidor = widget.servidor;
-    String telefonoServidor = widget.telefonoServidor;
-
-    try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid != null) {
-        final prestDoc = await FirebaseFirestore.instance.collection('prestamistas').doc(uid).get();
-        final data = prestDoc.data() ?? {};
-        final nombre = (data['nombre'] ?? '').toString().trim();
-        final apellido = (data['apellido'] ?? '').toString().trim();
-        empresa = (data['empresa'] ?? empresa).toString().trim().isEmpty ? empresa : (data['empresa'] ?? empresa).toString().trim();
-        servidor = [nombre, apellido].where((s) => s.isNotEmpty).join(' ').trim().isEmpty ? servidor : [nombre, apellido].where((s) => s.isNotEmpty).join(' ');
-        final tel = (data['telefono'] ?? '').toString().trim();
-        telefonoServidor = tel.isNotEmpty ? tel : telefonoServidor;
-      }
-    } catch (_) {
-      // sin internet → mantenemos los valores que ya tenemos
-    }
-
-    // Generar correlativo local y nro de recibo (si no hay internet, hacemos uno temporal local)
-    int nextReciboLocal = 1;
-    try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid != null) {
-        final ref = FirebaseFirestore.instance
-            .collection('prestamistas').doc(uid)
-            .collection('clientes').doc(widget.id);
-        final snap = await ref.get();
-        final current = (snap.data()?['nextReciboCliente'] ?? 0) as int;
-        nextReciboLocal = current + 1;
-      }
-    } catch (_) {
-      // offline: usa 1 si no pudimos leer
-      nextReciboLocal = 1;
-    }
-    final numeroRecibo = 'REC-${nextReciboLocal.toString().padLeft(4, '0')}';
-
     // 👉 Mostrar Recibo ya mismo
     if (!mounted) return;
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ReciboScreen(
-          empresa: empresa,
-          servidor: servidor,
-          telefonoServidor: telefonoServidor,
+          empresa: widget.empresa,
+          servidor: widget.servidor,
+          telefonoServidor: widget.telefonoServidor,
           cliente: widget.nombreCompleto,
           telefonoCliente: widget.telefono,
-          numeroRecibo: numeroRecibo,
+          numeroRecibo: 'REC-0001', // se muestra optimista (se persiste abajo)
           producto: widget.producto,
           tipoProducto: widget.tipoProducto,
           vehiculoTipo: widget.vehiculoTipo,
@@ -593,76 +556,47 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       ),
     );
 
-    // ✅ 3) GUARDAR DESPUÉS (si hay internet). Si falla, no bloquea el flujo.
+    // ✅ 3) GUARDAR DESPUÉS (si hay internet). Sin duplicar nada.
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
-      final clienteRef = FirebaseFirestore.instance
-          .collection('prestamistas').doc(uid)
+      final docPrest = FirebaseFirestore.instance
+          .collection('prestamistas').doc(uid);
+      final clienteRef = docPrest
           .collection('clientes').doc(widget.id);
 
       try {
+        // 3.a) Guardar pago + actualizar cliente + KPIs de summary (todo dentro del helper)
+        await guardarPagoYActualizarKPIs(
+          docPrest: docPrest,
+          clienteRef: clienteRef,
+          pagoCapital:  pagoCapital,
+          pagoInteres:  pagoInteres,      // 0 si no es préstamo
+          totalPagado:  totalConMora,     // incluye mora
+          moraCobrada:  moraCobrada,      // 0 si no aplica
+          saldoAnterior: saldoAnterior,
+          proximaFecha: proxNoon,
+        );
+
+        // 3.b) Incrementar correlativo del cliente (NO tocamos saldos aquí)
         await FirebaseFirestore.instance.runTransaction((tx) async {
           final snap = await tx.get(clienteRef);
           final current = (snap.data()?['nextReciboCliente'] ?? 0) as int;
           final next = current + 1;
-
-          // Tomar valores del producto para el recibo (si aplica)
-          final dataCli = snap.data() ?? {};
-          final int? montoTotalProd =
-          (dataCli['productoMontoTotal'] as num?)?.toInt();
-          final int? pagoInicialProd =
-              (dataCli['productoPagoInicial'] as num?)?.toInt() ??
-                  (dataCli['pagoInicial'] as num?)?.toInt();
-
-
-
-          final Map<String, dynamic> updates = {
-            'saldoActual': saldoNuevo,
-            'proximaFecha': Timestamp.fromDate(proxNoon),
-            'updatedAt': FieldValue.serverTimestamp(),
+          tx.set(clienteRef, {
             'nextReciboCliente': next,
-            'saldado': saldoNuevo <= 0,
-            'estado': saldoNuevo <= 0 ? 'saldado' : 'al_dia',
-          };
-          updates['venceEl'] = (saldoNuevo <= 0)
-              ? FieldValue.delete()
-              : Timestamp.fromDate(proxNoon);
-
-          tx.set(clienteRef, updates, SetOptions(merge: true));
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
         });
 
-        await clienteRef.collection('pagos').add({
-          'fecha': FieldValue.serverTimestamp(),
-          'pagoInteres': pagoInteres,
-          'pagoCapital': pagoCapital,
-          'moraCobrada': moraCobrada,
-          'totalPagado': totalConMora,
-          'saldoAnterior': saldoAnterior,
-          'saldoNuevo': saldoNuevo,
-          'periodo': widget.periodo,
-          'tasaInteres': widget.tasaInteres,
-          'producto': widget.producto,
-        });
-
-        // 👇 Si es ALQUILER, acumula al histórico cobrado
+        // 3.c) Si es ALQUILER, acumula histórico cobrado (no afecta KPIs)
         if (esAlquiler) {
           await clienteRef.set({
             'totalCobrado': FieldValue.increment(totalConMora),
           }, SetOptions(merge: true));
         }
 
-
-        final metricsRef = FirebaseFirestore.instance
-            .collection('prestamistas').doc(uid)
-            .collection('metrics').doc('summary');
-
-        await metricsRef.set({
-          'lifetimeRecuperado': FieldValue.increment(pagoCapital),
-          'lifetimeGanancia': FieldValue.increment(pagoInteres),
-          'lifetimePagosSum': FieldValue.increment(totalConMora),
-          'lifetimePagosCount': FieldValue.increment(1),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        // ⛔️ Eliminado: NO escribimos metricsRef.lifetime* para evitar doble conteo.
+        // ⛔️ Eliminado: NO volvemos a agregar el pago ni a tocar saldo/proximaFecha aquí (ya lo hizo el helper).
       } catch (_) {
         // sin internet o error: no bloquea nada
       }

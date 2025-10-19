@@ -41,58 +41,7 @@ class EstadisticasActualView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GridView.count(
-          shrinkWrap: true,
-          crossAxisCount: 2,
-          childAspectRatio: 1.55,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          children: [
-            _kpi('Total prestado', rd(totalPrestado), bg: const Color(0xFFE5E7EB), accent: _BrandX.ink),
-            _kpi('Total recuperado', rd(totalRecuperado), bg: const Color(0xFFDCFCE7), accent: const Color(0xFF16A34A)),
-            _kpi('Total pendiente', rd(totalPendiente), bg: const Color(0xFFDBEAFE), accent: const Color(0xFF2563EB)),
-            _kpi('Recuperación', totalPrestado > 0 ? '${recRate.toStringAsFixed(0)}%' : '—',
-                bg: const Color(0xFFF2F6FD), accent: recColor),
-          ],
-        ),
         const SizedBox(height: 12),
-
-        _card(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.person_outline, color: _BrandX.inkDim),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      mayorNombre,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800, color: _BrandX.ink),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    mayorSaldo >= 0 ? rd(mayorSaldo) : '—',
-                    style: const TextStyle(fontWeight: FontWeight.w900, color: _BrandX.ink),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Cliente con más deuda',
-                style: TextStyle(color: _BrandX.inkDim, fontSize: 12.5, fontWeight: FontWeight.w600),
-              ),
-              _divider(),
-              _kv('Promedio de interés cobrado', promInteres),
-              _divider(),
-              _kv('Próximo vencimiento', proximoVenc),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -126,6 +75,7 @@ class EstadisticasHistoricoView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final recRate = lifetimePrestado > 0 ? (lifetimeRecuperado * 100 / lifetimePrestado) : 0.0;
+    final recColor = recRate >= 50 ? const Color(0xFF16A34A) : const Color(0xFFE11D48);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -145,22 +95,43 @@ class EstadisticasHistoricoView extends StatelessWidget {
               onTap: onOpenGanancias,
               gradient: [const Color(0xFFDFFCEF), const Color(0xFFC5F5FF)],
             ),
-            _kpi('Recuperado histórico', rd(lifetimeRecuperado), bg: const Color(0xFFDCFCE7), accent: const Color(0xFF16A34A)),
-            _kpi('Prestado histórico', rd(lifetimePrestado), bg: const Color(0xFFEDE9FE), accent: const Color(0xFF6D28D9)),
-            _kpiPremium(
-              title: 'Ganancia por cliente',
-              subtitle: 'Toca para ver',
-              leading: Icons.people_alt_rounded,
-              onTap: onOpenGananciaClientes,
-              gradient: [const Color(0xFFE7EAFF), const Color(0xFFDDEBFF)],
+
+            // KPI 2 — Total recuperado
+            _kpi(
+              'Total recuperado',
+              rd(lifetimeRecuperado),
+              bg: const Color(0xFFDCFCE7),
+              accent: const Color(0xFF16A34A),
+            ),
+
+            // KPI 3 — Total pendiente
+            _kpi(
+              'Total pendiente',
+              rd(lifetimePrestado - lifetimeRecuperado),
+              bg: const Color(0xFFFEF3C7),
+              accent: const Color(0xFFF59E0B),
+            ),
+
+            // KPI 4 — Total circulando
+            _kpi(
+              'Total circulando',
+              rd(lifetimePrestado),
+              bg: const Color(0xFFDBEAFE),
+              accent: const Color(0xFF2563EB),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+
+        const SizedBox(height: 16),
+
+        // KPI de Recuperación (nuevo profesional con porcentaje)
+        _kpiRecuperacion(pct: recRate, color: recColor),
+
+        const SizedBox(height: 20),
 
         _card(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               _kv('Primer pago registrado', histPrimerPago),
               _divider(),
@@ -177,6 +148,48 @@ class EstadisticasHistoricoView extends StatelessWidget {
   }
 }
 
+/// === KPI Recuperación Profesional ===
+Widget _kpiRecuperacion({required double pct, required Color color}) {
+  final porcentaje = pct.clamp(0, 100).toStringAsFixed(1);
+
+  return Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      boxShadow: [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 12, offset: const Offset(0, 6))],
+      border: Border.all(color: const Color(0xFFE8EEF8)),
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.trending_up_rounded, color: color, size: 24),
+            const SizedBox(width: 10),
+            Text(
+              'Recuperación',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w900,
+                fontSize: 18,
+                color: _BrandX.ink,
+              ),
+            ),
+          ],
+        ),
+        Text(
+          '$porcentaje%',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w900,
+            fontSize: 22,
+            color: color,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 /// ====== UI Helpers ======
 Widget _kpi(String title, String value, {required Color bg, required Color accent}) {
   return Container(
@@ -189,22 +202,30 @@ Widget _kpi(String title, String value, {required Color bg, required Color accen
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.inter(
-            textStyle: const TextStyle(color: _BrandX.inkDim, fontWeight: FontWeight.w700, fontSize: 14),
+        SizedBox(
+          width: double.infinity,
+          child: Text(
+            title,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(
+              textStyle: const TextStyle(color: _BrandX.inkDim, fontWeight: FontWeight.w700, fontSize: 14),
+            ),
           ),
         ),
         const Spacer(),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            value,
-            maxLines: 1,
-            style: GoogleFonts.inter(textStyle: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: accent)),
+        SizedBox(
+          width: double.infinity,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.center,
+            child: Text(
+              value,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              style: GoogleFonts.inter(textStyle: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: accent)),
+            ),
           ),
         ),
       ],
@@ -295,7 +316,7 @@ Widget _card({required Widget child}) {
   );
 }
 
-Widget _divider() => Container(height: 1.2, color: _BrandX.divider, margin: const EdgeInsets.symmetric(vertical: 12));
+Widget _divider() => Container(height: 1.2, color: _BrandX.divider, margin: const EdgeInsets.symmetric(vertical: 10));
 
 Widget _kv(String k, String v) {
   return Row(
@@ -303,7 +324,7 @@ Widget _kv(String k, String v) {
       Expanded(child: Text(k, style: const TextStyle(color: _BrandX.inkDim))),
       Flexible(
         child: Align(
-          alignment: Alignment.centerRight,
+          alignment: Alignment.center,
           child: Text(
             v,
             maxLines: 1,
@@ -316,7 +337,7 @@ Widget _kv(String k, String v) {
   );
 }
 
-/// ===== Card premium público (se usa desde la pantalla principal) =====
+/// ===== Card premium público =====
 class PremiumDeleteCard extends StatelessWidget {
   final VoidCallback? onTap;
   const PremiumDeleteCard({super.key, this.onTap});
