@@ -154,7 +154,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     super.initState();
     _saldoActual = widget.saldoActual;
     _proximaFecha = widget.proximaFecha;
-    _moraAcumulada = widget.moraAcumulada; // 👈 NUEVO: calcula local/offline
+    _moraAcumulada = (widget.moraAcumulada > 0) ? widget.moraAcumulada : _calcMoraAcumulada();
     Future.microtask(_autoFixEstado);
     Future.microtask(_cargarTotalPrestado);
     Future.microtask(_cargarNota); // <-- lee 'nota' si existe
@@ -163,6 +163,20 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
 
   }
+
+  @override
+  void didUpdateWidget(covariant ClienteDetalleScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Si cambian fecha o saldo provenientes del widget, sincroniza y recalcula mora
+    if (oldWidget.proximaFecha != widget.proximaFecha ||
+        oldWidget.saldoActual != widget.saldoActual) {
+      _proximaFecha = widget.proximaFecha;
+      _saldoActual = widget.saldoActual;
+      _moraAcumulada = (widget.moraAcumulada > 0) ? widget.moraAcumulada : _calcMoraAcumulada();
+      setState(() {});
+    }
+  }
+
 
   // =======================
   // 👇 NUEVO: cálculo de mora offline (defaults del modelo)
@@ -526,6 +540,25 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     final int moraCobrada = (result['moraCobrada'] as int?) ?? (esProdOAlq ? _moraAcumulada : 0);
     final int totalConMora = totalPagado + moraCobrada;
 
+    // === Obtener correlativo visible del recibo (optimista) ===
+    String numeroRecibo = 'REC-0001';
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final clienteRef = FirebaseFirestore.instance
+            .collection('prestamistas').doc(uid)
+            .collection('clientes').doc(widget.id);
+
+        final snap = await clienteRef.get();
+        final current = (snap.data()?['nextReciboCliente'] ?? 0) as int;
+        final next = (current + 1).clamp(1, 999999); // evita 0 o negativos
+        numeroRecibo = 'REC-${next.toString().padLeft(4, '0')}';
+      }
+    } catch (_) {
+      // si falla, seguimos con 'REC-0001'
+    }
+
+
     // 👉 Mostrar Recibo ya mismo
     if (!mounted) return;
     await Navigator.push(
@@ -537,7 +570,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           telefonoServidor: widget.telefonoServidor,
           cliente: widget.nombreCompleto,
           telefonoCliente: widget.telefono,
-          numeroRecibo: 'REC-0001', // se muestra optimista (se persiste abajo)
+          numeroRecibo: numeroRecibo,
           producto: widget.producto,
           tipoProducto: widget.tipoProducto,
           vehiculoTipo: widget.vehiculoTipo,
@@ -593,6 +626,25 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           await clienteRef.set({
             'totalCobrado': FieldValue.increment(totalConMora),
           }, SetOptions(merge: true));
+        }
+
+        // ✅ NUEVO BLOQUE: mantener total recuperado permanente
+        try {
+          final metricsRef = FirebaseFirestore.instance
+              .collection('prestamistas')
+              .doc(uid)
+              .collection('metrics')
+              .doc('totales');
+
+          // 👇 Incrementa siempre, sin importar si el cliente se borra o se salda
+          await metricsRef.set({
+            'lifetimeRecuperado': FieldValue.increment(totalConMora),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+          print('[OK] Total recuperado actualizado: +$totalConMora');
+        } catch (e) {
+          print('⚠️ Error al actualizar lifetimeRecuperado: $e');
         }
 
         // ⛔️ Eliminado: NO escribimos metricsRef.lifetime* para evitar doble conteo.
@@ -889,9 +941,9 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         Widget _waChip(bool enabled) {
           return AnimatedContainer(
             duration: const Duration(milliseconds: 140),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: enabled ? const Color(0xFF22C55E) : const Color(0xFF98A2B3),
+              color: enabled ? const Color(0xFF22C55E) : const Color(0xFFCBD5E1),
               borderRadius: BorderRadius.circular(999),
               boxShadow: enabled
                   ? [BoxShadow(color: const Color(0xFF22C55E).withOpacity(.28), blurRadius: 10, offset: const Offset(0, 4))]
@@ -899,12 +951,22 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
-              children: const [
-                // usa el ícono real en la app
+              children: [
+                Opacity(opacity: enabled ? 1 : .55, child: _waIcon(size: 14)),
+                const SizedBox(width: 6),
+                Text(
+                  'WhatsApp',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: enabled ? Colors.white : const Color(0xFF334155),
+                  ),
+                ),
               ],
             ),
           );
         }
+
 
         Widget _premiumItem(String title, String tipo, IconData icon) {
           final enabled = _permiteRecordatorio(tipo);

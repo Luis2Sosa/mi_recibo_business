@@ -44,7 +44,7 @@ Future<void> guardarPagoYActualizarKPIs({
     SetOptions(merge: true),
   );
 
-  // 3️⃣ Actualizar KPIs globales
+  // 3️⃣ Actualizar KPIs globales (resumen normal)
   final metricsRef = docPrest.collection('metrics').doc('summary');
   batch.set(
     metricsRef,
@@ -53,6 +53,21 @@ Future<void> guardarPagoYActualizarKPIs({
       'lifetimeGanancia': FieldValue.increment(pagoInteres),
       'lifetimePagosSum': FieldValue.increment(totalPagado),
       'lifetimePagosCount': FieldValue.increment(1),
+      'updatedAt': FieldValue.serverTimestamp(),
+    },
+    SetOptions(merge: true),
+  );
+
+  // 3️⃣.1 Contadores PERMANENTES (no se borran con clientes)
+  // Este doc "metrics/evergreen" solo crece con incrementos atómicos.
+  final evergreenRef = docPrest.collection('metrics').doc('evergreen');
+  batch.set(
+    evergreenRef,
+    {
+      'everRecuperado': FieldValue.increment(pagoCapital),      // ✅ capital recuperado de por vida
+      'everGananciaInteres': FieldValue.increment(pagoInteres), // ✅ intereses cobrados de por vida
+      'everPagosSum': FieldValue.increment(totalPagado),        // suma total cobrada (incluye mora si la sumas ahí)
+      'everPagosCount': FieldValue.increment(1),
       'updatedAt': FieldValue.serverTimestamp(),
     },
     SetOptions(merge: true),

@@ -1030,8 +1030,8 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
 
     // Bloques summary
     final bloqueHistorico = EstadisticasHistoricoView(
-      lifetimePrestado: lifetimePrestado,
-      lifetimeRecuperado: lifetimeRecuperado,
+      lifetimePrestado: totalPrestado,        // ← usa el total ACTUAL
+      lifetimeRecuperado: totalRecuperado,    // ← usa el recuperado ACTUAL
       histPrimerPago: histPrimerPago,
       histUltimoPago: histUltimoPago,
       histMesTop: histMesTop,
@@ -1039,6 +1039,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       onOpenGananciaClientes: _openGananciaClientes,
       rd: _rd,
     );
+
 
     final bloqueActual = EstadisticasActualView(
       totalPrestado: totalPrestado,
