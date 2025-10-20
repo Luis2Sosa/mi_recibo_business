@@ -1,16 +1,20 @@
 // lib/ui/perfil_prestamista/alquiler_estadistica.dart
-// Mini-dashboard de ALQUILER: KPIs, ocupación, vencimientos y gráfico últimos 6 meses + CTA.
-// Look premium + bloque para anuncio (placeholder) listo para conectar google_mobile_ads.
+// Resumen de ALQUILER (alineado al dominio):
+// - Héroe: Ocupación actual (círculo de agua).
+// - KPIs: Ganancias de alquiler (tap), Activos alquilados, Pendiente de cobro (alquiler), Por vencer (7 d).
+// - Estados de contratos.
+// - Tendencia: Pagos últimos 6 meses.
 
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'package:mi_recibo/ui/widgets/app_frame.dart'; // AppGradientBackground + AppFrame
+import 'package:mi_recibo/ui/widgets/app_frame.dart';
 import 'package:mi_recibo/ui/theme/app_theme.dart' show AppTheme;
-import 'package:mi_recibo/ui/perfil_prestamista/ganancia_clientes_screen.dart';
-
-// Formateo de moneda local (RD$ especial; resto por locale del dispositivo)
 import 'package:mi_recibo/ui/widgets/widgets_shared.dart' as util show monedaLocal;
+import 'package:mi_recibo/ui/perfil_prestamista/ganancias_alquiler_screen.dart';
+import 'package:mi_recibo/core/estadisticas_totales_service.dart';
 
 import '../widgets/bar_chart.dart';
 
@@ -22,7 +26,8 @@ class AlquilerEstadisticaScreen extends StatefulWidget {
   State<AlquilerEstadisticaScreen> createState() => _AlquilerEstadisticaScreenState();
 }
 
-class _AlquilerEstadisticaScreenState extends State<AlquilerEstadisticaScreen> {
+class _AlquilerEstadisticaScreenState extends State<AlquilerEstadisticaScreen>
+    with TickerProviderStateMixin {
   late Future<_ResumenAlquiler> _future;
 
   @override
@@ -33,101 +38,68 @@ class _AlquilerEstadisticaScreenState extends State<AlquilerEstadisticaScreen> {
 
   // ==================== CARGA Y AGREGACIÓN (solo ALQUILER) ====================
   Future<_ResumenAlquiler> _cargarResumenAlquiler() async {
-    // Ventana: últimos 6 meses para gráfico
+    final prestamistaId = widget.docPrest.id;
+
+    // Asegura estructura inicial sin borrar nada existente
+    await EstadisticasTotalesService.ensureStructure(prestamistaId);
+
+    // Leer KPIs desde Firestore (colección stats/alquiler)
+    final cat = await EstadisticasTotalesService.readCategoria(prestamistaId, 'alquiler');
+    final activos = (cat?['activos'] ?? 0) as int;
+    final finalizados = (cat?['finalizados'] ?? 0) as int;
+    final pendiente = (cat?['pendienteCobro'] ?? 0) as int;
+    final gananciaNeta = (cat?['gananciaNeta'] ?? 0) as int;
+
+    // Leer serie mensual para la gráfica
+    final serie = await EstadisticasTotalesService.readSerieMensual(prestamistaId, 'alquiler', meses: 6);
+    final labels = <String>[];
+    final values = <int>[];
+
     const mesesTxt = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    for (final e in serie) {
+      final ym = (e['ym'] as String? ?? '');
+      final parts = ym.split('-');
+      final m = int.tryParse(parts.length > 1 ? parts[1] : '1') ?? 1;
+      labels.add(mesesTxt[m - 1]);
+      values.add((e['sum'] ?? 0) as int);
+    }
+
+    // Leer estados en vivo (vencidos y por vencer)
+    int vencidos = 0;
+    int porVencer = 0;
     final now = DateTime.now();
-    final months = List.generate(6, (i) => DateTime(now.year, now.month - (5 - i), 1));
-    final Map<String, int> pagosPorMes = { for (final m in months) '${m.year}-${_two(m.month)}': 0 };
-
-    // KPIs
-    int activos = 0;             // contratos de alquiler con saldo > 0
-    int inactivos = 0;           // contratos de alquiler saldo == 0
-    int ingresosMes = 0;         // sum(totalPagado) últimos 30 días (solo alquiler)
-    int gananciaNeta = 0;        // sum(pagoInteres) como proxy; si 0, usamos (total - capital)
-    int vencidos = 0;            // proximaFecha < hoy
-    int porVencer = 0;           // proximaFecha dentro de 7 días
-
-    final limiteMes = now.subtract(const Duration(days: 30));
+    final limite7 = now.add(const Duration(days: 7));
 
     final cs = await widget.docPrest.collection('clientes').get();
     for (final c in cs.docs) {
       final m = c.data();
       final tipo = (m['tipo'] ?? '').toString().toLowerCase().trim();
-      final producto = (m['producto'] ?? '').toString().trim();
+      final producto = (m['producto'] ?? '').toString().toLowerCase();
+      final esAlq = tipo == 'alquiler' || producto.contains('alquiler') || producto.contains('renta');
+      if (!esAlq) continue;
 
-      // Heurística de alquiler: tipo == 'alquiler' o producto tiene pista (alquiler/renta)
-      final esAlquiler = tipo == 'alquiler' ||
-          producto.toLowerCase().contains('alquiler') ||
-          producto.toLowerCase().contains('renta');
+      final saldo = (m['saldoActual'] ?? 0) as int;
+      if (saldo <= 0) continue;
 
-      if (!esAlquiler) continue;
-
-      final int saldo = (m['saldoActual'] ?? 0) as int;
-      final int capitalInicial = (m['capitalInicial'] ?? 0) as int;
-
-      if (saldo > 0) activos++; else inactivos++;
-
-      // Vencimientos
       final pf = m['proximaFecha'];
       if (pf is Timestamp) {
         final d = pf.toDate();
-        if (d.isBefore(now) && saldo > 0) vencidos++;
-        if (!d.isBefore(now) && d.difference(now).inDays <= 7 && saldo > 0) porVencer++;
-      }
-
-      // Pagos (límite defensivo)
-      final pagos = await c.reference.collection('pagos').limit(250).get();
-      int totalPagadoCliente = 0;
-      int interesCliente = 0;
-      int pagadoCapitalCliente = 0;
-
-      for (final p in pagos.docs) {
-        final d = p.data();
-        final tp = (d['totalPagado'] ?? 0) as int;
-        final pi = (d['pagoInteres'] ?? 0) as int;
-        final pc = (d['pagoCapital'] ?? 0) as int;
-
-        totalPagadoCliente += tp;
-        interesCliente += pi;
-        pagadoCapitalCliente += pc;
-
-        // Ingresos últimos 30 días
-        final ts = d['fecha'];
-        if (ts is Timestamp) {
-          final dt = ts.toDate();
-          if (!dt.isBefore(limiteMes)) ingresosMes += tp;
-
-          // Serie mensual
-          final key = '${dt.year}-${_two(dt.month)}';
-          if (pagosPorMes.containsKey(key)) {
-            pagosPorMes[key] = (pagosPorMes[key] ?? 0) + tp;
-          }
+        if (d.isBefore(now)) {
+          vencidos++;
+        } else if (!d.isBefore(now) && !d.isAfter(limite7)) {
+          porVencer++;
         }
       }
-
-      // Ganancia neta: si no hay interes registrado, fallback a (total - capital histórico)
-      int g = interesCliente;
-      if (g == 0) {
-        final capitalHistorico = saldo + pagadoCapitalCliente;
-        g = (totalPagadoCliente - capitalHistorico);
-        if (g < 0) g = 0;
-      }
-      gananciaNeta += g;
     }
 
-    final totalContratos = activos + inactivos;
+    // Cálculo de ocupación
+    final totalContratos = activos + finalizados;
     final ocupacion = totalContratos > 0 ? (activos * 100.0 / totalContratos) : 0.0;
-
-    final values = <int>[];
-    final labels = <String>[];
-    for (final m in months) {
-      labels.add(mesesTxt[m.month - 1]);
-      values.add(pagosPorMes['${m.year}-${_two(m.month)}'] ?? 0);
-    }
 
     return _ResumenAlquiler(
       activos: activos,
-      ingresosMes: ingresosMes,
+      finalizados: finalizados,
+      pendienteCobro: pendiente,
       gananciaNeta: gananciaNeta,
       vencidos: vencidos,
       porVencer: porVencer,
@@ -139,8 +111,8 @@ class _AlquilerEstadisticaScreenState extends State<AlquilerEstadisticaScreen> {
 
   // ==================== HELPERS ====================
   String _two(int n) => n.toString().padLeft(2, '0');
-  String _rd(int v) => util.monedaLocal(v);
-  String _pct(double x) => '${x.toStringAsFixed(1)}%';
+  String _rd(int v) => '\$${v.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',')}';
+  String _pct(double x) => '${x.toStringAsFixed(x >= 100 ? 0 : 1)}%';
 
   // ==================== UI ====================
   @override
@@ -172,68 +144,85 @@ class _AlquilerEstadisticaScreenState extends State<AlquilerEstadisticaScreen> {
 
               return ListView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+                padding: const EdgeInsets.fromLTRB(6, 0, 6, 16),
                 children: [
-                  _hint(),
+                  // ===== HÉROE: Ocupación actual =====
+                  _heroOcupacion(pct: data.ocupacion),
                   const SizedBox(height: 12),
 
-                  // ===== KPIs premium (4) =====
+                  // ===== KPIs =====
                   GridView.count(
                     crossAxisCount: 2,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    childAspectRatio: 1.55,
+                    childAspectRatio: 1.52,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
                     children: [
-                      _kpi('Activos alquilados', '${data.activos}',
-                          bg: const Color(0xFFE5E7EB), accent: _BrandX.ink),
-                      _kpi('Ingresos últimos 30 días', _rd(data.ingresosMes),
-                          bg: const Color(0xFFDCFCE7), accent: const Color(0xFF16A34A)),
-                      _kpi('Ganancia neta', _rd(data.gananciaNeta),
-                          bg: const Color(0xFFEDE9FE), accent: const Color(0xFF6D28D9)),
-                      _kpi('Tasa de ocupación', _pct(data.ocupacion),
-                          bg: const Color(0xFFF2F6FD), accent: AppTheme.gradTop),
+                      _kpiPremiumTap(
+                        title: 'Ganancias de alquiler',
+                        subtitle: 'Toca para ver',
+                        leading: Icons.people_alt_rounded,
+                        leadingSize: 32,
+                        gradient: const [Color(0xFFDFFCEF), Color(0xFFC5F5FF)],
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => GananciasAlquilerScreen(docPrest: widget.docPrest),
+                            ),
+                          );
+                        },
+                      ),
+                      _kpiSmart(
+                        title: 'Activos alquilados',
+                        display: '${data.activos}',
+                        accent: AppTheme.gradTop,
+                        bg: const Color(0xFFF2F6FD),
+                      ),
+                      _kpiSmart(
+                        title: 'Pendiente de cobro (alquiler)',
+                        display: _rd(data.pendienteCobro),
+                        accent: const Color(0xFF16A34A),
+                        bg: const Color(0xFFDCFCE7),
+                      ),
+                      _kpiSmart(
+                        title: 'Rentabilidad actual',
+                        display: '${(data.gananciaNeta > 0 && data.pendienteCobro > 0)
+                            ? ((data.gananciaNeta / (data.gananciaNeta + data.pendienteCobro)) * 100).toStringAsFixed(1)
+                            : '0'}%',
+                        accent: const Color(0xFF0EA5E9),
+                        bg: const Color(0xFFE0F2FE),
+                      ),
                     ],
                   ),
 
                   const SizedBox(height: 12),
 
-                  // ===== Estados sugeridos =====
-                  _card(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        _kvIcon(label: 'Estados sugeridos',
-                            value: '📆 En curso  •  ⏰ Por vencer  •  🚫 Finalizado'),
-                      ],
-                    ),
+                  // ===== Estados de contratos =====
+                  _estadosCard(
+                    enCurso: data.activos,
+                    porVencer: data.porVencer,
+                    vencidos: data.vencidos,
+                    finalizados: data.finalizados,
                   ),
 
                   const SizedBox(height: 12),
 
-                  // ===== Vencidos / Por vencer + gráfico =====
+                  // ===== Tendencia 6 meses =====
                   _card(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: const [
-                            Icon(Icons.event_note_rounded, color: _BrandX.inkDim),
+                            Icon(Icons.stacked_bar_chart_rounded, color: _BrandX.inkDim),
                             SizedBox(width: 8),
-                            Text('Vencimientos y tendencia',
+                            Text('Pagos últimos 6 meses',
                                 style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _BrandX.ink)),
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            _pill('Vencidos', '${data.vencidos}', const Color(0xFFE11D48)),
-                            const SizedBox(width: 8),
-                            _pill('Por vencer (7d)', '${data.porVencer}', const Color(0xFFEA580C)),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
                         SimpleBarChart(
                           values: data.values,
                           labels: data.labels,
@@ -245,36 +234,6 @@ class _AlquilerEstadisticaScreenState extends State<AlquilerEstadisticaScreen> {
                       ],
                     ),
                   ),
-
-                  const SizedBox(height: 12),
-
-                  // ===== Panel Premium con anuncio (placeholder) =====
-                  _premiumAdPanel(),
-
-                  const SizedBox(height: 16),
-
-                  // ===== CTA =====
-                  SizedBox(
-                    height: 52,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        // TODO: en el futuro, filtrar lista solo a contratos de ALQUILER
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => GananciaClientesScreen(docPrest: widget.docPrest),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.people_alt_rounded),
-                      label: const Text('Ver detalles de clientes', style: TextStyle(fontWeight: FontWeight.w900)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.gradTop,
-                        foregroundColor: Colors.white,
-                        shape: const StadiumBorder(),
-                      ),
-                    ),
-                  ),
                 ],
               );
             },
@@ -284,26 +243,249 @@ class _AlquilerEstadisticaScreenState extends State<AlquilerEstadisticaScreen> {
     );
   }
 
-  // ==================== UI HELPERS ====================
-  Widget _hint() {
+  // ==================== HÉROE Ocupación (agua + chip) ====================
+  Widget _heroOcupacion({required double pct}) {
+    final bool up = pct >= 50.0;
+    final Color water = up ? const Color(0xFF16A34A) : const Color(0xFFE11D48);
+    final double clamped = pct.clamp(0, 100);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.96),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE1E8F5)),
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppTheme.gradTop.withOpacity(.98), AppTheme.gradBottom.withOpacity(.98)],
+        ),
+        boxShadow: [BoxShadow(color: AppTheme.gradTop.withOpacity(.28), blurRadius: 24, offset: const Offset(0, 10))],
+        border: Border.all(color: Colors.white.withOpacity(.35), width: 1.2),
       ),
       child: Row(
-        children: const [
-          Icon(Icons.info_outline_rounded, color: _BrandX.inkDim, size: 18),
-          SizedBox(width: 8),
+        children: [
+          SizedBox(width: 160, height: 160, child: _WaterCircle(targetPercent: clamped, waterColor: water)),
+          const SizedBox(width: 16),
           Expanded(
-            child: Text(
-              'Monitorea vencidos y por vencer. Revisa la ocupación y la tendencia mensual.',
-              style: TextStyle(color: _BrandX.inkDim, fontWeight: FontWeight.w700),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Ocupación actual',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
+                const SizedBox(height: 6),
+                Text('Contratos activos',
+                    style: TextStyle(color: Colors.white.withOpacity(.92), fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: Colors.white.withOpacity(.65)),
+                    ),
+                    child: Text(
+                      'Ocupación ${_pct(clamped)}',
+                      style: TextStyle(
+                        color: up ? const Color(0xFF16A34A) : const Color(0xFFE11D48),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ==================== Estados (filas anchas) ====================
+  Widget _estadosCard({
+    required int enCurso,
+    required int porVencer,
+    required int vencidos,
+    required int finalizados,
+  }) {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: const [
+            Icon(Icons.event_note_rounded, color: _BrandX.inkDim),
+            SizedBox(width: 8),
+            Text('Estados de contratos',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _BrandX.ink)),
+          ]),
+          const SizedBox(height: 12),
+          _estadoRow(Icons.check_circle, 'En curso', enCurso, const Color(0xFF22C55E)),
+          const SizedBox(height: 10),
+          _estadoRow(Icons.pending_actions, 'Por vencer (7 d)', porVencer, const Color(0xFFF59E0B)),
+          const SizedBox(height: 10),
+          _estadoRow(Icons.error_rounded, 'Vencidos', vencidos, const Color(0xFFEF4444)),
+          const SizedBox(height: 10),
+          _estadoRow(Icons.pause_circle, 'Finalizados', finalizados, const Color(0xFF9CA3AF)),
+        ],
+      ),
+    );
+  }
+
+  Widget _estadoRow(IconData icon, String label, int count, Color dotColor) {
+    final badgeColor = count > 0 ? dotColor.withOpacity(.12) : const Color(0xFFF6F8FD);
+    final badgeBorder = count > 0 ? dotColor.withOpacity(.35) : const Color(0xFFE1E8F5);
+
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE1E8F5)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.04), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Row(
+        children: [
+          Container(width: 10, height: 10,
+              decoration: BoxDecoration(color: dotColor, borderRadius: BorderRadius.circular(3))),
+          const SizedBox(width: 10),
+          Icon(icon, size: 18, color: _BrandX.inkDim),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.visible,
+                style: const TextStyle(fontWeight: FontWeight.w900, color: _BrandX.ink, fontSize: 15)),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: badgeColor,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: badgeBorder),
+            ),
+            child: Text('$count',
+                style: const TextStyle(fontWeight: FontWeight.w900, color: _BrandX.ink, fontSize: 16)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==================== UI HELPERS ====================
+  Widget _kpiSmart({
+    required String title,
+    required String display,
+    required Color accent,
+    required Color bg,
+  }) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8EEF8)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: _BrandX.inkDim, fontWeight: FontWeight.w700, fontSize: 14, height: 1.1),
+          ),
+          const SizedBox(height: 8),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              display,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 32, height: 1.0, fontWeight: FontWeight.w900, color: accent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _kpiPremiumTap({
+    required String title,
+    required String subtitle,
+    required IconData leading,
+    double leadingSize = 32,
+    required List<Color> gradient,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: gradient),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(.65), width: 1.4),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(.10), blurRadius: 16, offset: const Offset(0, 6))],
+        ),
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(leading, size: leadingSize, color: AppTheme.gradTop),
+                const SizedBox(height: 6),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _BrandX.ink,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    letterSpacing: .2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: const Color(0xFFE1E8F5)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.touch_app_rounded, size: 16, color: _BrandX.inkDim),
+                      SizedBox(width: 6),
+                      Text('Toca para ver', style: TextStyle(fontWeight: FontWeight.w900, color: _BrandX.ink)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyCard(String txt) {
+    return Container(
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.96),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Center(
+        child: Text(txt, style: const TextStyle(fontWeight: FontWeight.w800, color: _BrandX.inkDim)),
       ),
     );
   }
@@ -320,247 +502,13 @@ class _AlquilerEstadisticaScreenState extends State<AlquilerEstadisticaScreen> {
       child: child,
     );
   }
-
-  Widget _divider() => Container(
-    height: 1.2,
-    color: _BrandX.divider,
-    margin: const EdgeInsets.symmetric(vertical: 12),
-  );
-
-  Widget _kpi(String title, String value, {required Color bg, required Color accent}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE8EEF8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: _BrandX.inkDim, fontWeight: FontWeight.w700, fontSize: 14)),
-          const Spacer(),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              maxLines: 1,
-              style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: accent),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _emptyCard(String txt) {
-    return Container(
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Center(
-        child: Text(txt, style: const TextStyle(fontWeight: FontWeight.w800, color: _BrandX.inkDim)),
-      ),
-    );
-  }
-
-  static Widget _pill(String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(.10),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(.30)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-          const SizedBox(width: 6),
-          Text('$label: ', style: TextStyle(color: color, fontWeight: FontWeight.w900)),
-          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w800)),
-        ],
-      ),
-    );
-  }
-
-  // Par título/valor con ícono sutil
-  // (se usa para “Estados sugeridos”)
-  // Ejemplo: _kvIcon(label: 'Estados sugeridos', value: '📆 …')
-  static const TextStyle _kvLabel = TextStyle(color: _BrandX.inkDim, fontWeight: FontWeight.w700);
-  static const TextStyle _kvValue = TextStyle(color: _BrandX.ink, fontWeight: FontWeight.w900);
-
-  // ===== Panel Premium (Glass + Degradado) con CTA de anuncio =====
-  Widget _premiumAdPanel() {
-    return Container(
-      margin: const EdgeInsets.only(top: 4),
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppTheme.gradTop.withOpacity(0.98), AppTheme.gradBottom.withOpacity(0.98)],
-        ),
-        boxShadow: [
-          BoxShadow(color: AppTheme.gradTop.withOpacity(.28), blurRadius: 22, offset: const Offset(0, 10)),
-        ],
-        border: Border.all(color: Colors.white.withOpacity(.35), width: 1.2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(.18),
-                  border: Border.all(color: Colors.white.withOpacity(.55), width: 1.2),
-                ),
-                child: const Icon(Icons.workspace_premium_rounded, color: Colors.white),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Contenido Premium',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: .3),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: const Text('PRO', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Desbloquea una métrica avanzada y un consejo de ocupación viendo un anuncio corto.',
-            style: TextStyle(color: Colors.white.withOpacity(.95), fontWeight: FontWeight.w600, height: 1.35),
-          ),
-          const SizedBox(height: 14),
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
-              onPressed: _showPremiumAd,
-              icon: const Icon(Icons.play_circle_fill_rounded),
-              label: const Text('Ver contenido PRO'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: AppTheme.gradTop,
-                shape: const StadiumBorder(),
-                textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                elevation: 2,
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Placeholder del anuncio premium. Aquí conectarás google_mobile_ads.
-  Future<void> _showPremiumAd() async {
-    if (!mounted) return;
-    final demoTip = 'Incrementa ocupación: aplica descuento del 5% por contrato de 3+ meses.';
-    final demoMetric = 'Ocupación media 90 días: 74%';
-    await showDialog<void>(
-      context: context,
-      builder: (c) => Dialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        child: Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: LinearGradient(colors: [AppTheme.gradTop.withOpacity(.06), AppTheme.gradBottom.withOpacity(.06)]),
-            border: Border.all(color: const Color(0xFFE7EEF8)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(children: const [
-                Icon(Icons.workspace_premium_rounded, color: Color(0xFF2458D6)),
-                SizedBox(width: 8),
-                Text('Contenido PRO desbloqueado', style: TextStyle(fontWeight: FontWeight.w900)),
-              ]),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF7FAFF),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE7EEF8)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.bolt_rounded, color: Color(0xFF0A9A76)),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(demoTip, style: const TextStyle(fontWeight: FontWeight.w700))),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFBFEF4),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE7F2C9)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.insights_rounded, color: Color(0xFF6D28D9)),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(demoMetric, style: const TextStyle(fontWeight: FontWeight.w800))),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                height: 46,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(c),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.gradTop,
-                    foregroundColor: Colors.white,
-                    shape: const StadiumBorder(),
-                    elevation: 2,
-                  ),
-                  child: const Text('Listo'),
-                ),
-              )
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // ==================== TIPOS ====================
 class _ResumenAlquiler {
   final int activos;
-  final int ingresosMes;
+  final int finalizados;
+  final int pendienteCobro;
   final int gananciaNeta;
   final int vencidos;
   final int porVencer;
@@ -571,7 +519,8 @@ class _ResumenAlquiler {
 
   _ResumenAlquiler({
     required this.activos,
-    required this.ingresosMes,
+    required this.finalizados,
+    required this.pendienteCobro,
     required this.gananciaNeta,
     required this.vencidos,
     required this.porVencer,
@@ -581,7 +530,7 @@ class _ResumenAlquiler {
   });
 }
 
-// ==================== HEADER LOCAL ====================
+// ==================== HEADER ====================
 class _HeaderBar extends StatelessWidget {
   final String title;
   const _HeaderBar({required this.title});
@@ -600,43 +549,208 @@ class _HeaderBar extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
+          child: Text(title,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
         ),
       ],
     );
   }
 }
 
-// ==================== PALETA LOCAL ====================
+// ==================== PALETA ====================
 class _BrandX {
   static const ink = Color(0xFF0F172A);
   static const inkDim = Color(0xFF64748B);
   static const divider = Color(0xFFD7E1EE);
 }
 
-// ==================== Par título/valor con ícono (sutil) ====================
-class _kvIcon extends StatelessWidget {
-  final String label;
-  final String value;
-  const _kvIcon({required this.label, required this.value});
+// ==================== WATER CIRCLE ====================
+class _WaterCircle extends StatefulWidget {
+  final double targetPercent; // 0..100
+  final Color waterColor;
+  const _WaterCircle({required this.targetPercent, required this.waterColor});
+
+  @override
+  State<_WaterCircle> createState() => _WaterCircleState();
+}
+
+class _WaterCircleState extends State<_WaterCircle> with TickerProviderStateMixin {
+  late AnimationController _levelCtrl;
+  late Animation<double> _level;
+  late AnimationController _waveCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final to = (widget.targetPercent.clamp(0, 100)) / 100.0;
+
+    _levelCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
+    _level = CurvedAnimation(parent: _levelCtrl, curve: Curves.easeOutCubic)
+        .drive(Tween<double>(begin: 0.0, end: to));
+    _levelCtrl.forward();
+
+    _waveCtrl = AnimationController.unbounded(vsync: this)
+      ..animateWith(_LinearWaveSimulation(speed: 1.2));
+  }
+
+  @override
+  void didUpdateWidget(covariant _WaterCircle oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final to = (widget.targetPercent.clamp(0, 100)) / 100.0;
+    _level = CurvedAnimation(parent: _levelCtrl, curve: Curves.easeOutCubic)
+        .drive(Tween<double>(begin: _level.value, end: to));
+    _levelCtrl..reset()..forward();
+  }
+
+  @override
+  void dispose() {
+    _levelCtrl.dispose();
+    _waveCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: Text(label, style: const TextStyle(color: _BrandX.inkDim, fontWeight: FontWeight.w700))),
-        Flexible(
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w900, color: _BrandX.ink),
-            ),
+    final pctText = widget.targetPercent.clamp(0, 100).toStringAsFixed(0);
+    final water = widget.waterColor;
+
+    return ClipOval(
+      child: CustomPaint(
+        painter: _WaterCirclePainter(levelListenable: _level, waveListenable: _waveCtrl, waterColor: water),
+        child: Center(
+          child: Stack(
+            children: [
+              Text(
+                '$pctText%',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  foreground: Paint()
+                    ..style = PaintingStyle.stroke
+                    ..strokeWidth = 3
+                    ..color = Colors.black,
+                ),
+              ),
+              Text(
+                '$pctText%',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: water,
+                ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
+}
+
+class _WaterCirclePainter extends CustomPainter {
+  final Animation<double> levelListenable; // 0..1
+  final Animation<double> waveListenable;  // fase
+  final Color waterColor;
+
+  _WaterCirclePainter({
+    required this.levelListenable,
+    required this.waveListenable,
+    required this.waterColor,
+  }) : super(repaint: Listenable.merge([levelListenable, waveListenable]));
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final center = Offset(w / 2, h / 2);
+    final radius = math.min(w, h) / 2;
+
+    final bg = Paint()
+      ..isAntiAlias = true
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFFEFF6FF), Color(0xFFE0F2FE)],
+      ).createShader(Offset.zero & size);
+    canvas.drawCircle(center, radius, bg);
+
+    final border = Paint()
+      ..isAntiAlias = true
+      ..color = Colors.white.withOpacity(.75)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas.drawCircle(center, radius, border);
+
+    canvas.save();
+    canvas.clipPath(Path()..addOval(Rect.fromCircle(center: center, radius: radius)));
+
+    final level = levelListenable.value.clamp(0.0, 1.0);
+    final waterTop = h * (1 - level);
+
+    final t = waveListenable.value;
+    const omega1 = 2.2;
+    const omega2 = 1.4;
+    final phase1 = t * omega1;
+    final phase2 = -t * omega2;
+    const amp1 = 8.0;
+    const amp2 = 5.0;
+
+    Paint waterPaint(double o1, double o2) => Paint()
+      ..isAntiAlias = true
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [waterColor.withOpacity(o1), waterColor.withOpacity(o2)],
+      ).createShader(Rect.fromLTWH(0, waterTop - 10, w, h - waterTop + 10));
+
+    Path wave(double phase, double amp, double y0) {
+      final path = Path()..moveTo(0, h);
+      double y(double x) => y0 + math.sin((x / w * 2 * math.pi) + phase) * amp;
+      path.lineTo(0, y(0));
+      for (double x = 0; x <= w; x += 2) {
+        path.lineTo(x, y(x));
+      }
+      path.lineTo(w, h);
+      path.close();
+      return path;
+    }
+
+    final back = wave(phase2, amp2, waterTop - 4);
+    final front = wave(phase1, amp1, waterTop);
+
+    canvas.drawPath(back, waterPaint(.25, .65));
+    canvas.drawPath(front, waterPaint(.4, .85));
+
+    final edge = Paint()
+      ..isAntiAlias = true
+      ..color = Colors.white.withOpacity(.35)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    final edgePath = Path();
+    for (double x = 0; x <= w; x += 4) {
+      final y = waterTop + math.sin((x / w * 2 * math.pi) + phase1) * amp1;
+      if (x == 0) {
+        edgePath.moveTo(x, y);
+      } else {
+        edgePath.lineTo(x, y);
+      }
+    }
+    canvas.drawPath(edgePath, edge);
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _WaterCirclePainter oldDelegate) => true;
+}
+
+class _LinearWaveSimulation extends Simulation {
+  final double speed; // rad/s
+  _LinearWaveSimulation({this.speed = 1.2});
+  @override
+  double x(double time) => speed * time;
+  @override
+  double dx(double time) => speed;
+  @override
+  bool isDone(double time) => false;
 }

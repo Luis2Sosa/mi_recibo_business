@@ -1,19 +1,27 @@
 // lib/ui/perfil_prestamista/prestamo_estadistica.dart
-// Mini-dashboard de PRÉSTAMOS: KPIs, mora, gráfico últimos 6 meses y CTA a “Ganancia por cliente”.
-// Look premium + bloque para anuncio (placeholder) listo para conectar google_mobile_ads.
+// Dash de PRÉSTAMOS (premium + estratégico) sin panel PRO ni botón externo.
+// Novedad:
+//   1) KPI “Ganancia por clientes” idéntico en lenguaje visual al KPI premium.
+//      Va PRIMERO. TAP abre la lista solo de clientes de préstamo.
+//   2) Héroe “Índice de recuperación” con círculo de AGUA animada (olas infinitas).
+//      - Cae/sube desde 0 hasta el % real al entrar.
+//      - Permanece animado todo el tiempo.
+//      - Rojo si < 50%, Verde si ≥ 50%.
+//   3) Formato moneda LATAM: sin decimales, separador de miles por coma. Ej: $ 5,800.
 
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'package:mi_recibo/ui/widgets/app_frame.dart'; // AppGradientBackground + AppFrame
-import 'package:mi_recibo/ui/theme/app_theme.dart';   // AppTheme (gradTop/gradBottom)
-import 'package:mi_recibo/ui/widgets/bar_chart.dart'; // SimpleBarChart
-import 'package:mi_recibo/ui/perfil_prestamista/ganancia_clientes_screen.dart';
+import 'package:mi_recibo/ui/widgets/app_frame.dart';
+import 'package:mi_recibo/ui/theme/app_theme.dart';
+import 'package:mi_recibo/ui/widgets/bar_chart.dart';
+import 'package:mi_recibo/ui/perfil_prestamista/ganancias_prestamo_screen.dart';
 
-// Formateo de moneda local (RD$ especial; resto por locale del dispositivo)
-import 'package:mi_recibo/ui/widgets/widgets_shared.dart' as util show monedaLocal;
 
-/// Pantalla: Resumen de Préstamos
+
+
 class PrestamoEstadisticaScreen extends StatefulWidget {
   final DocumentReference<Map<String, dynamic>> docPrest;
   const PrestamoEstadisticaScreen({super.key, required this.docPrest});
@@ -22,7 +30,8 @@ class PrestamoEstadisticaScreen extends StatefulWidget {
   State<PrestamoEstadisticaScreen> createState() => _PrestamoEstadisticaScreenState();
 }
 
-class _PrestamoEstadisticaScreenState extends State<PrestamoEstadisticaScreen> {
+class _PrestamoEstadisticaScreenState extends State<PrestamoEstadisticaScreen>
+    with TickerProviderStateMixin {
   late Future<_ResumenPrestamos> _future;
 
   @override
@@ -33,19 +42,25 @@ class _PrestamoEstadisticaScreenState extends State<PrestamoEstadisticaScreen> {
 
   // ==================== CARGA Y AGREGACIÓN (solo PRÉSTAMOS) ====================
   Future<_ResumenPrestamos> _cargarResumenPrestamos() async {
-    // Ventana: últimos 6 meses (para gráfico)
     const mesesTxt = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
     final now = DateTime.now();
     final months = List.generate(6, (i) => DateTime(now.year, now.month - (5 - i), 1));
     final Map<String, int> pagosPorMes = { for (final m in months) '${m.year}-${_two(m.month)}': 0 };
 
-    // Agregadores
-    int capitalTotalPrestado = 0;    // para ratio de interés: saldoActual + pagadoCapital
-    int totalRecuperado = 0;         // sum(totalPagado)
-    int gananciaInteres = 0;         // sum(pagoInteres)
-    int clientesActivos = 0;         // saldoActual > 0
-    int morosos = 0;                 // proximaFecha < hoy y saldo > 0
-    int sumaDiasMora = 0;            // para promedio de días en mora
+    final last30Start = now.subtract(const Duration(days: 30));
+    final prev30Start = now.subtract(const Duration(days: 60));
+
+    int capitalTotalPrestado = 0;
+    int totalRecuperado = 0;
+    int gananciaInteres = 0;
+    int clientesActivos = 0;
+    int morosos = 0;
+    int sumaDiasMora = 0;
+
+    int cobrosUltimos30 = 0;
+    int cobrosPrevios30 = 0;
+
+    final List<_Moroso> topMorosos = [];
 
     final cs = await widget.docPrest.collection('clientes').get();
 
@@ -54,13 +69,12 @@ class _PrestamoEstadisticaScreenState extends State<PrestamoEstadisticaScreen> {
       final tipo = (m['tipo'] ?? '').toString().toLowerCase().trim();
       final producto = (m['producto'] ?? '').toString().trim();
 
-      // Heurística: préstamos si tipo == 'prestamo' o si no tiene 'producto'
+      // Heurística: prestamos = tipo == 'prestamo' o producto vacío (legacy)
       final bool esPrestamo = tipo == 'prestamo' || producto.isEmpty;
       if (!esPrestamo) continue;
 
       final int saldo = (m['saldoActual'] ?? 0) as int;
 
-      // Pagos (limit defensivo)
       final pagos = await c.reference.collection('pagos').limit(250).get();
       int totalPagadoCliente = 0;
       int interesesCliente   = 0;
@@ -73,7 +87,6 @@ class _PrestamoEstadisticaScreenState extends State<PrestamoEstadisticaScreen> {
         interesesCliente   += (d['pagoInteres'] ?? 0) as int;
         pagadoCapitalCliente += (d['pagoCapital'] ?? 0) as int;
 
-        // Serie mensual
         final ts = d['fecha'];
         if (ts is Timestamp) {
           final dt = ts.toDate();
@@ -81,10 +94,14 @@ class _PrestamoEstadisticaScreenState extends State<PrestamoEstadisticaScreen> {
           if (pagosPorMes.containsKey(key)) {
             pagosPorMes[key] = (pagosPorMes[key] ?? 0) + tp;
           }
+          if (dt.isAfter(last30Start)) {
+            cobrosUltimos30 += tp;
+          } else if (dt.isAfter(prev30Start) && dt.isBefore(last30Start)) {
+            cobrosPrevios30 += tp;
+          }
         }
       }
 
-      // “Capital histórico” (para interest rate efectivo)
       final int capitalHistorico = saldo + pagadoCapitalCliente;
       capitalTotalPrestado += capitalHistorico;
 
@@ -97,13 +114,25 @@ class _PrestamoEstadisticaScreenState extends State<PrestamoEstadisticaScreen> {
         if (pf is Timestamp) {
           final d = pf.toDate();
           if (d.isBefore(DateTime.now())) {
-            morosos++;
             final dias = DateTime.now().difference(d).inDays;
-            if (dias > 0) sumaDiasMora += dias;
+            morosos++;
+            if (dias > 0) {
+              sumaDiasMora += dias;
+              final nombre = '${(m['nombre'] ?? '').toString().trim()} ${(m['apellido'] ?? '').toString().trim()}'.trim();
+              final fallback = (m['telefono'] ?? 'Cliente').toString();
+              topMorosos.add(_Moroso(
+                nombre: nombre.isEmpty ? fallback : nombre,
+                dias: dias,
+                saldo: saldo,
+              ));
+            }
           }
         }
       }
     }
+
+    topMorosos.sort((a, b) => b.dias.compareTo(a.dias));
+    final mejores = topMorosos.take(3).toList();
 
     final promInteresEfectivo = (capitalTotalPrestado > 0)
         ? (gananciaInteres * 100.0 / capitalTotalPrestado)
@@ -116,6 +145,15 @@ class _PrestamoEstadisticaScreenState extends State<PrestamoEstadisticaScreen> {
       values.add(pagosPorMes['${m.year}-${_two(m.month)}'] ?? 0);
     }
 
+    final double recoveryIndex = (capitalTotalPrestado > 0)
+        ? (totalRecuperado / capitalTotalPrestado) * 100.0
+        : 0.0;
+
+    final int delta30 = cobrosUltimos30 - cobrosPrevios30;
+    final double deltaPct30 = cobrosPrevios30 > 0
+        ? (delta30 * 100.0 / cobrosPrevios30)
+        : (cobrosUltimos30 > 0 ? 100.0 : 0.0);
+
     return _ResumenPrestamos(
       capitalTotalPrestado: capitalTotalPrestado,
       totalRecuperado: totalRecuperado,
@@ -126,13 +164,30 @@ class _PrestamoEstadisticaScreenState extends State<PrestamoEstadisticaScreen> {
       promedioDiasMora: morosos > 0 ? (sumaDiasMora / morosos) : 0.0,
       labels: labels,
       values: values,
+      recoveryIndex: recoveryIndex.clamp(0, 100).toDouble(), // 0–100 real
+      cobrosUltimos30: cobrosUltimos30,
+      deltaPct30: deltaPct30,
+      topMorosos: mejores,
     );
   }
 
   // ==================== HELPERS ====================
   String _two(int n) => n.toString().padLeft(2, '0');
-  String _rd(int v) => util.monedaLocal(v);
   String _pct(double x) => '${x.toStringAsFixed(1)}%';
+
+  // Moneda LATAM, sin decimales y con separador de miles = coma. Ej: 5800 => "$ 5,800"
+  String _rd(int v) => '\$ ${_fmtMiles(v)}';
+  String _fmtMiles(int v) {
+    final s = v.abs().toString();
+    final b = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      final idx = s.length - 1 - i;
+      b.write(s[idx]);
+      if ((i + 1) % 3 == 0 && idx != 0) b.write(',');
+    }
+    final core = b.toString().split('').reversed.join();
+    return v < 0 ? '-$core' : core;
+  }
 
   // ==================== UI ====================
   @override
@@ -164,50 +219,103 @@ class _PrestamoEstadisticaScreenState extends State<PrestamoEstadisticaScreen> {
 
               return ListView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+                padding: const EdgeInsets.fromLTRB(4, 0, 4, 18),
                 children: [
-                  _hintTap(),
+                  // ====== HERO: ÍNDICE DE RECUPERACIÓN con AGUA ======
+                  _heroRecoveryWater(
+                    index: data.recoveryIndex,
+                    cobros30: _rd(data.cobrosUltimos30),
+                    deltaPct30: data.deltaPct30,
+                  ),
                   const SizedBox(height: 12),
 
-                  // ===== KPIs premium (4) =====
+                  // ===== KPIs (4) — PRIMERO: Ganancia por clientes (tap premium) =====
                   GridView.count(
                     crossAxisCount: 2,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    childAspectRatio: 1.55,
+                    childAspectRatio: 1.35,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
                     children: [
-                      _kpi('Capital prestado', _rd(data.capitalTotalPrestado),
-                          bg: const Color(0xFFE5E7EB), accent: _BrandX.ink),
-                      _kpi('Total recuperado', _rd(data.totalRecuperado),
-                          bg: const Color(0xFFDCFCE7), accent: const Color(0xFF16A34A)),
-                      _kpi('Ganancia (interés)', _rd(data.gananciaInteres),
-                          bg: const Color(0xFFEDE9FE), accent: const Color(0xFF6D28D9)),
-                      _kpi('Clientes activos', '${data.clientesActivos}',
-                          bg: const Color(0xFFF2F6FD), accent: AppTheme.gradTop),
+                      // 1) Ganancia por clientes (idéntico estilo a "Ganancias totales" premium, icono grande, SIN monto)
+                      _kpiPremiumTap(
+                        title: 'Ganancia por clientes',
+                        subtitle: 'Toca para ver',
+                        leading: Icons.people_alt_rounded,
+                        leadingSize: 32,
+                        gradient: const [Color(0xFFDFFCEF), Color(0xFFC5F5FF)],
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => GananciasPrestamoScreen(docPrest: widget.docPrest),
+                            ),
+                          );
+                        },
+                      ),
+
+                      // 2) Capital prestado (rojo — dinero en la calle)
+                      _kpiSmart(
+                        title: 'Capital prestado',
+                        value: data.capitalTotalPrestado,
+                        display: _rd(data.capitalTotalPrestado),
+                        bg: const Color(0xFFFDF3F3),
+                        accent: const Color(0xFFB91C1C),
+                      ),
+
+                      // 3) Total recuperado (verde)
+                      _kpiSmart(
+                        title: 'Total recuperado',
+                        value: data.totalRecuperado,
+                        display: _rd(data.totalRecuperado),
+                        bg: const Color(0xFFDCFCE7),
+                        accent: const Color(0xFF16A34A),
+                      ),
+
+                      // 4) Clientes activos
+                      _kpiSmart(
+                        title: 'Clientes activos',
+                        value: data.clientesActivos,
+                        display: '${data.clientesActivos}',
+                        bg: const Color(0xFFF2F6FD),
+                        accent: AppTheme.gradTop,
+                      ),
                     ],
                   ),
 
                   const SizedBox(height: 12),
 
-                  // ===== Bloque de mora e interés efectivo =====
+                  // ===== Inteligencia =====
                   _card(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Row(children: const [
+                          Icon(Icons.percent_rounded, color: _BrandX.inkDim),
+                          SizedBox(width: 8),
+                          Text('Interés y mora',
+                              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _BrandX.ink)),
+                        ]),
+                        const SizedBox(height: 10),
                         _kv('Promedio interés aplicado', _pct(data.promInteresEfectivo)),
                         _divider(),
                         _kv('Clientes morosos', '${data.morosos}'),
                         _divider(),
                         _kv('Mora promedio (días)', data.morosos > 0 ? data.promedioDiasMora.toStringAsFixed(1) : '—'),
+                        if (data.topMorosos.isNotEmpty) ...[
+                          const SizedBox(height: 14),
+                          const Text('Alertas (Top morosos)', style: TextStyle(fontWeight: FontWeight.w900)),
+                          const SizedBox(height: 8),
+                          ...data.topMorosos.map((m) => _morosoTile(m)).toList(),
+                        ],
                       ],
                     ),
                   ),
 
                   const SizedBox(height: 12),
 
-                  // ===== Gráfico últimos 6 meses =====
+                  // ===== Serie 6 meses =====
                   _card(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,35 +340,6 @@ class _PrestamoEstadisticaScreenState extends State<PrestamoEstadisticaScreen> {
                       ],
                     ),
                   ),
-
-                  const SizedBox(height: 12),
-
-                  // ===== Panel Premium con anuncio (placeholder) =====
-                  _premiumAdPanel(),
-
-                  const SizedBox(height: 16),
-
-                  // ===== CTA a lista/ganancia por cliente =====
-                  SizedBox(
-                    height: 52,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => GananciaClientesScreen(docPrest: widget.docPrest),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.people_alt_rounded),
-                      label: const Text('Ver detalles de clientes', style: TextStyle(fontWeight: FontWeight.w900)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.gradTop,
-                        foregroundColor: Colors.white,
-                        shape: const StadiumBorder(),
-                      ),
-                    ),
-                  ),
                 ],
               );
             },
@@ -270,23 +349,86 @@ class _PrestamoEstadisticaScreenState extends State<PrestamoEstadisticaScreen> {
     );
   }
 
-  // ==================== UI HELPERS ====================
-  Widget _hintTap() {
+  // ==================== HERO: AGUA EN CÍRCULO ====================
+  Widget _heroRecoveryWater({
+    required double index,
+    required String cobros30,
+    required double deltaPct30,
+  }) {
+    final bool up = index >= 50.0; // color según índice
+    final Color water = up ? const Color(0xFF16A34A) : const Color(0xFFE11D48); // verde / rojo
+    final Color trendColor = deltaPct30 >= 0 ? const Color(0xFF16A34A) : const Color(0xFFE11D48);
+    final String trendTxt = '${deltaPct30 >= 0 ? '▲' : '▼'} ${deltaPct30.abs().toStringAsFixed(1)}% en 30d';
+    final double clamped = index.clamp(0, 100);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.96),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE1E8F5)),
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppTheme.gradTop.withOpacity(.98), AppTheme.gradBottom.withOpacity(.98)],
+        ),
+        boxShadow: [BoxShadow(color: AppTheme.gradTop.withOpacity(.28), blurRadius: 24, offset: const Offset(0, 10))],
+        border: Border.all(color: Colors.white.withOpacity(.35), width: 1.2),
       ),
       child: Row(
-        children: const [
-          Icon(Icons.info_outline_rounded, color: _BrandX.inkDim, size: 18),
-          SizedBox(width: 8),
+        children: [
+          // — CÍRCULO GRANDE con agua
+          SizedBox(
+            width: 160,
+            height: 160,
+            child: _WaterCircle(targetPercent: clamped, waterColor: water),
+          ),
+          const SizedBox(width: 16),
+          // — Texto y pill
           Expanded(
-            child: Text(
-              'Toca para ver clientes morosos o préstamos activos.',
-              style: TextStyle(color: _BrandX.inkDim, fontWeight: FontWeight.w700),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Índice de recuperación',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: .2),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Cobrado últimos 30 días',
+                  style: TextStyle(color: Colors.white.withOpacity(.92), fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  cobros30,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                    shadows: [Shadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 1))],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: Colors.white.withOpacity(.65)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(deltaPct30 >= 0 ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+                            color: trendColor, size: 22),
+                        const SizedBox(width: 2),
+                        Text(trendTxt, style: TextStyle(color: trendColor, fontWeight: FontWeight.w900)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -294,44 +436,129 @@ class _PrestamoEstadisticaScreenState extends State<PrestamoEstadisticaScreen> {
     );
   }
 
-  Widget _emptyCard(String t) {
+  // KPI inteligente: centra si value == 0, alinea izquierda si > 0
+  Widget _kpiSmart({
+    required String title,
+    required int value,
+    required String display,
+    required Color bg,
+    required Color accent,
+  }) {
     return Container(
-      margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: bg,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: const Color(0xFFE8EEF8)),
       ),
-      child: Center(
-        child: Text(t, style: const TextStyle(fontWeight: FontWeight.w800, color: _BrandX.inkDim)),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: _BrandX.inkDim,
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            display,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 34,
+              fontWeight: FontWeight.w900,
+              color: accent,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _card({required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.96),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.10), blurRadius: 14, offset: const Offset(0, 6))],
-        border: Border.all(color: const Color(0xFFE1E8F5)),
+  // KPI Premium estilo “Ganancias Totales” con TAP (icono grande, sin monto)
+  Widget _kpiPremiumTap({
+    required String title,
+    required String subtitle,
+    required IconData leading,
+    double leadingSize = 32,
+    required List<Color> gradient,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: gradient),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(.65), width: 1.4),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(.10), blurRadius: 16, offset: const Offset(0, 6))],
+        ),
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(leading, size: leadingSize, color: AppTheme.gradTop),
+                const SizedBox(height: 6),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _BrandX.ink,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    letterSpacing: .2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: const Color(0xFFE1E8F5)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.touch_app_rounded, size: 16, color: _BrandX.inkDim),
+                      SizedBox(width: 6),
+                      Text('Toca para ver', style: TextStyle(fontWeight: FontWeight.w900, color: _BrandX.ink)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-      child: child,
     );
   }
 
-  Widget _divider() => Container(
-    height: 1.2,
-    color: _BrandX.divider,
-    margin: const EdgeInsets.symmetric(vertical: 12),
-  );
-
+  // ====== Helpers UI ======
   Widget _kv(String k, String v) {
     return Row(
       children: [
-        Expanded(child: Text(k, style: const TextStyle(color: _BrandX.inkDim))),
+        Expanded(
+          child: Text(
+            k,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: _BrandX.inkDim, fontWeight: FontWeight.w700),
+          ),
+        ),
+        const SizedBox(width: 8),
         Flexible(
           child: Align(
             alignment: Alignment.centerRight,
@@ -347,202 +574,87 @@ class _PrestamoEstadisticaScreenState extends State<PrestamoEstadisticaScreen> {
     );
   }
 
-  Widget _kpi(String title, String value, {required Color bg, required Color accent}) {
+  Widget _morosoTile(_Moroso m) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE8EEF8)),
+        color: const Color(0xFFFFF7F7),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFAD4D4)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: _BrandX.inkDim, fontWeight: FontWeight.w700, fontSize: 14),
+          Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: const Color(0xFFE11D48), borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 18),
           ),
-          const Spacer(),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              maxLines: 1,
-              style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: accent),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ===== Panel Premium (Glass + Degradado) con CTA de anuncio =====
-  Widget _premiumAdPanel() {
-    return Container(
-      margin: const EdgeInsets.only(top: 4),
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppTheme.gradTop.withOpacity(0.98), AppTheme.gradBottom.withOpacity(0.98)],
-        ),
-        boxShadow: [
-          BoxShadow(color: AppTheme.gradTop.withOpacity(.28), blurRadius: 22, offset: const Offset(0, 10)),
-        ],
-        border: Border.all(color: Colors.white.withOpacity(.35), width: 1.2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(.18),
-                  border: Border.all(color: Colors.white.withOpacity(.55), width: 1.2),
-                ),
-                child: const Icon(Icons.workspace_premium_rounded, color: Colors.white),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Contenido Premium',
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(m.nombre,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: .3),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: const Text('PRO', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
-              ),
-            ],
+                  style: const TextStyle(fontWeight: FontWeight.w900, color: _BrandX.ink)),
+              const SizedBox(height: 2),
+              Text('Saldo: ${_rd(m.saldo)}',
+                  style: const TextStyle(color: _BrandX.inkDim, fontWeight: FontWeight.w700)),
+            ]),
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Desbloquea un consejo avanzado y una métrica adicional mirando un anuncio corto.',
-            style: TextStyle(color: Colors.white.withOpacity(.95), fontWeight: FontWeight.w600, height: 1.35),
-          ),
-          const SizedBox(height: 14),
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
-              onPressed: _showPremiumAd,
-              icon: const Icon(Icons.play_circle_fill_rounded),
-              label: const Text('Ver contenido PRO'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: AppTheme.gradTop,
-                shape: const StadiumBorder(),
-                textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                elevation: 2,
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-              ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFE4E6),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: const Color(0xFFFECACA)),
             ),
+            child: Text('${m.dias} d',
+                style: const TextStyle(color: Color(0xFFB91C1C), fontWeight: FontWeight.w900)),
           ),
         ],
       ),
     );
   }
 
-  /// Placeholder del anuncio premium. Aquí conectarás google_mobile_ads.
-  /// - Recompensado: muestra contenido exclusivo tras `onUserEarnedReward`.
-  /// - O interstitial: solo como “paywall suave”.
-  Future<void> _showPremiumAd() async {
-    // TODO: Integrar google_mobile_ads aquí.
-    // Mientras tanto, mostramos un modal premium con tip + métrica ficticia.
-    if (!mounted) return;
-    final demoTip = 'Prioriza clientes con pago adelantado: ofrece 1–2% de descuento y reduce mora.';
-    final demoMetric = 'Tasa de recuperación (últimos 30 días): 78%';
-    await showDialog<void>(
-      context: context,
-      builder: (c) => Dialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        child: Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: LinearGradient(colors: [AppTheme.gradTop.withOpacity(.06), AppTheme.gradBottom.withOpacity(.06)]),
-            border: Border.all(color: const Color(0xFFE7EEF8)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(children: const [
-                Icon(Icons.workspace_premium_rounded, color: Color(0xFF2458D6)),
-                SizedBox(width: 8),
-                Text('Contenido PRO desbloqueado', style: TextStyle(fontWeight: FontWeight.w900)),
-              ]),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF7FAFF),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE7EEF8)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.bolt_rounded, color: Color(0xFF0A9A76)),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(demoTip, style: const TextStyle(fontWeight: FontWeight.w700))),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFBFEF4),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE7F2C9)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.insights_rounded, color: Color(0xFF6D28D9)),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(demoMetric, style: const TextStyle(fontWeight: FontWeight.w800))),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                height: 46,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(c),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.gradTop,
-                    foregroundColor: Colors.white,
-                    shape: const StadiumBorder(),
-                    elevation: 2,
-                  ),
-                  child: const Text('Listo'),
-                ),
-              )
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _emptyCard(String t) => Container(
+    margin: const EdgeInsets.all(12),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE5E7EB))),
+    child: Center(
+        child: Text(t,
+            style: const TextStyle(fontWeight: FontWeight.w800, color: _BrandX.inkDim))),
+  );
+
+  Widget _card({required Widget child}) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(.96),
+      borderRadius: BorderRadius.circular(22),
+      boxShadow: [BoxShadow(color: Colors.black.withOpacity(.10), blurRadius: 14, offset: const Offset(0, 6))],
+      border: Border.all(color: const Color(0xFFE1E8F5)),
+    ),
+    child: child,
+  );
+
+  Widget _divider() =>
+      Container(height: 1.2, color: _BrandX.divider, margin: const EdgeInsets.symmetric(vertical: 12));
 }
 
 // ==================== TIPOS ====================
+class _Moroso {
+  final String nombre;
+  final int dias;
+  final int saldo;
+  _Moroso({required this.nombre, required this.dias, required this.saldo});
+}
+
 class _ResumenPrestamos {
   final int capitalTotalPrestado;
   final int totalRecuperado;
@@ -554,6 +666,10 @@ class _ResumenPrestamos {
 
   final List<String> labels;
   final List<int> values;
+  final double recoveryIndex;
+  final int cobrosUltimos30;
+  final double deltaPct30;
+  final List<_Moroso> topMorosos;
 
   _ResumenPrestamos({
     required this.capitalTotalPrestado,
@@ -565,10 +681,14 @@ class _ResumenPrestamos {
     required this.promedioDiasMora,
     required this.labels,
     required this.values,
+    required this.recoveryIndex,
+    required this.cobrosUltimos30,
+    required this.deltaPct30,
+    required this.topMorosos,
   });
 }
 
-// ==================== HEADER LOCAL ====================
+// ==================== HEADER & PALETA ====================
 class _HeaderBar extends StatelessWidget {
   final String title;
   const _HeaderBar({required this.title});
@@ -586,17 +706,221 @@ class _HeaderBar extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         const SizedBox(width: 8),
-        Expanded(
-          child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
+         Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
+          ),
         ),
       ],
     );
   }
 }
 
-// ==================== PALETA LOCAL ====================
 class _BrandX {
   static const ink = Color(0xFF0F172A);
   static const inkDim = Color(0xFF64748B);
   static const divider = Color(0xFFD7E1EE);
+}
+
+// ==================== WATER CIRCLE ====================
+// Círculo que se llena con AGUA animada (olas infinitas), inicia en 0 y sube hasta targetPercent.
+class _WaterCircle extends StatefulWidget {
+  final double targetPercent; // 0..100
+  final Color waterColor;
+  const _WaterCircle({required this.targetPercent, required this.waterColor});
+
+  @override
+  State<_WaterCircle> createState() => _WaterCircleState();
+}
+
+class _WaterCircleState extends State<_WaterCircle> with TickerProviderStateMixin {
+  late AnimationController _levelCtrl; // anima el nivel 0→target
+  late Animation<double> _level;
+  late AnimationController _waveCtrl;  // fase infinita
+
+  @override
+  void initState() {
+    super.initState();
+    final to = (widget.targetPercent.clamp(0, 100)) / 100.0;
+
+    _levelCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
+    _level = CurvedAnimation(parent: _levelCtrl, curve: Curves.easeOutCubic)
+        .drive(Tween<double>(begin: 0.0, end: to));
+    _levelCtrl.forward();
+
+    _waveCtrl = AnimationController.unbounded(vsync: this)
+      ..animateWith(_LinearWaveSimulation(speed: 1.2)); // rad/seg
+  }
+
+  @override
+  void didUpdateWidget(covariant _WaterCircle oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final to = (widget.targetPercent.clamp(0, 100)) / 100.0;
+    _level = CurvedAnimation(parent: _levelCtrl, curve: Curves.easeOutCubic)
+        .drive(Tween<double>(begin: _level.value, end: to));
+    _levelCtrl
+      ..reset()
+      ..forward();
+  }
+
+  @override
+  void dispose() {
+    _levelCtrl.dispose();
+    _waveCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pctText = widget.targetPercent.clamp(0, 100).toStringAsFixed(0);
+    final water = widget.waterColor;
+
+    return ClipOval(
+      child: CustomPaint(
+        painter: _WaterCirclePainter(levelListenable: _level, waveListenable: _waveCtrl, waterColor: water),
+        child: Center(
+          child: Stack(
+            children: [
+              // Stroke negro para el % (contorno), y encima relleno del color del agua
+              Text(
+                '$pctText%',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  foreground:  Paint()
+                    ..style = PaintingStyle.stroke
+                    ..strokeWidth = 3
+                    ..color = Colors.black,
+                ),
+              ),
+              Text(
+                '$pctText%',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: water,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WaterCirclePainter extends CustomPainter {
+  final Animation<double> levelListenable; // 0..1
+  final Animation<double> waveListenable;  // fase
+  final Color waterColor;
+
+  _WaterCirclePainter({
+    required this.levelListenable,
+    required this.waveListenable,
+    required this.waterColor,
+  }) : super(repaint: Listenable.merge([levelListenable, waveListenable]));
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final center = Offset(w/2, h/2);
+    final radius = math.min(w, h) / 2;
+
+    // Fondo (vidrio suave)
+    final bg = Paint()
+      ..isAntiAlias = true
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFFEFF6FF), Color(0xFFE0F2FE)],
+      ).createShader(Offset.zero & size);
+    canvas.drawCircle(center, radius, bg);
+
+    // Borde exterior sutil
+    final border = Paint()
+      ..isAntiAlias = true
+      ..color = Colors.white.withOpacity(.75)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas.drawCircle(center, radius, border);
+
+    // Clip a círculo para no salirse
+    canvas.save();
+    canvas.clipPath(Path()..addOval(Rect.fromCircle(center: center, radius: radius)));
+
+    // Nivel
+    final level = levelListenable.value.clamp(0.0, 1.0);
+    final waterTop = h * (1 - level);
+
+    // Fase de ondas
+    final t = waveListenable.value;
+    const omega1 = 2.2;
+    const omega2 = 1.4;
+    final phase1 = t * omega1;
+    final phase2 = -t * omega2;
+    const amp1 = 8.0;
+    const amp2 = 5.0;
+
+    // Pinturas
+    Paint waterPaint(double o1, double o2) => Paint()
+      ..isAntiAlias = true
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [waterColor.withOpacity(o1), waterColor.withOpacity(o2)],
+      ).createShader(Rect.fromLTWH(0, waterTop - 10, w, h - waterTop + 10));
+
+    Path wave(double phase, double amp, double y0) {
+      final path = Path()..moveTo(0, h);
+      double y(double x) => y0 + math.sin((x / w * 2 * math.pi) + phase) * amp;
+      path.lineTo(0, y(0));
+      for (double x = 0; x <= w; x += 2) {
+        path.lineTo(x, y(x));
+      }
+      path.lineTo(w, h);
+      path.close();
+      return path;
+    }
+
+    final back = wave(phase2, amp2, waterTop - 4);
+    final front = wave(phase1, amp1, waterTop);
+
+    canvas.drawPath(back, waterPaint(.25, .65));
+    canvas.drawPath(front, waterPaint(.4, .85));
+
+    // Highlight de cresta
+    final edge = Paint()
+      ..isAntiAlias = true
+      ..color = Colors.white.withOpacity(.35)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    final edgePath = Path();
+    for (double x = 0; x <= w; x += 4) {
+      final y = waterTop + math.sin((x / w * 2 * math.pi) + phase1) * amp1;
+      if (x == 0) {
+        edgePath.moveTo(x, y);
+      } else {
+        edgePath.lineTo(x, y);
+      }
+    }
+    canvas.drawPath(edgePath, edge);
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _WaterCirclePainter oldDelegate) => true;
+}
+
+class _LinearWaveSimulation extends Simulation {
+  final double speed; // rad/s
+  _LinearWaveSimulation({this.speed = 1.2});
+  @override
+  double x(double time) => speed * time;
+  @override
+  double dx(double time) => speed;
+  @override
+  bool isDone(double time) => false;
 }

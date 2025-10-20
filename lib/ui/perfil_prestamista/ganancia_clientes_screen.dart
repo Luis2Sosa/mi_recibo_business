@@ -5,9 +5,23 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mi_recibo/ui/theme/app_theme.dart';
 import 'package:mi_recibo/ui/widgets/app_frame.dart';
 
+enum GananciaTipo { prestamo, producto, alquiler, todos }
+
 class GananciaClientesScreen extends StatefulWidget {
   final DocumentReference<Map<String, dynamic>> docPrest;
-  const GananciaClientesScreen({super.key, required this.docPrest});
+
+  /// Filtro de categoría para esta pantalla:
+  /// - prestamo: solo clientes de préstamos
+  /// - producto: solo clientes de productos/fiados
+  /// - alquiler: solo clientes de alquiler/renta
+  /// - todos: sin filtro (comportamiento global)
+  final GananciaTipo tipo;
+
+  const GananciaClientesScreen({
+    super.key,
+    required this.docPrest,
+    this.tipo = GananciaTipo.todos,
+  });
 
   @override
   State<GananciaClientesScreen> createState() => _GananciaClientesScreenState();
@@ -22,6 +36,44 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
     _future = _cargarGanancias();
   }
 
+  // ---------- Heurísticas por categoría ----------
+  bool _esPrestamo(Map<String, dynamic> m) {
+    final tipo = (m['tipo'] ?? '').toString().toLowerCase().trim();
+    final producto = (m['producto'] ?? '').toString().trim().toLowerCase();
+    final esAlquilerNombre = producto.contains('alquiler') || producto.contains('renta');
+    if (esAlquilerNombre || tipo == 'alquiler') return false;
+    // Préstamo: tipo explícito o sin nombre de producto
+    return tipo == 'prestamo' || producto.isEmpty;
+  }
+
+  bool _esProducto(Map<String, dynamic> m) {
+    final tipo = (m['tipo'] ?? '').toString().toLowerCase().trim();
+    final producto = (m['producto'] ?? '').toString().trim().toLowerCase();
+    final esAlquilerNombre = producto.contains('alquiler') || producto.contains('renta');
+    if (tipo == 'alquiler' || esAlquilerNombre) return false;
+    // Producto/fiado. Evita clasificar préstamos como producto
+    return tipo == 'producto' || tipo == 'fiado' || (producto.isNotEmpty && tipo != 'prestamo');
+  }
+
+  bool _esAlquiler(Map<String, dynamic> m) {
+    final tipo = (m['tipo'] ?? '').toString().toLowerCase().trim();
+    final producto = (m['producto'] ?? '').toString().toLowerCase().trim();
+    return tipo == 'alquiler' || producto.contains('alquiler') || producto.contains('renta');
+  }
+
+  bool _matchCategoria(Map<String, dynamic> m) {
+    switch (widget.tipo) {
+      case GananciaTipo.prestamo:
+        return _esPrestamo(m);
+      case GananciaTipo.producto:
+        return _esProducto(m);
+      case GananciaTipo.alquiler:
+        return _esAlquiler(m);
+      case GananciaTipo.todos:
+        return true;
+    }
+  }
+
   Future<List<_ClienteGanancia>> _cargarGanancias() async {
     final cs = await widget.docPrest.collection('clientes').get();
 
@@ -29,11 +81,13 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
     for (final c in cs.docs) {
       final data = c.data();
 
-      final int saldo = (data['saldoActual'] ?? 0) as int;
-      if (saldo <= 0) continue;
+      // ----- FILTRO por categoría -----
+      if (!_matchCategoria(data)) continue;
 
-      final int capitalInicial = (data['capitalInicial'] ?? 0) as int;
-      final String producto = (data['producto'] ?? '').toString().trim();
+      final int saldo = (data['saldoActual'] ?? 0) as int;
+      if (saldo <= 0) continue; // Solo clientes activos (con saldo)
+
+      final String productoTxt = (data['producto'] ?? '').toString().trim();
 
       final pagos = await c.reference.collection('pagos').get();
       int ganancia = 0;
@@ -47,13 +101,25 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
         pagadoCapital += (m['pagoCapital'] ?? 0) as int;
       }
 
-      if (ganancia == 0 && producto.isNotEmpty) {
-        ganancia = capitalInicial;
+      // Para PRODUCTOS (cuando no hay intereses), usar margen aprox:
+      // ganancia ≈ totalPagado - (saldo + pagadoCapital). Clamp a 0 si negativo.
+      if (ganancia == 0 && _esProducto(data)) {
+        final capitalHistoricoConsumido = saldo + pagadoCapital;
+        ganancia = totalPagos - capitalHistoricoConsumido;
+        if (ganancia < 0) ganancia = 0;
+      }
+
+      // Para ALQUILER (cuando no hay intereses), mismo fallback de margen:
+      if (ganancia == 0 && _esAlquiler(data)) {
+        final capitalHistoricoConsumido = saldo + pagadoCapital;
+        ganancia = totalPagos - capitalHistoricoConsumido;
+        if (ganancia < 0) ganancia = 0;
       }
 
       final int totalHistorico = saldo + pagadoCapital;
 
-      final nombre = '${(data['nombre'] ?? '').toString().trim()} ${(data['apellido'] ?? '').toString().trim()}'.trim();
+      final nombre = '${(data['nombre'] ?? '').toString().trim()} '
+          '${(data['apellido'] ?? '').toString().trim()}'.trim();
       final display = nombre.isEmpty ? (data['telefono'] ?? 'Cliente') : nombre;
 
       rows.add(_ClienteGanancia(
@@ -62,7 +128,7 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
         ganancia: ganancia,
         saldo: saldo,
         totalPagado: totalPagos,
-        capitalInicial: totalHistorico,
+        totalHistorico: totalHistorico,
       ));
     }
 
@@ -78,18 +144,33 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
     for (int i = s.length - 1; i >= 0; i--) {
       b.write(s[i]);
       c++;
-      if (c == 3 && i != 0) { b.write(','); c = 0; }
+      if (c == 3 && i != 0) {
+        b.write(',');
+        c = 0;
+      }
     }
     return '\$${b.toString().split('').reversed.join()}';
   }
 
+  String _titulo() {
+    switch (widget.tipo) {
+      case GananciaTipo.prestamo:
+        return 'Ganancia por cliente — Préstamos';
+      case GananciaTipo.producto:
+        return 'Ganancia por cliente — Productos';
+      case GananciaTipo.alquiler:
+        return 'Ganancia por cliente — Alquiler';
+      case GananciaTipo.todos:
+        return 'Ganancia por cliente';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: AppGradientBackground(
         child: AppFrame(
-          header: const HeaderBar(title: 'Ganancia por cliente'),
+          header: HeaderBar(title: _titulo()),
           child: Padding(
             padding: const EdgeInsets.all(0),
             child: FutureBuilder<List<_ClienteGanancia>>(
@@ -127,11 +208,16 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
       child: Row(
         children: [
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Ganancia total (activos)', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w700)),
-              const SizedBox(height: 4),
-              Text(_rd(total), style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppTheme.gradBottom)),
-            ]),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Ganancia total (activos)',
+                    style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text(_rd(total),
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppTheme.gradBottom)),
+              ],
+            ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -140,7 +226,8 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFE1E8F5)),
             ),
-            child: Text('$n clientes', style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.gradTop)),
+            child: Text('$n clientes',
+                style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.gradTop)),
           ),
         ],
       ),
@@ -177,14 +264,18 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.inter(
                             textStyle: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w900, color: _Colors.ink, height: 2, letterSpacing: .5,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              color: _Colors.ink,
+                              height: 2,
+                              letterSpacing: .5,
                             ),
                           ),
                         ),
                       ),
                     ],
                   ),
-                  _textoMonto('Total histórico:', _rd(it.capitalInicial), AppTheme.gradTop),
+                  _textoMonto('Total histórico:', _rd(it.totalHistorico), AppTheme.gradTop),
                   const SizedBox(height: 6),
                   _textoMonto('Pendiente:', _rd(it.saldo), it.saldo > 0 ? Colors.red : Colors.green),
                   const SizedBox(height: 6),
@@ -195,8 +286,10 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text('Ganancia', style: TextStyle(fontSize: 16, color: Color(0xFF0F172A), fontWeight: FontWeight.w700)),
-                  Text(_rd(it.ganancia), style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppTheme.gradBottom)),
+                  const Text('Ganancia',
+                      style: TextStyle(fontSize: 16, color: Color(0xFF0F172A), fontWeight: FontWeight.w700)),
+                  Text(_rd(it.ganancia),
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppTheme.gradBottom)),
                 ],
               ),
             ],
@@ -226,18 +319,58 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
     ),
   );
 
-  Widget _empty() => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white.withOpacity(.96),
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: const Color(0xFFE8EEF8)),
-    ),
-    child: const Center(
-      child: Text('No hay clientes activos con ganancias',
-          style: TextStyle(fontWeight: FontWeight.w800, color: _Colors.inkDim)),
-    ),
-  );
+  Widget _empty() {
+    String msg = 'No hay clientes activos con ganancias';
+    switch (widget.tipo) {
+      case GananciaTipo.prestamo:
+        msg = 'No hay clientes activos de PRÉSTAMOS con ganancias';
+        break;
+      case GananciaTipo.producto:
+        msg = 'No hay clientes activos de PRODUCTOS con ganancias';
+        break;
+      case GananciaTipo.alquiler:
+        msg = 'No hay clientes activos de ALQUILER con ganancias';
+        break;
+      case GananciaTipo.todos:
+        break;
+    }
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
+        child: Container(
+          padding: const EdgeInsets.all(30),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(.95),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(.05),
+                blurRadius: 20,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.search_off_rounded, color: Color(0xFF9CA3AF), size: 60),
+              const SizedBox(height: 12),
+              Text(
+                msg,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: _Colors.inkDim,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _ClienteGanancia {
@@ -246,14 +379,15 @@ class _ClienteGanancia {
   final int ganancia;
   final int saldo;
   final int totalPagado;
-  final int capitalInicial;
+  final int totalHistorico; // saldo + pagadoCapital
+
   _ClienteGanancia({
     required this.id,
     required this.nombre,
     required this.ganancia,
     required this.saldo,
     required this.totalPagado,
-    required this.capitalInicial,
+    required this.totalHistorico,
   });
 }
 
@@ -276,7 +410,8 @@ class HeaderBar extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
+          child: Text(title,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
         ),
       ],
     );

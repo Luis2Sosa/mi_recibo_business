@@ -1,8 +1,7 @@
-// lib/ui/perfil_prestamista/ganancias_screen.dart
-// PANTALLA GENERAL (RESUMEN): agrega TODAS las categorías.
-// - Título: Ganancias totales
-// - Tarjeta: “Ganancias totales históricas”
-// - Sin CTA de “Ver ganancia por cliente” (eso va en las pantallas por categoría)
+// lib/ui/perfil_prestamista/ganancias_producto_screen.dart
+// Pantalla de GANANCIAS — solo PRODUCTOS (incluye fiados).
+// - Métricas históricas de productos: pendiente, circulando, recuperado, ganancia, prestado y % de recuperación.
+// - Mismo diseño que la pantalla original de “Ganancias totales”, pero filtrando únicamente PRODUCTOS.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -12,100 +11,74 @@ import 'dart:math' as math;
 import 'package:mi_recibo/ui/theme/app_theme.dart';
 import 'package:mi_recibo/ui/widgets/app_frame.dart';
 import 'package:mi_recibo/ui/perfil_prestamista/premium_boosts_screen.dart';
+import 'package:mi_recibo/ui/perfil_prestamista/ganancia_clientes_screen.dart';
 
-class GananciasScreen extends StatefulWidget {
+class GananciasProductoScreen extends StatefulWidget {
   final DocumentReference<Map<String, dynamic>> docPrest;
-  const GananciasScreen({super.key, required this.docPrest});
+  const GananciasProductoScreen({super.key, required this.docPrest});
 
   @override
-  State<GananciasScreen> createState() => _GananciasScreenState();
+  State<GananciasProductoScreen> createState() => _GananciasProductoScreenState();
 }
 
-class _GananciasScreenState extends State<GananciasScreen> {
+class _GananciasProductoScreenState extends State<GananciasProductoScreen> {
   late Future<_GananciasResumen> _future;
 
   @override
   void initState() {
     super.initState();
-    _future = _cargarGananciasGlobal(); // ← RESUMEN de todo
+    _future = _cargarGananciasProductos();
   }
 
   // =========================================================
-  // RESUMEN GLOBAL (todas las categorías)
-  // - prestamos/productos: usan capitalInicial y circulando
-  // - alquiler: no suma a "prestado" ni "circulando" (no es deuda),
-  //             pero sí cuenta en pendiente y recuperado
-  // - productos: si no hay intereses, estima ganancia como
-  //              totalPagado - (saldo + pagadoCapital) (>=0)
+  // GANANCIAS SOLO DE PRODUCTOS (incluye fiados)
   // =========================================================
-  Future<_GananciasResumen> _cargarGananciasGlobal() async {
+  Future<_GananciasResumen> _cargarGananciasProductos() async {
     final cs = await widget.docPrest.collection('clientes').get();
 
-    int totalPendiente = 0;   // saldoActual > 0 (todas las categorías)
-    int totalCirculando = 0;  // solo préstamos / productos
-    int totalRecuperado = 0;  // sum(totalPagado) (todas)
-    int totalGanancia = 0;    // intereses + margen aprox en productos
-    int totalPrestado = 0;    // solo préstamos / productos
+    int totalPendiente = 0;   // saldoActual > 0
+    int totalCirculando = 0;  // capitalInicial - pagadoCapital (>= 0)
+    int totalRecuperado = 0;  // sum(totalPagado)
+    int totalGanancia = 0;    // sum(pagoInteres)
+    int totalPrestado = 0;    // sum(capitalInicial)
 
     for (final c in cs.docs) {
-      final m = c.data();
+      final data = c.data();
+      final tipo = (data['tipo'] ?? '').toString().toLowerCase().trim();
+      final productoTxt = (data['producto'] ?? '').toString().trim();
 
-      final tipo = (m['tipo'] ?? '').toString().toLowerCase().trim();
-      final productoTxt = (m['producto'] ?? '').toString().toLowerCase().trim();
+      // Heurística de PRODUCTO
+      final esProducto = tipo == 'producto' || tipo == 'fiado' || productoTxt.isNotEmpty;
+      if (!esProducto) continue;
 
-      bool esAlquiler = tipo == 'alquiler' ||
-          productoTxt.contains('alquiler') ||
-          productoTxt.contains('renta');
+      final int saldoActual = (data['saldoActual'] ?? 0) as int;
+      final int capitalInicial = (data['capitalInicial'] ?? 0) as int;
 
-      bool esProducto = !esAlquiler &&
-          (tipo == 'producto' || tipo == 'fiado' || productoTxt.isNotEmpty);
+      totalPrestado += capitalInicial;
+      if (saldoActual > 0) totalPendiente += saldoActual;
 
-      bool esPrestamo = !esAlquiler && !esProducto;
-
-      final int saldo = (m['saldoActual'] ?? 0) as int;
-      final int capitalInicial = (m['capitalInicial'] ?? 0) as int;
-
-      if (saldo > 0) totalPendiente += saldo;
-      if (!esAlquiler) totalPrestado += capitalInicial;
-
-      // Pagos y cálculo de ganancia/margen
+      // Pagos
       final pagos = await c.reference.collection('pagos').get();
       int pagadoCapital = 0;
-      int totalPagos = 0;
-      int interesSum = 0;
-
       for (final p in pagos.docs) {
-        final d = p.data();
-        final int pi = (d['pagoInteres'] ?? 0) as int;
-        final int pc = (d['pagoCapital'] ?? 0) as int;
-        final int tp = (d['totalPagado'] ?? (pi + pc)) as int;
+        final m = p.data();
+        final int pagoInteres = (m['pagoInteres'] ?? 0) as int;
+        final int pagoCapital = (m['pagoCapital'] ?? 0) as int;
+        final int totalPagado = (m['totalPagado'] ?? (pagoInteres + pagoCapital)) as int;
 
-        interesSum += pi;
-        pagadoCapital += pc;
-        totalPagos += tp;
+        totalGanancia += pagoInteres;
+        totalRecuperado += totalPagado;
+        pagadoCapital += pagoCapital;
       }
 
-      // Ganancia:
-      // - préstamos/alquiler: usamos intereses si los hay (alquiler puede ser 0)
-      // - productos: si no hubo intereses, usamos margen aprox (tp - (saldo+pc))
-      int gananciaCliente = interesSum;
-      if (gananciaCliente == 0 && esProducto) {
-        final margen = totalPagos - (saldo + pagadoCapital);
-        if (margen > 0) gananciaCliente = margen;
-      }
-      totalGanancia += gananciaCliente;
-
-      // Circulando (solo préstamos/productos)
-      if (!esAlquiler) {
-        final circulandoCliente = math.max(capitalInicial - pagadoCapital, 0);
-        totalCirculando += circulandoCliente;
-      }
-
-      totalRecuperado += totalPagos;
+      // Circulando (solo productos)
+      final int circulandoCliente = math.max(capitalInicial - pagadoCapital, 0);
+      totalCirculando += circulandoCliente;
     }
 
-    final double recuperacionPct =
-    (totalPrestado <= 0) ? 0.0 : (totalRecuperado * 100.0 / totalPrestado);
+    final double recuperacionPct = (totalPrestado <= 0)
+        ? 0.0
+        : (totalRecuperado / totalPrestado * 100.0);
 
     return _GananciasResumen(
       pendiente: totalPendiente,
@@ -137,10 +110,11 @@ class _GananciasScreenState extends State<GananciasScreen> {
 
   Future<void> _refresh() async {
     setState(() {
-      _future = _cargarGananciasGlobal(); // ← refresca RESUMEN
+      _future = _cargarGananciasProductos();
     });
   }
 
+  // Moneda estilo LATAM simple ($ 5,800)
   String _rd(int v) {
     if (v <= 0) return '\$0';
     final s = v.toString();
@@ -165,7 +139,7 @@ class _GananciasScreenState extends State<GananciasScreen> {
     return Scaffold(
       body: AppGradientBackground(
         child: AppFrame(
-          header: const _HeaderBar(title: 'Ganancias totales'),
+          header: const _HeaderBar(title: 'Ganancias de productos'),
           child: FutureBuilder<_GananciasResumen>(
             future: _future,
             builder: (context, snap) {
@@ -174,7 +148,11 @@ class _GananciasScreenState extends State<GananciasScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5)),
+                      SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      ),
                       SizedBox(width: 10),
                       Text('Cargando…', style: TextStyle(fontWeight: FontWeight.w800)),
                     ],
@@ -193,7 +171,7 @@ class _GananciasScreenState extends State<GananciasScreen> {
                   physics: const NeverScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
                   children: [
-                    // ======== TARJETA DE GANANCIAS HISTÓRICAS (GLOBAL) ========
+                    // ======== TARJETA DE GANANCIAS HISTÓRICAS (PRODUCTOS) ========
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(.96),
@@ -221,7 +199,11 @@ class _GananciasScreenState extends State<GananciasScreen> {
                                 ),
                                 child: const Text(
                                   'DATOS VERIFICADOS',
-                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: .6),
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: .6,
+                                  ),
                                 ),
                               ),
                               const Spacer(),
@@ -232,9 +214,10 @@ class _GananciasScreenState extends State<GananciasScreen> {
                                   gradient: LinearGradient(colors: [AppTheme.gradBottom, AppTheme.gradTop]),
                                   boxShadow: [
                                     BoxShadow(
-                                        color: AppTheme.gradTop.withOpacity(.25),
-                                        blurRadius: 10,
-                                        offset: Offset(0, 4)),
+                                      color: AppTheme.gradTop.withOpacity(.25),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
                                   ],
                                 ),
                                 child: const Icon(Icons.verified_rounded, color: Colors.white, size: 22),
@@ -243,7 +226,7 @@ class _GananciasScreenState extends State<GananciasScreen> {
                           ),
                           const SizedBox(height: 14),
                           Text(
-                            'Ganancias totales históricas',
+                            'Ganancias históricas (productos)',
                             textAlign: TextAlign.center,
                             style: GoogleFonts.inter(
                               textStyle: const TextStyle(
@@ -302,7 +285,33 @@ class _GananciasScreenState extends State<GananciasScreen> {
                     _premiumCard(),
                     const SizedBox(height: 16),
 
-                    // NOTA: Sin botón “Ver ganancia por cliente” en la pantalla general.
+                    // CTA a "ganancia por cliente" (la vista puede filtrar adentro si soporta flag)
+                    SizedBox(
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => GananciaClientesScreen(
+                                docPrest: widget.docPrest,
+                                tipo: GananciaTipo.producto, // <<<<< FILTRA SOLO PRODUCTOS
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.people_alt_rounded),
+                        label: const Text(
+                          'Ver ganancia por cliente',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.gradTop,
+                          foregroundColor: Colors.white,
+                          shape: const StadiumBorder(),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               );
@@ -320,7 +329,7 @@ class _GananciasScreenState extends State<GananciasScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE7EEF8)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.03), blurRadius: 6, offset: Offset(0, 2))],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.03), blurRadius: 6, offset: const Offset(0, 2))],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -344,7 +353,7 @@ class _GananciasScreenState extends State<GananciasScreen> {
           end: Alignment.bottomRight,
           colors: [AppTheme.gradTop.withOpacity(0.98), AppTheme.gradBottom.withOpacity(0.98)],
         ),
-        boxShadow: [BoxShadow(color: AppTheme.gradTop.withOpacity(.28), blurRadius: 25, offset: Offset(0, 10))],
+        boxShadow: [BoxShadow(color: AppTheme.gradTop.withOpacity(.28), blurRadius: 25, offset: const Offset(0, 10))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -482,8 +491,10 @@ class _HeaderBar extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(title,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
+          child: Text(
+            title,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
+          ),
         ),
       ],
     );

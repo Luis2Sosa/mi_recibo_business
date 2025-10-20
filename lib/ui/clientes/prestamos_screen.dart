@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'clientes_shared.dart';
 
+
 class PrestamosScreen extends StatelessWidget {
   final String search;
   final bool resaltarVencimientos;
