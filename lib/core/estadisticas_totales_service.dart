@@ -1,10 +1,9 @@
-// lib/core/estadisticas_totales_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Servicio de lectura / escritura de estadísticas:
 /// - /prestamistas/{id}/metrics/(summary|evergreen)
-/// - /prestamistas/{id}/stats/{prestamo|producto|alquiler}
-/// - /prestamistas/{id}/stats/{cat}/mensual/{YYYY-MM}
+/// - /prestamistas/{id}/estadisticas/{prestamo|producto|alquiler}
+/// - /prestamistas/{id}/estadisticas/{cat}/mensual/{YYYY-MM}
 class EstadisticasTotalesService {
   static final _db = FirebaseFirestore.instance;
 
@@ -15,8 +14,9 @@ class EstadisticasTotalesService {
   static DocumentReference<Map<String, dynamic>> _evergreenDoc(String prestamistaId) =>
       _db.collection('prestamistas').doc(prestamistaId).collection('metrics').doc('evergreen');
 
+  /// 🔹 Ajustado para leer desde "estadisticas" (ya no "stats")
   static DocumentReference<Map<String, dynamic>> _catDoc(String prestamistaId, String cat) =>
-      _db.collection('prestamistas').doc(prestamistaId).collection('stats').doc(cat);
+      _db.collection('prestamistas').doc(prestamistaId).collection('estadisticas').doc(cat);
 
   static DocumentReference<Map<String, dynamic>> _catMonthDoc(
       String prestamistaId,
@@ -67,7 +67,6 @@ class EstadisticasTotalesService {
       (await _summaryDoc(prestamistaId).get()).data();
 
   // ================== Categoría (CRUD mínimo) ==================
-  /// cat: 'prestamo' | 'producto' | 'alquiler'
   static Stream<Map<String, dynamic>?> listenCategoria(String prestamistaId, String cat) =>
       _catDoc(prestamistaId, cat).snapshots().map((s) => s.data());
 
@@ -109,8 +108,6 @@ class EstadisticasTotalesService {
   }
 
   // ================== Serie mensual (para gráficas) ==================
-  /// Devuelve lista [{ym, sum}] de los últimos [meses] (default 6)
-  /// usando /stats/{cat}/mensual/{YYYY-MM}.
   static Future<List<Map<String, dynamic>>> readSerieMensual(
       String prestamistaId,
       String cat, {
@@ -130,17 +127,44 @@ class EstadisticasTotalesService {
     return out;
   }
 
-  /// Incrementa el bucket mensual (para cuando se registra un pago).
   static Future<void> bumpMensual(
-  String prestamistaId,
-  String cat,
-  String ym,
-  int monto,
-) async {
-await ensureCategoria(prestamistaId, cat);
-await _catMonthDoc(prestamistaId, cat, ym).set({
-'sum': FieldValue.increment(monto),
-'updatedAt': FieldValue.serverTimestamp(),
-}, SetOptions(merge: true));
-}
+      String prestamistaId,
+      String cat,
+      String ym,
+      int monto,
+      ) async {
+    await ensureCategoria(prestamistaId, cat);
+    await _catMonthDoc(prestamistaId, cat, ym).set({
+      'sum': FieldValue.increment(monto),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  // ================== NUEVOS MÉTODOS PARA DASHBOARD ==================
+
+  /// 🔹 Equivalente de "headCategoria" (lee los KPIs actuales)
+  static Future<Map<String, dynamic>> headCategoria(String prestamistaId, String cat) async {
+    final snap = await _catDoc(prestamistaId, cat).get();
+    return snap.data() ?? {};
+  }
+
+  /// 🔹 Actualiza totales al agregar nuevo cliente
+  static Future<void> actualizarPorNuevoCliente(
+      String prestamistaId, {
+        required String tipo, // 'prestamo' | 'producto' | 'alquiler'
+        required int saldoInicial,
+      }) async {
+    await adjustCategoria(
+      prestamistaId,
+      tipo,
+      activosDelta: 1,
+      pendienteCobroDelta: saldoInicial,
+    );
+
+    // También actualiza resumen global
+    await _summaryDoc(prestamistaId).set({
+      'lifetimeRecuperado': FieldValue.increment(saldoInicial),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
 }

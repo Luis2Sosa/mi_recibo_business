@@ -34,7 +34,11 @@ class _GananciasProductoScreenState extends State<GananciasProductoScreen> {
   // GANANCIAS SOLO DE PRODUCTOS (incluye fiados)
   // =========================================================
   Future<_GananciasResumen> _cargarGananciasProductos() async {
-    final cs = await widget.docPrest.collection('clientes').get();
+    final cs = await widget.docPrest
+        .collection('clientes')
+        .where('tipo', whereIn: ['producto', 'fiado']) // 🔹 Solo productos o fiados
+        .get();
+
 
     int totalPendiente = 0;   // saldoActual > 0
     int totalCirculando = 0;  // capitalInicial - pagadoCapital (>= 0)

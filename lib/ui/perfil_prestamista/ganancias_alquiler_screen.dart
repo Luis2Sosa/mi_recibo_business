@@ -35,7 +35,11 @@ class _GananciasAlquilerScreenState extends State<GananciasAlquilerScreen> {
   // GANANCIAS SOLO DE ALQUILER
   // =========================================================
   Future<_GananciasResumen> _cargarGananciasAlquiler() async {
-    final cs = await widget.docPrest.collection('clientes').get();
+    final cs = await widget.docPrest
+        .collection('clientes')
+        .where('tipo', isEqualTo: 'alquiler') // 🔹 Solo clientes de ALQUILER
+        .get();
+
 
     int totalPendiente = 0;   // saldoActual > 0
     int totalCirculando = 0;  // capitalInicial - pagadoCapital (>= 0)

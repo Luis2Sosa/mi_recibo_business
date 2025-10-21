@@ -75,7 +75,19 @@ class _GananciaClientesScreenState extends State<GananciaClientesScreen> {
   }
 
   Future<List<_ClienteGanancia>> _cargarGanancias() async {
-    final cs = await widget.docPrest.collection('clientes').get();
+    Query<Map<String, dynamic>> query = widget.docPrest.collection('clientes');
+
+    // 🔹 Aplica filtro directo según el tipo de pantalla
+    if (widget.tipo == GananciaTipo.producto) {
+      query = query.where('tipo', whereIn: ['producto', 'fiado']);
+    } else if (widget.tipo == GananciaTipo.prestamo) {
+      query = query.where('tipo', isEqualTo: 'prestamo');
+    } else if (widget.tipo == GananciaTipo.alquiler) {
+      query = query.where('tipo', isEqualTo: 'alquiler');
+    }
+
+    final cs = await query.get();
+
 
     final List<_ClienteGanancia> rows = [];
     for (final c in cs.docs) {

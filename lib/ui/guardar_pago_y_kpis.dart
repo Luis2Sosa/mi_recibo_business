@@ -1,7 +1,8 @@
 // lib/ui/widgets/guardar_pago_y_kpis.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// Guarda el pago, actualiza el cliente y los KPIs (globales y por categoría).
+/// Guarda el pago y actualiza los totales reales en:
+/// prestamistas/{id}/estadisticas/totales
 Future<void> guardarPagoYActualizarKPIs({
   required DocumentReference<Map<String, dynamic>> docPrest,
   required DocumentReference<Map<String, dynamic>> clienteRef,
@@ -15,27 +16,55 @@ Future<void> guardarPagoYActualizarKPIs({
   int saldoNuevo = saldoAnterior - pagoCapital;
   if (saldoNuevo < 0) saldoNuevo = 0;
 
-  // Leemos el cliente para detectar categoría (prestamo / producto / alquiler)
+  // ==============================
+  // LEER CLIENTE Y DETERMINAR CATEGORÍA
+  // ==============================
   final cliSnap = await clienteRef.get();
   final m = cliSnap.data() ?? {};
-  final tipoRaw = (m['tipo'] ?? '').toString().toLowerCase().trim();
-  final prodTxt  = (m['producto'] ?? '').toString().toLowerCase().trim();
 
-  final bool esAlquiler = tipoRaw == 'alquiler' || prodTxt.contains('alquiler') || prodTxt.contains('renta');
-  final bool esProducto = !esAlquiler && (tipoRaw == 'producto' || tipoRaw == 'fiado' || prodTxt.isNotEmpty);
-  final bool esPrestamo = !esAlquiler && !esProducto; // por descarte
-  final String cat = esAlquiler ? 'alquiler' : (esProducto ? 'producto' : 'prestamo');
+  final prodTxt = (m['producto'] ?? '').toString().toLowerCase().trim();
+  final tipoTxt = (m['tipo'] ?? '').toString().toLowerCase().trim();
 
-  // Ganancia incremental: intereses; si no hubo, usa fallback aprox (no negativo)
-  int deltaGanancia = pagoInteres > 0 ? pagoInteres : (totalPagado - pagoCapital);
+  // Clasificación más precisa por prioridad:
+  // 1. Si menciona "alquiler" o "renta" → alquiler
+  // 2. Si menciona "producto" o el tipo está vacío → producto
+  // 3. Si menciona "prestamo" → préstamo
+  String categoria = 'prestamo';
+  if (prodTxt.contains('alquiler') || prodTxt.contains('renta') || tipoTxt.contains('alquiler')) {
+    categoria = 'alquiler';
+  } else if (prodTxt.contains('producto') || tipoTxt.contains('producto') || tipoTxt.isEmpty) {
+    categoria = 'producto';
+  } else if (prodTxt.contains('prestamo') || tipoTxt.contains('prestamo')) {
+    categoria = 'prestamo';
+  }
+
+  // ==============================
+  // GANANCIA REAL DEL PAGO
+  // ==============================
+  // En préstamos: solo interés + mora
+  // En productos: futura ganancia
+  // En alquiler: todo el pago cuenta como ganancia
+  int deltaGanancia = 0;
+  switch (categoria) {
+    case 'prestamo':
+      deltaGanancia = pagoInteres + moraCobrada;
+      break;
+    case 'producto':
+      deltaGanancia = moraCobrada > 0 ? moraCobrada : pagoInteres;
+      break;
+    case 'alquiler':
+      deltaGanancia = totalPagado;
+      break;
+  }
+
   if (deltaGanancia < 0) deltaGanancia = 0;
 
-  final now = DateTime.now();
-  final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
-
+  // ==============================
+  // GUARDAR PAGO Y ACTUALIZAR CLIENTE
+  // ==============================
   final batch = FirebaseFirestore.instance.batch();
 
-  // 1) Registrar el pago en subcolección del cliente
+  // 1️⃣ Registrar el pago dentro del cliente
   final pagosRef = clienteRef.collection('pagos').doc();
   batch.set(pagosRef, {
     'fecha': FieldValue.serverTimestamp(),
@@ -47,79 +76,90 @@ Future<void> guardarPagoYActualizarKPIs({
     'saldoNuevo': saldoNuevo,
   });
 
-  // 2) Actualizar campos del cliente
-  final venceTs = saldoNuevo <= 0 ? null : Timestamp.fromDate(proximaFecha);
-  batch.set(
-    clienteRef,
-    {
-      'saldoActual': saldoNuevo,
-      'proximaFecha': Timestamp.fromDate(proximaFecha),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'saldado': saldoNuevo <= 0,
-      'estado': saldoNuevo <= 0 ? 'saldado' : 'al_dia',
-      if (venceTs == null) 'venceEl': FieldValue.delete() else 'venceEl': venceTs,
-    },
-    SetOptions(merge: true),
-  );
-
-  // 3) KPIs globales (resumen)
-  final metricsRef = docPrest.collection('metrics').doc('summary');
-  batch.set(
-    metricsRef,
-    {
-      'lifetimeRecuperado': FieldValue.increment(pagoCapital),
-      'lifetimeGanancia': FieldValue.increment(deltaGanancia), // usamos deltaGanancia para ser consistente
-      'lifetimePagosSum': FieldValue.increment(totalPagado),
-      'lifetimePagosCount': FieldValue.increment(1),
-      'updatedAt': FieldValue.serverTimestamp(),
-    },
-    SetOptions(merge: true),
-  );
-
-  // 3.1) Contadores permanentes
-  final evergreenRef = docPrest.collection('metrics').doc('evergreen');
-  batch.set(
-    evergreenRef,
-    {
-      'everRecuperado': FieldValue.increment(pagoCapital),
-      'everGananciaInteres': FieldValue.increment(pagoInteres),
-      'everPagosSum': FieldValue.increment(totalPagado),
-      'everPagosCount': FieldValue.increment(1),
-      'updatedAt': FieldValue.serverTimestamp(),
-    },
-    SetOptions(merge: true),
-  );
-
-  // 4) KPIs POR CATEGORÍA (alquiler / prestamo / producto)
-  final catRef = docPrest.collection('stats').doc(cat);
-  batch.set(
-    catRef,
-    {
-      // pendienteCobro baja con el capital cobrado de ese cliente
-      'pendienteCobro': FieldValue.increment(-pagoCapital),
-      // gananciaNeta suma intereses o fallback si no hubo
-      'gananciaNeta': FieldValue.increment(deltaGanancia),
-      // acumulados
-      'lifetimePagosSum': FieldValue.increment(totalPagado),
-      'lifetimePagosCount': FieldValue.increment(1),
-      // cambios de estado
-      if (saldoAnterior > 0 && saldoNuevo <= 0) 'activos': FieldValue.increment(-1),
-      if (saldoAnterior > 0 && saldoNuevo <= 0) 'finalizados': FieldValue.increment(1),
-      'updatedAt': FieldValue.serverTimestamp(),
-    },
-    SetOptions(merge: true),
-  );
-
-  // 4.1) Bucket mensual para gráficas: stats/{cat}/mensual/YYYY-MM
-  final monthRef = catRef.collection('mensual').doc(monthKey);
-  batch.set(
-    monthRef,
-    {
-      'sum': FieldValue.increment(totalPagado),
-      'updatedAt': FieldValue.serverTimestamp(),
-    },
-    SetOptions(merge: true),
-  );
+  // 2️⃣ Actualizar cliente
+  batch.set(clienteRef, {
+    'saldoActual': saldoNuevo,
+    'proximaFecha': Timestamp.fromDate(proximaFecha),
+    'updatedAt': FieldValue.serverTimestamp(),
+    'saldado': saldoNuevo <= 0,
+    'estado': saldoNuevo <= 0 ? 'saldado' : 'al_dia',
+  }, SetOptions(merge: true));
 
   await batch.commit();
+
+  // ==============================
+  // ACTUALIZAR ESTADÍSTICAS GLOBALES (Firestore)
+  // ==============================
+  final totalesRef = docPrest.collection('estadisticas').doc('totales');
+
+  await FirebaseFirestore.instance.runTransaction((tx) async {
+    final snap = await tx.get(totalesRef);
+    final data = snap.data() ?? {};
+
+    // Leer totales actuales (con fallback 0)
+    int totalPendiente = (data['totalPendiente'] ?? 0) as int;
+    int totalPrestado = (data['totalPrestado'] ?? 0) as int;
+    int totalRecuperado = (data['totalRecuperado'] ?? 0) as int;
+    int gananciaPrestamo = (data['gananciaPrestamo'] ?? 0) as int;
+    int gananciaProducto = (data['gananciaProducto'] ?? 0) as int;
+    int gananciaAlquiler = (data['gananciaAlquiler'] ?? 0) as int;
+
+    // ======================
+    // ACTUALIZAR KPIs GLOBALES
+    // ======================
+    // Capital recuperado (solo capital)
+    totalRecuperado += pagoCapital;
+
+    // Capital pendiente (disminuye)
+    totalPendiente -= pagoCapital;
+    if (totalPendiente < 0) totalPendiente = 0;
+
+    // Actualizar la ganancia según categoría
+    switch (categoria) {
+      case 'prestamo':
+        gananciaPrestamo += deltaGanancia;
+        break;
+      case 'producto':
+        gananciaProducto += deltaGanancia;
+        break;
+      case 'alquiler':
+        gananciaAlquiler += deltaGanancia;
+        break;
+    }
+
+    tx.set(totalesRef, {
+      'totalPendiente': totalPendiente,
+      'totalPrestado': totalPrestado,
+      'totalRecuperado': totalRecuperado,
+      'gananciaPrestamo': gananciaPrestamo,
+      'gananciaProducto': gananciaProducto,
+      'gananciaAlquiler': gananciaAlquiler,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  });
+
+  // ==============================
+  // ACTUALIZAR ESTADÍSTICAS DE ALQUILER (si aplica)
+  // ==============================
+  if (categoria == 'alquiler') {
+    final alquilerRef = docPrest.collection('estadisticas').doc('alquiler');
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(alquilerRef);
+      final data = snap.data() ?? {};
+      int activos = (data['activos'] ?? 0) as int;
+      int pendienteCobro = (data['pendienteCobro'] ?? 0) as int;
+      int ganancia = (data['ganancia'] ?? 0) as int;
+
+      pendienteCobro -= pagoCapital;
+      if (pendienteCobro < 0) pendienteCobro = 0;
+      ganancia += totalPagado;
+
+      tx.set(alquilerRef, {
+        'activos': activos,
+        'pendienteCobro': pendienteCobro,
+        'ganancia': ganancia,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
+  }
 }

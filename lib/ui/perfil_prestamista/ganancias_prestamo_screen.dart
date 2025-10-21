@@ -28,41 +28,52 @@ class _GananciasPrestamoScreenState extends State<GananciasPrestamoScreen> {
   }
 
   /// Carga la ganancia **solo** de clientes de tipo "prestamo".
-  /// Suma pagoInteres; si algún cliente no trae intereses, usa fallback:
-  /// ganancia = totalPagado - (saldoActual + pagadoCapital) (nunca negativa).
+  /// Siempre cuenta a los clientes, aunque no tengan pagos.
+  /// Si tiene pagos, suma pagoInteres; si no, usa ganancia = 0.
   Future<int> _cargarGananciaPrestamos() async {
     int totalGanancia = 0;
 
     final qs = await widget.docPrest.collection('clientes').get();
     for (final c in qs.docs) {
       final m = c.data();
-      final tipo = (m['tipo'] ?? '').toString().toLowerCase().trim();
 
-      // Heurística de préstamo: tipo == 'prestamo'
-      // (si en tu dato hay variantes, añade más condiciones aquí)
-      if (tipo != 'prestamo') continue;
+      final tipo = (m['tipo'] ?? '').toString().toLowerCase().trim();
+      final producto = (m['producto'] ?? '').toString().toLowerCase().trim();
+
+      // Detecta préstamo aunque el campo venga vacío o con variantes
+      final esPrestamo = tipo == 'prestamo' || tipo.isEmpty || producto.contains('prestamo');
+      if (!esPrestamo) continue;
 
       final int saldoActual = (m['saldoActual'] ?? 0) as int;
 
-      final pagos = await c.reference.collection('pagos').limit(500).get();
+      // Lee pagos si existen
+      final pagosSnap = await c.reference.collection('pagos').get();
+
+      // Si no hay pagos, igual se cuenta con ganancia 0
+      if (pagosSnap.docs.isEmpty) {
+        totalGanancia += 0;
+        continue;
+      }
+
       int totalPagado = 0;
       int totalInteres = 0;
       int pagadoCapital = 0;
 
-      for (final p in pagos.docs) {
+      for (final p in pagosSnap.docs) {
         final d = p.data();
         totalPagado += (d['totalPagado'] ?? 0) as int;
         totalInteres += (d['pagoInteres'] ?? 0) as int;
         pagadoCapital += (d['pagoCapital'] ?? 0) as int;
       }
 
-      int g = totalInteres;
-      if (g == 0) {
+      int gananciaCliente = totalInteres;
+      if (gananciaCliente == 0) {
         final capitalHistorico = saldoActual + pagadoCapital;
-        g = totalPagado - capitalHistorico;
-        if (g < 0) g = 0;
+        gananciaCliente = totalPagado - capitalHistorico;
+        if (gananciaCliente < 0) gananciaCliente = 0;
       }
-      totalGanancia += g;
+
+      totalGanancia += gananciaCliente;
     }
 
     return totalGanancia;
@@ -70,7 +81,7 @@ class _GananciasPrestamoScreenState extends State<GananciasPrestamoScreen> {
 
   // ===== helpers =====
   String _fmtFecha(DateTime d) {
-    const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
     return '${d.day} ${meses[d.month - 1]} ${d.year}';
   }
 
@@ -170,7 +181,13 @@ class _GananciasPrestamoScreenState extends State<GananciasPrestamoScreen> {
                           const SizedBox(height: 14),
                           Text('Ganancias históricas (préstamos)',
                               textAlign: TextAlign.center,
-                              style: GoogleFonts.inter(textStyle: const TextStyle(fontWeight: FontWeight.w800, color: _BrandX.inkDim, fontSize: 14.5))),
+                              style: GoogleFonts.inter(
+                                textStyle: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: _BrandX.inkDim,
+                                  fontSize: 14.5,
+                                ),
+                              )),
                           const SizedBox(height: 8),
                           FittedBox(
                             fit: BoxFit.scaleDown,
@@ -227,7 +244,7 @@ class _GananciasPrestamoScreenState extends State<GananciasPrestamoScreen> {
                             MaterialPageRoute(
                               builder: (_) => GananciaClientesScreen(
                                 docPrest: widget.docPrest,
-                                tipo: GananciaTipo.prestamo, // << FILTRA SOLO PRÉSTAMOS
+                                tipo: GananciaTipo.prestamo,
                               ),
                             ),
                           );
@@ -301,8 +318,17 @@ class _GananciasPrestamoScreenState extends State<GananciasPrestamoScreen> {
               ),
               const SizedBox(width: 18),
               Expanded(
-                child: Text('Potenciador Premium',
-                    style: GoogleFonts.inter(textStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: .8))),
+                child: Text(
+                  'Potenciador Premium',
+                  style: GoogleFonts.inter(
+                    textStyle: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                      letterSpacing: .8,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),

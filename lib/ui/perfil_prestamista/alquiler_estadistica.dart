@@ -70,7 +70,11 @@ class _AlquilerEstadisticaScreenState extends State<AlquilerEstadisticaScreen>
     final now = DateTime.now();
     final limite7 = now.add(const Duration(days: 7));
 
-    final cs = await widget.docPrest.collection('clientes').get();
+    final cs = await widget.docPrest
+        .collection('clientes')
+        .where('tipo', isEqualTo: 'alquiler') // 🔹 Solo clientes de alquiler
+        .get();
+
     for (final c in cs.docs) {
       final m = c.data();
       final tipo = (m['tipo'] ?? '').toString().toLowerCase().trim();

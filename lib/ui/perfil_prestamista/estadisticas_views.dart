@@ -96,7 +96,8 @@ class EstadisticasHistoricoView extends StatelessWidget {
     final double rawRate =
     lifetimePrestado > 0 ? (lifetimeRecuperado * 100 / lifetimePrestado) : 0.0;
     final double recRate = rawRate.clamp(0.0, 100.0); // 0–100
-    final int pendienteHist = math.max(lifetimePrestado - lifetimeRecuperado, 0);
+    final int pendienteHist = math.max(
+        lifetimePrestado - lifetimeRecuperado, 0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -110,7 +111,7 @@ class EstadisticasHistoricoView extends StatelessWidget {
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
           children: [
-            // 1) Ganancias totales (NO tocar)
+            // 1️⃣ Ganancias totales
             _kpiPremium(
               title: 'Ganancias totales',
               subtitle: 'Toca para ver',
@@ -119,14 +120,14 @@ class EstadisticasHistoricoView extends StatelessWidget {
               gradient: const [Color(0xFFDFFCEF), Color(0xFFC5F5FF)],
             ),
 
-            // 2) Total recuperado — siempre desde metrics/summary (si existe)
+            // 2️⃣ Capital recuperado
             Builder(
               builder: (context) {
                 final uid = FirebaseAuth.instance.currentUser?.uid;
                 if (uid == null) {
                   // Sin auth: usa el valor que llega por props
                   return _kpiGlass(
-                    title: 'Total recuperado',
+                    title: 'Capital recuperado',
                     value: rd(lifetimeRecuperado),
                     gradient: const [Color(0xFFE9FFF2), Color(0xFFD6FFF3)],
                     accent: const Color(0xFF16A34A),
@@ -143,16 +144,16 @@ class EstadisticasHistoricoView extends StatelessWidget {
                 return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                   stream: summaryRef.snapshots(),
                   builder: (context, snap) {
-                    int lr = lifetimeRecuperado; // fallback local
+                    int cr = lifetimeRecuperado; // fallback local
                     final data = snap.data?.data();
                     if (data != null) {
                       final raw = data['lifetimeRecuperado'];
-                      if (raw is num) lr = raw.round();
+                      if (raw is num) cr = raw.round();
                     }
 
                     return _kpiGlass(
-                      title: 'Total recuperado',
-                      value: rd(lr),
+                      title: 'Capital recuperado',
+                      value: rd(cr),
                       gradient: const [Color(0xFFE9FFF2), Color(0xFFD6FFF3)],
                       accent: const Color(0xFF16A34A),
                       shadow: const Color(0xFF16A34A),
@@ -162,18 +163,23 @@ class EstadisticasHistoricoView extends StatelessWidget {
               },
             ),
 
-            // 3) Total pendiente — rojizo SUAVE; si 0 => verde éxito
+            // 3️⃣ Capital pendiente
             _kpiGlass(
-              title: 'Total pendiente',
+              title: 'Capital pendiente',
               value: rd(pendienteHist),
               gradient: pendienteHist > 0
                   ? const [Color(0xFFFFEFF2), Color(0xFFFFE8EC)] // rojo suave
-                  : const [Color(0xFFE9FFF2), Color(0xFFD6FFF3)], // verde éxito
-              accent: pendienteHist > 0 ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
-              shadow: pendienteHist > 0 ? const Color(0xFFEF4444) : const Color(0xFF16A34A),
+                  : const [Color(0xFFE9FFF2), Color(0xFFD6FFF3)],
+              // verde éxito
+              accent: pendienteHist > 0
+                  ? const Color(0xFFDC2626)
+                  : const Color(0xFF16A34A),
+              shadow: pendienteHist > 0
+                  ? const Color(0xFFEF4444)
+                  : const Color(0xFF16A34A),
             ),
 
-            // 4) Recuperación — tarjeta vasija (agua roja <50, verde >=50)
+            // 4️⃣ Recuperación — tarjeta vasija (agua roja <50, verde >=50)
             RecoveryFillCard(
               percent: recRate,
               previousPercent: previousRecoveryPercent ?? recRate,
@@ -194,7 +200,9 @@ class EstadisticasHistoricoView extends StatelessWidget {
               _kv('Mes con más cobros', histMesTop),
               _divider(),
               _kv('Recuperación histórica',
-                  lifetimePrestado > 0 ? '${recRate.toStringAsFixed(0)}%' : '—'),
+                  lifetimePrestado > 0
+                      ? '${recRate.toStringAsFixed(0)}%'
+                      : '—'),
             ],
           ),
         ),
@@ -202,8 +210,7 @@ class EstadisticasHistoricoView extends StatelessWidget {
     );
   }
 }
-
-/// ===== KPI “tarjeta vasija” (llena toda la tarjeta) =====
+  /// ===== KPI “tarjeta vasija” (llena toda la tarjeta) =====
 class RecoveryFillCard extends StatefulWidget {
   final double percent;        // 0–100
   final double previousPercent;
@@ -327,7 +334,7 @@ class _RecoveryFillCardState extends State<RecoveryFillCard>
                     // Fila superior: solo el título centrado
                     Center(
                       child: Text(
-                        'Recuperación',
+                        'Recuperación total',
                         style: GoogleFonts.inter(
                           textStyle: const TextStyle(
                             color: _BrandX.inkDim,

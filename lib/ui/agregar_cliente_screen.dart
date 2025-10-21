@@ -62,6 +62,9 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
   // --- Producto (solo módulo Productos) ---
   late final TextEditingController _montoProductoCtrl; // precio total
   late final TextEditingController _pagoInicialCtrl;   // inicial (opcional)
+  late final TextEditingController _precioBaseCtrl;
+  late final TextEditingController _precioClienteCtrl;
+
 
   int get _montoProducto =>
       int.tryParse(_montoProductoCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
@@ -121,6 +124,9 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     // Inicializa controles del panel de Productos
     _montoProductoCtrl = TextEditingController();         // precio total
     _pagoInicialCtrl  = TextEditingController(text: '0'); // inicial, opcional
+    _precioBaseCtrl = TextEditingController();
+    _precioClienteCtrl = TextEditingController();
+
 
     // Si estamos en Productos, sincroniza el capital con el saldo restante y manténlo actualizado
     if (_esProducto) {
@@ -154,6 +160,8 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
     _tasaCtrl.dispose();
     _montoProductoCtrl.dispose();
     _pagoInicialCtrl.dispose();
+    _precioBaseCtrl.dispose();
+    _precioClienteCtrl.dispose();
     super.dispose();
   }
 
@@ -502,7 +510,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
 
                   const SizedBox(height: 8),
 
-                  // === Panel de “Monto del producto / Pago inicial / Saldo restante” (solo Productos)
+                  // === Panel de “Monto del producto / Pago inicial / Ganancia / Saldo restante” (solo Productos)
                   if (_esProducto) ...[
                     const SizedBox(height: 8),
                     Container(
@@ -515,12 +523,75 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                       ),
                       child: Column(
                         children: [
+                          // 💰 Precio base
+                          TextFormField(
+                            controller: _precioBaseCtrl,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration: _deco(
+                              'Precio base (costo real)',
+                              icon: Icons.inventory_2_rounded,
+                            ),
+                            onChanged: (_) => setState(() {}),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // 💵 Precio al cliente
+                          TextFormField(
+                            controller: _precioClienteCtrl,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration: _deco(
+                              'Precio al cliente (venta total)',
+                              icon: Icons.attach_money_rounded,
+                            ),
+                            onChanged: (_) => setState(() {}),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // 📈 Ganancia estimada automática
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFE5E7EB)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.trending_up_rounded, color: Color(0xFF2563EB)),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    'Ganancia estimada',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '\$ ${(int.tryParse(_precioClienteCtrl.text) ?? 0) - (int.tryParse(_precioBaseCtrl.text) ?? 0)}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // 💳 Monto total del producto
                           TextFormField(
                             controller: _montoProductoCtrl,
                             keyboardType: TextInputType.number,
                             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                            decoration:
-                            _deco('Monto del producto (precio total)', icon: Icons.sell_rounded),
+                            decoration: _deco(
+                              'Monto del producto (precio total)',
+                              icon: Icons.sell_rounded,
+                            ),
                             validator: (v) {
                               final n = int.tryParse(
                                   (v ?? '').replaceAll(RegExp(r'[^0-9]'), '')) ??
@@ -530,12 +601,16 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                             onChanged: (_) => _syncProductoCapital(),
                           ),
                           const SizedBox(height: 8),
+
+                          // 💵 Pago inicial
                           TextFormField(
                             controller: _pagoInicialCtrl,
                             keyboardType: TextInputType.number,
                             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                            decoration:
-                            _deco('Pago inicial (opcional)', icon: Icons.price_check_rounded),
+                            decoration: _deco(
+                              'Pago inicial (opcional)',
+                              icon: Icons.price_check_rounded,
+                            ),
                             validator: (v) {
                               final total = _montoProducto;
                               final ini = int.tryParse(
@@ -548,10 +623,11 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                             onChanged: (_) => _syncProductoCapital(),
                           ),
                           const SizedBox(height: 8),
+
+                          // 📊 Saldo restante
                           Container(
                             width: double.infinity,
-                            padding:
-                            const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
@@ -565,13 +641,17 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen> {
                                   child: Text(
                                     'Saldo restante',
                                     style: TextStyle(
-                                        fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF0F172A),
+                                    ),
                                   ),
                                 ),
                                 Text(
                                   '\$ ${_saldoRestante.toString()}',
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFF0F172A),
+                                  ),
                                 ),
                               ],
                             ),

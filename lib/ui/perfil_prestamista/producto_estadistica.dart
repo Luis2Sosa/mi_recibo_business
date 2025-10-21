@@ -51,7 +51,11 @@ class _ProductoEstadisticaScreenState extends State<ProductoEstadisticaScreen>
     final Map<String, int> movimientoPorProducto = {};
     final Set<String> productosActivos = {};
 
-    final cs = await widget.docPrest.collection('clientes').get();
+    final cs = await widget.docPrest
+        .collection('clientes')
+        .where('tipo', whereIn: ['producto', 'fiado']) // 🔹 filtra solo productos o fiados
+        .get();
+
     for (final c in cs.docs) {
       final m = c.data();
       final tipo = (m['tipo'] ?? '').toString().toLowerCase().trim();
