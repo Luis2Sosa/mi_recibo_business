@@ -44,7 +44,7 @@ class _AlquilerEstadisticaScreenState extends State<AlquilerEstadisticaScreen>
     await EstadisticasTotalesService.ensureStructure(prestamistaId);
 
     // Leer KPIs desde Firestore (colección stats/alquiler)
-    final cat = await EstadisticasTotalesService.readCategoria(prestamistaId, 'alquiler');
+    final cat = await EstadisticasTotalesService.headCategoria(prestamistaId, 'alquiler');
     final activos = (cat?['activos'] ?? 0) as int;
     final finalizados = (cat?['finalizados'] ?? 0) as int;
     final pendiente = (cat?['pendienteCobro'] ?? 0) as int;

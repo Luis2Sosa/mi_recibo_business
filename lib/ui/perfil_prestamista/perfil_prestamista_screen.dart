@@ -512,31 +512,29 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       clientesPagando = pagando;
       clientesVencidos = vencidos;
 
-      // Histórico persistido (si existe)
+      // Histórico persistido (sin tocar ganancias)
       try {
         final doc = await _docPrest!.collection('metrics').doc('summary').get();
         final data = doc.data();
 
-        final int baseGanancia = sumIntereses;
         final int basePromedio = countPagos == 0 ? 0 : (sumPagos / countPagos).round();
 
         if (data != null) {
           lifetimePrestado = (data['lifetimePrestado'] ?? totalPrestado) as int;
           lifetimeRecuperado = (data['lifetimeRecuperado'] ?? totalRecuperado) as int;
-          lifetimeGanancia = (data['lifetimeGanancia'] ?? baseGanancia) as int;
           lifetimePagosProm = (data['lifetimePagosProm'] ?? basePromedio) as int;
         } else {
           lifetimePrestado = totalPrestado;
           lifetimeRecuperado = totalRecuperado;
-          lifetimeGanancia = baseGanancia;
           lifetimePagosProm = basePromedio;
         }
       } catch (_) {
         lifetimePrestado = totalPrestado;
         lifetimeRecuperado = totalRecuperado;
-        lifetimeGanancia = sumIntereses;
         lifetimePagosProm = countPagos == 0 ? 0 : (sumPagos / countPagos).round();
       }
+
+
 
       histPrimerPago = firstPay == null ? '—' : _fmtFecha(firstPay!);
       histUltimoPago = lastPay == null ? '—' : _fmtFecha(lastPay!);
@@ -1089,31 +1087,33 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                 color: Colors.white.withOpacity(.15),
                 border: Border.all(color: Colors.white.withOpacity(.45), width: 1.2),
               ),
-              child: const Icon(Icons.delete_forever_rounded, color: Colors.white, size: 22),
+              child: const Icon(Icons.delete_sweep_rounded, color: Colors.white, size: 22),
             ),
             const SizedBox(width: 10),
             const Expanded(
-              child: Text('Borrar histórico', maxLines: 1, overflow: TextOverflow.ellipsis,
+              child: Text('Borrar historial', maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
             ),
           ]),
           const SizedBox(height: 8),
-          Text('Elimina solo los acumulados históricos. No borra clientes ni pagos.',
+          Text(
+              'Reinicia tus totales acumulados (como el capital recuperado). No borra clientes ni pagos.',
               style: TextStyle(color: Colors.white.withOpacity(.92), fontWeight: FontWeight.w700)),
           const SizedBox(height: 12),
           Align(
             alignment: Alignment.centerRight,
             child: ElevatedButton.icon(
-              onPressed: _confirmBorrarHistorico,
-              icon: const Icon(Icons.shield_moon_outlined, size: 18),
-              label: const Text('Borrar histórico'),
+              onPressed: _confirmBorrarHistorial,
+              icon: const Icon(Icons.delete_sweep_rounded, size: 22),
+              label: const Text('Borrar historial'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFFE11D48),
+                backgroundColor: const Color(0xFFE11D48),
+                foregroundColor: Colors.white,
                 shape: const StadiumBorder(),
-                textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                elevation: 2,
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                elevation: 6,
+                shadowColor: const Color(0xFFE11D48).withOpacity(0.4),
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
               ),
             ),
           ),
@@ -1263,39 +1263,108 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     );
   }
 
-  // ====== Acciones histórico
-  Future<void> _confirmBorrarHistorico() async {
+  Future<void> _confirmBorrarHistorial() async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(children: const [Icon(Icons.warning_amber_rounded, color: _Brand.softRed), SizedBox(width: 8), Text('¿Borrar histórico?')]),
-        content: const Text('Esto elimina los datos históricos acumulados (no borra clientes ni pagos). Podrás seguir generando histórico con nuevos pagos.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
-          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Borrar', style: TextStyle(color: _Brand.softRed, fontWeight: FontWeight.w800))),
-        ],
-      ),
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Column(
+            children: const [
+              Icon(Icons.delete_sweep_rounded, color: Color(0xFFE11D48), size: 56),
+              SizedBox(height: 10),
+              Text(
+                '¿Borrar historial?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 20,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Esto reiniciará los totales acumulados (como el total capital recuperado), '
+                'pero no eliminará clientes ni pagos.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 15, color: Color(0xFF475569)),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              style: TextButton.styleFrom(
+                backgroundColor: const Color(0xFFF1F5F9),
+                foregroundColor: Colors.black87,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: const StadiumBorder(),
+              ),
+              child: const Text('Cancelar', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(
+                backgroundColor: const Color(0xFFE11D48),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 12),
+                shape: const StadiumBorder(),
+              ),
+              child: const Text('Borrar', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
     );
     if (ok == true) await _borrarHistorico();
   }
 
+
+  // 🚫 No tocar ni modificar:
+// Esta función borra el documento "summary" (histórico) y reinicia solo el totalCapitalRecuperado.
+// NO borra ni modifica las ganancias totales ni el documento "estadisticas/totales".
   Future<void> _borrarHistorico() async {
     if (_docPrest == null) return;
+
     try {
+      // 🔹 1. Borrar el documento de histórico (summary)
       await _docPrest!.collection('metrics').doc('summary').delete();
-    } catch (_) {}
+
+      // 🔹 2. Reiniciar solo el campo totalCapitalRecuperado (sin tocar totalGanancia)
+      final refSummary = _docPrest!.collection('metrics').doc('summary');
+      await refSummary.set({
+        'totalCapitalRecuperado': 0,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // 🔹 3. Actualizar también en estadísticas/totales (si existe)
+      final refTotales = _docPrest!.collection('estadisticas').doc('totales');
+      await refTotales.set({
+        'totalCapitalRecuperado': 0,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+    } catch (e) {
+      print('Error al borrar histórico: $e');
+    }
+
+    // 🔹 4. Refrescar los valores visuales en la pantalla
     setState(() {
       lifetimePrestado = 0;
-      lifetimeRecuperado = 0;
-      lifetimeGanancia = 0;
+      lifetimeRecuperado = 0; // ✅ solo este se borra visualmente
+      // Mantiene la ganancia
+      lifetimeGanancia = lifetimeGanancia;
       lifetimePagosProm = 0;
       histPrimerPago = '—';
       histUltimoPago = '—';
       histMesTop = '—';
     });
-    _toast('Histórico borrado', color: _Brand.softRed, icon: Icons.delete_outline);
+
+    _toast('Histórico borrado (solo capital recuperado)', color: _Brand.softRed, icon: Icons.delete_outline);
   }
+
+
 
   // Placeholder sin datos
   Widget _emptyChart(String t) {

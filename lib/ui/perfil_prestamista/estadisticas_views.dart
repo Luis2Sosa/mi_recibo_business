@@ -120,14 +120,14 @@ class EstadisticasHistoricoView extends StatelessWidget {
               gradient: const [Color(0xFFDFFCEF), Color(0xFFC5F5FF)],
             ),
 
-            // 2️⃣ Capital recuperado
+            // 2️⃣ Total capital recuperado
             Builder(
               builder: (context) {
                 final uid = FirebaseAuth.instance.currentUser?.uid;
                 if (uid == null) {
                   // Sin auth: usa el valor que llega por props
                   return _kpiGlass(
-                    title: 'Capital recuperado',
+                    title: 'Total capital recuperado',
                     value: rd(lifetimeRecuperado),
                     gradient: const [Color(0xFFE9FFF2), Color(0xFFD6FFF3)],
                     accent: const Color(0xFF16A34A),
@@ -146,13 +146,12 @@ class EstadisticasHistoricoView extends StatelessWidget {
                   builder: (context, snap) {
                     int cr = lifetimeRecuperado; // fallback local
                     final data = snap.data?.data();
-                    if (data != null) {
-                      final raw = data['lifetimeRecuperado'];
-                      if (raw is num) cr = raw.round();
+                    if (data != null) {final raw = data['totalCapitalRecuperado'];
+                    if (raw is num) cr = raw.round();
                     }
 
                     return _kpiGlass(
-                      title: 'Capital recuperado',
+                      title: 'Total capital recuperado',
                       value: rd(cr),
                       gradient: const [Color(0xFFE9FFF2), Color(0xFFD6FFF3)],
                       accent: const Color(0xFF16A34A),
@@ -163,9 +162,9 @@ class EstadisticasHistoricoView extends StatelessWidget {
               },
             ),
 
-            // 3️⃣ Capital pendiente
+            // 3️⃣ Total capital pendiente
             _kpiGlass(
-              title: 'Capital pendiente',
+              title: 'Total capital pendiente',
               value: rd(pendienteHist),
               gradient: pendienteHist > 0
                   ? const [Color(0xFFFFEFF2), Color(0xFFFFE8EC)] // rojo suave
@@ -178,6 +177,7 @@ class EstadisticasHistoricoView extends StatelessWidget {
                   ? const Color(0xFFEF4444)
                   : const Color(0xFF16A34A),
             ),
+
 
             // 4️⃣ Recuperación — tarjeta vasija (agua roja <50, verde >=50)
             RecoveryFillCard(

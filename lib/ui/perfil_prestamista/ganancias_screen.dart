@@ -30,22 +30,14 @@ class _GananciasScreenState extends State<GananciasScreen> {
     _future = _cargarGananciasGlobal(); // ← RESUMEN de todo
   }
 
-  // =========================================================
-  // RESUMEN GLOBAL (todas las categorías)
-  // - prestamos/productos: usan capitalInicial y circulando
-  // - alquiler: no suma a "prestado" ni "circulando" (no es deuda),
-  //             pero sí cuenta en pendiente y recuperado
-  // - productos: si no hay intereses, estima ganancia como
-  //              totalPagado - (saldo + pagadoCapital) (>=0)
-  // =========================================================
   Future<_GananciasResumen> _cargarGananciasGlobal() async {
     final cs = await widget.docPrest.collection('clientes').get();
 
-    int totalPendiente = 0;   // saldoActual > 0 (todas las categorías)
-    int totalCirculando = 0;  // solo préstamos / productos
-    int totalRecuperado = 0;  // sum(totalPagado) (todas)
-    int totalGanancia = 0;    // intereses + margen aprox en productos
-    int totalPrestado = 0;    // solo préstamos / productos
+    int totalPendiente = 0;
+    int totalCirculando = 0;
+    int totalRecuperado = 0;
+    int totalGanancia = 0;
+    int totalPrestado = 0;
 
     for (final c in cs.docs) {
       final m = c.data();
@@ -53,12 +45,15 @@ class _GananciasScreenState extends State<GananciasScreen> {
       final tipo = (m['tipo'] ?? '').toString().toLowerCase().trim();
       final productoTxt = (m['producto'] ?? '').toString().toLowerCase().trim();
 
-      bool esAlquiler = tipo == 'alquiler' ||
+      // 🔹 Detección más robusta
+      bool esAlquiler = tipo.contains('alquiler') ||
           productoTxt.contains('alquiler') ||
           productoTxt.contains('renta');
 
-      bool esProducto = !esAlquiler &&
-          (tipo == 'producto' || tipo == 'fiado' || productoTxt.isNotEmpty);
+      bool esProducto = tipo.contains('producto') ||
+          tipo.contains('fiado') ||
+          productoTxt.contains('producto') ||
+          productoTxt.contains('fiado');
 
       bool esPrestamo = !esAlquiler && !esProducto;
 
@@ -68,7 +63,7 @@ class _GananciasScreenState extends State<GananciasScreen> {
       if (saldo > 0) totalPendiente += saldo;
       if (!esAlquiler) totalPrestado += capitalInicial;
 
-      // Pagos y cálculo de ganancia/margen
+      // Leer pagos
       final pagos = await c.reference.collection('pagos').get();
       int pagadoCapital = 0;
       int totalPagos = 0;
@@ -85,17 +80,22 @@ class _GananciasScreenState extends State<GananciasScreen> {
         totalPagos += tp;
       }
 
-      // Ganancia:
-      // - préstamos/alquiler: usamos intereses si los hay (alquiler puede ser 0)
-      // - productos: si no hubo intereses, usamos margen aprox (tp - (saldo+pc))
-      int gananciaCliente = interesSum;
-      if (gananciaCliente == 0 && esProducto) {
+      // Calcular ganancia por cliente correctamente
+      int gananciaCliente = 0;
+
+      if (esPrestamo) {
+        gananciaCliente = interesSum;
+      } else if (esProducto) {
         final margen = totalPagos - (saldo + pagadoCapital);
         if (margen > 0) gananciaCliente = margen;
+      } else if (esAlquiler) {
+        gananciaCliente = totalPagos;
+        if (saldo > 0) totalPendiente += saldo;
       }
+
+      // 🔹 Acumular totales globales
       totalGanancia += gananciaCliente;
 
-      // Circulando (solo préstamos/productos)
       if (!esAlquiler) {
         final circulandoCliente = math.max(capitalInicial - pagadoCapital, 0);
         totalCirculando += circulandoCliente;
@@ -116,6 +116,7 @@ class _GananciasScreenState extends State<GananciasScreen> {
       recuperacionPct: recuperacionPct,
     );
   }
+
 
   Future<void> _openPremium() async {
     if (!mounted) return;
