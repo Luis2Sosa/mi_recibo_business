@@ -1,16 +1,11 @@
 // lib/ui/perfil_prestamista/ganancias_screen.dart
-// PANTALLA GENERAL (RESUMEN): agrega TODAS las categorías.
-// - Título: Ganancias totales
-// - Tarjeta: “Ganancias totales históricas”
-// - Sin CTA de “Ver ganancia por cliente” (eso va en las pantallas por categoría)
-
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:math' as math;
-
 import 'package:mi_recibo/ui/theme/app_theme.dart';
-import 'package:mi_recibo/ui/widgets/app_frame.dart';
+import 'package:intl/intl.dart';
 import 'package:mi_recibo/ui/perfil_prestamista/premium_boosts_screen.dart';
 
 class GananciasScreen extends StatefulWidget {
@@ -21,102 +16,128 @@ class GananciasScreen extends StatefulWidget {
   State<GananciasScreen> createState() => _GananciasScreenState();
 }
 
-class _GananciasScreenState extends State<GananciasScreen> {
-  late Future<_GananciasResumen> _future;
+class _GananciasScreenState extends State<GananciasScreen>
+    with SingleTickerProviderStateMixin {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  late AnimationController _controller;
+  late Animation<double> _fadeAnim;
+  int _displayedTotal = 0;
 
   @override
   void initState() {
     super.initState();
-    _future = _cargarGananciasGlobal(); // ← RESUMEN de todo
+    _controller =
+        AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _fadeAnim = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    _controller.forward();
   }
 
-  Future<_GananciasResumen> _cargarGananciasGlobal() async {
-    final cs = await widget.docPrest.collection('clientes').get();
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
-    int totalPendiente = 0;
-    int totalCirculando = 0;
-    int totalRecuperado = 0;
-    int totalGanancia = 0;
-    int totalPrestado = 0;
+  String _rd(int v) {
+    final format = NumberFormat.currency(
+      locale: 'es_DO',
+      symbol: '\$',
+      decimalDigits: 0,
+    );
+    return format.format(v).replaceAll(',', '.');
+  }
 
-    for (final c in cs.docs) {
-      final m = c.data();
+  Future<void> _borrarGananciasTotales() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    final db = FirebaseFirestore.instance;
 
-      final tipo = (m['tipo'] ?? '').toString().toLowerCase().trim();
-      final productoTxt = (m['producto'] ?? '').toString().toLowerCase().trim();
+    // ✅ Aseguramos que cada categoría se actualice correctamente
+    const categorias = ['prestamo', 'producto', 'alquiler'];
 
-      // 🔹 Detección más robusta
-      bool esAlquiler = tipo.contains('alquiler') ||
-          productoTxt.contains('alquiler') ||
-          productoTxt.contains('renta');
-
-      bool esProducto = tipo.contains('producto') ||
-          tipo.contains('fiado') ||
-          productoTxt.contains('producto') ||
-          productoTxt.contains('fiado');
-
-      bool esPrestamo = !esAlquiler && !esProducto;
-
-      final int saldo = (m['saldoActual'] ?? 0) as int;
-      final int capitalInicial = (m['capitalInicial'] ?? 0) as int;
-
-      if (saldo > 0) totalPendiente += saldo;
-      if (!esAlquiler) totalPrestado += capitalInicial;
-
-      // Leer pagos
-      final pagos = await c.reference.collection('pagos').get();
-      int pagadoCapital = 0;
-      int totalPagos = 0;
-      int interesSum = 0;
-
-      for (final p in pagos.docs) {
-        final d = p.data();
-        final int pi = (d['pagoInteres'] ?? 0) as int;
-        final int pc = (d['pagoCapital'] ?? 0) as int;
-        final int tp = (d['totalPagado'] ?? (pi + pc)) as int;
-
-        interesSum += pi;
-        pagadoCapital += pc;
-        totalPagos += tp;
-      }
-
-      // Calcular ganancia por cliente correctamente
-      int gananciaCliente = 0;
-
-      if (esPrestamo) {
-        gananciaCliente = interesSum;
-      } else if (esProducto) {
-        final margen = totalPagos - (saldo + pagadoCapital);
-        if (margen > 0) gananciaCliente = margen;
-      } else if (esAlquiler) {
-        gananciaCliente = totalPagos;
-        if (saldo > 0) totalPendiente += saldo;
-      }
-
-      // 🔹 Acumular totales globales
-      totalGanancia += gananciaCliente;
-
-      if (!esAlquiler) {
-        final circulandoCliente = math.max(capitalInicial - pagadoCapital, 0);
-        totalCirculando += circulandoCliente;
-      }
-
-      totalRecuperado += totalPagos;
+    for (final cat in categorias) {
+      await db
+          .collection('prestamistas')
+          .doc(user.uid)
+          .collection('estadisticas')
+          .doc(cat)
+          .set({
+        'gananciaNeta': 0,
+        'updatedAt': FieldValue.serverTimestamp()
+      }, SetOptions(merge: true));
     }
 
-    final double recuperacionPct =
-    (totalPrestado <= 0) ? 0.0 : (totalRecuperado * 100.0 / totalPrestado);
+    await db
+        .collection('prestamistas')
+        .doc(user.uid)
+        .collection('estadisticas')
+        .doc('totales')
+        .set({
+      'totalGanancia': 0,
+      'updatedAt': FieldValue.serverTimestamp()
+    }, SetOptions(merge: true));
 
-    return _GananciasResumen(
-      pendiente: totalPendiente,
-      circulando: totalCirculando,
-      recuperado: totalRecuperado,
-      ganancia: totalGanancia,
-      prestado: totalPrestado,
-      recuperacionPct: recuperacionPct,
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text(
+          'Ganancias totales reiniciadas correctamente 💎',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: AppTheme.gradTop,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        duration: const Duration(seconds: 2),
+      ));
+    }
   }
 
+  Future<void> _confirmBorrarGananciasTotales() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Column(
+          children: const [
+            Icon(Icons.delete_forever_rounded, color: Color(0xFFE11D48), size: 56),
+            SizedBox(height: 10),
+            Text('¿Eliminar ganancias totales?',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+          ],
+        ),
+        content: const Text(
+          'Esto reiniciará todas tus ganancias acumuladas (Préstamos, Productos y Alquiler).',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 15, color: Color(0xFF475569)),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            style: TextButton.styleFrom(
+              backgroundColor: const Color(0xFFF1F5F9),
+              shape: const StadiumBorder(),
+            ),
+            child: const Text('Cancelar',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              backgroundColor: const Color(0xFFE11D48),
+              foregroundColor: Colors.white,
+              shape: const StadiumBorder(),
+            ),
+            child: const Text('Borrar',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await _borrarGananciasTotales();
+  }
 
   Future<void> _openPremium() async {
     if (!mounted) return;
@@ -128,182 +149,165 @@ class _GananciasScreenState extends State<GananciasScreen> {
     );
   }
 
-  String _fmtFecha(DateTime d) {
-    const meses = [
-      'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-      'jul', 'ago', 'sep', 'oct', 'nov', 'dic'
-    ];
-    return '${d.day} ${meses[d.month - 1]} ${d.year}';
-  }
-
-  Future<void> _refresh() async {
-    setState(() {
-      _future = _cargarGananciasGlobal(); // ← refresca RESUMEN
-    });
-  }
-
-  String _rd(int v) {
-    if (v <= 0) return '\$0';
-    final s = v.toString();
-    final b = StringBuffer();
-    int c = 0;
-    for (int i = s.length - 1; i >= 0; i--) {
-      b.write(s[i]);
-      c++;
-      if (c == 3 && i != 0) {
-        b.write(',');
-        c = 0;
-      }
-    }
-    return '\$${b.toString().split('').reversed.join()}';
-  }
-
-  // =========================================================
-  // ====================   UI  ==============================
-  // =========================================================
   @override
   Widget build(BuildContext context) {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return const Center(child: Text("No se ha iniciado sesión"));
+    }
+
+    final db = FirebaseFirestore.instance;
+
     return Scaffold(
-      body: AppGradientBackground(
-        child: AppFrame(
-          header: const _HeaderBar(title: 'Ganancias totales'),
-          child: FutureBuilder<_GananciasResumen>(
-            future: _future,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text('Ganancias totales',
+            style: TextStyle(
+                fontWeight: FontWeight.w900, color: Colors.white, fontSize: 18)),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+            colors: [Color(0xFF233A77), Color(0xFF673AB7)],
+          ),
+        ),
+        child: SafeArea(
+          child: StreamBuilder<List<DocumentSnapshot>>(
+            stream: db
+                .collection('prestamistas')
+                .doc(user.uid)
+                .collection('estadisticas')
+                .where(FieldPath.documentId,
+                whereIn: ['prestamo', 'producto', 'alquiler'])
+                .snapshots()
+                .map((q) => q.docs),
             builder: (context, snap) {
-              if (snap.connectionState != ConnectionState.done) {
+              if (!snap.hasData) {
                 return const Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5)),
-                      SizedBox(width: 10),
-                      Text('Cargando…', style: TextStyle(fontWeight: FontWeight.w800)),
-                    ],
-                  ),
-                );
+                    child: CircularProgressIndicator(color: Colors.white));
               }
-              final res = snap.data ?? _GananciasResumen.empty();
 
-              final String serial =
-              widget.docPrest.id.toUpperCase().padRight(6, '0').substring(0, 6);
-              final String fecha = _fmtFecha(DateTime.now());
+              int ganPrestamo = 0, ganProducto = 0, ganAlquiler = 0;
+              for (var doc in snap.data!) {
+                final data = doc.data() as Map<String, dynamic>? ?? {};
+                if (doc.id == 'prestamo') ganPrestamo = data['gananciaNeta'] ?? 0;
+                if (doc.id == 'producto') ganProducto = data['gananciaNeta'] ?? 0;
+                if (doc.id == 'alquiler') ganAlquiler = data['gananciaNeta'] ?? 0;
+              }
 
-              return RefreshIndicator(
-                onRefresh: _refresh,
+              final total = ganPrestamo + ganProducto + ganAlquiler;
+
+              if (_displayedTotal != total) {
+                Timer.periodic(const Duration(milliseconds: 30), (timer) {
+                  setState(() {
+                    if (_displayedTotal < total) {
+                      _displayedTotal += ((total - _displayedTotal) / 6).ceil();
+                    } else {
+                      _displayedTotal = total;
+                      timer.cancel();
+                    }
+                  });
+                });
+              }
+
+              return FadeTransition(
+                opacity: _fadeAnim,
                 child: ListView(
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+                  padding: const EdgeInsets.fromLTRB(18, 20, 18, 40),
+                  physics: const BouncingScrollPhysics(),
                   children: [
-                    // ======== TARJETA DE GANANCIAS HISTÓRICAS (GLOBAL) ========
+                    // === TARJETA PRINCIPAL SUAVIZADA ===
                     Container(
+                      padding: const EdgeInsets.all(22),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.96),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: const Color(0xFFE1E8F5), width: 1.2),
+                        borderRadius: BorderRadius.circular(28),
+                        color: Colors.white.withOpacity(0.07),
+                        border: Border.all(color: Colors.white.withOpacity(0.12)),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(.06),
-                            blurRadius: 16,
-                            offset: const Offset(0, 8),
-                          ),
+                              color: Colors.black.withOpacity(0.12),
+                              blurRadius: 20,
+                              offset: const Offset(0, 6))
                         ],
                       ),
-                      padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
+                          Text('Ganancias totales históricas',
+                              style: GoogleFonts.inter(
+                                  color: Colors.white.withOpacity(.9),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 17)),
+                          const SizedBox(height: 22),
                           Row(
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(999),
-                                  gradient: LinearGradient(colors: [AppTheme.gradTop, AppTheme.gradBottom]),
-                                ),
-                                child: const Text(
-                                  'DATOS VERIFICADOS',
-                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: .6),
-                                ),
-                              ),
-                              const Spacer(),
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: LinearGradient(colors: [AppTheme.gradBottom, AppTheme.gradTop]),
-                                  boxShadow: [
-                                    BoxShadow(
-                                        color: AppTheme.gradTop.withOpacity(.25),
-                                        blurRadius: 10,
-                                        offset: Offset(0, 4)),
-                                  ],
-                                ),
-                                child: const Icon(Icons.verified_rounded, color: Colors.white, size: 22),
-                              ),
+                              Expanded(
+                                  child: _kpiCard(
+                                      'Préstamos',
+                                      ganPrestamo,
+                                      const Icon(Icons.request_quote_rounded,
+                                          color: Colors.blueAccent))),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                  child: _kpiCard(
+                                      'Productos',
+                                      ganProducto,
+                                      const Icon(Icons.shopping_bag_rounded,
+                                          color: Colors.green))),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                  child: _kpiCard(
+                                      'Alquiler',
+                                      ganAlquiler,
+                                      const Icon(Icons.home_work_rounded,
+                                          color: Colors.orange))),
                             ],
                           ),
-                          const SizedBox(height: 14),
-                          Text(
-                            'Ganancias totales históricas',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.inter(
-                              textStyle: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: _BrandX.inkDim,
-                                fontSize: 14.5,
-                              ),
+                          const SizedBox(height: 30),
+                          Container(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(24),
+                              border:
+                              Border.all(color: Colors.white.withOpacity(0.2)),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                            child: Column(
                               children: [
-                                Icon(Icons.trending_up_rounded,
-                                    color: AppTheme.gradBottom.withOpacity(.95), size: 28),
-                                const SizedBox(width: 8),
+                                const Icon(Icons.trending_up_rounded,
+                                    color: Colors.greenAccent, size: 32),
+                                const SizedBox(height: 8),
                                 Text(
-                                  _rd(res.ganancia),
-                                  style: GoogleFonts.inter(
-                                    textStyle: TextStyle(
-                                      fontSize: 44,
+                                  _rd(_displayedTotal),
+                                  style: GoogleFonts.poppins(
+                                    textStyle: const TextStyle(
+                                      color: Colors.greenAccent,
                                       fontWeight: FontWeight.w900,
+                                      fontSize: 48,
                                       height: 1,
-                                      letterSpacing: 0.2,
-                                      color: AppTheme.gradBottom,
                                     ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 14),
-                          Container(
-                            height: 1.2,
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [Color(0xFFEAF0FA), Color(0xFFDDE6F6), Color(0xFFEAF0FA)],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(child: _metaChip(label: 'SERIAL', value: '#$serial')),
-                              const SizedBox(width: 10),
-                              Expanded(child: _metaChip(label: 'FECHA', value: fecha)),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
                         ],
                       ),
                     ),
+                    const SizedBox(height: 30),
 
-                    _premiumCard(),
-                    const SizedBox(height: 16),
+                    // === SECCIÓN QEDU PREMIUM ELEGANTE ===
+                    _qeduPremiumCard(),
 
-                    // NOTA: Sin botón “Ver ganancia por cliente” en la pantalla general.
+                    const SizedBox(height: 35),
+                    _botonBorrarGanancias(),
                   ],
                 ),
               );
@@ -314,102 +318,83 @@ class _GananciasScreenState extends State<GananciasScreen> {
     );
   }
 
-  Widget _metaChip({required String label, required String value}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE7EEF8)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.03), blurRadius: 6, offset: Offset(0, 2))],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label, style: const TextStyle(color: _BrandX.inkDim, fontWeight: FontWeight.w700, fontSize: 12)),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(color: _BrandX.ink, fontWeight: FontWeight.w900, fontSize: 14)),
-        ],
-      ),
-    );
-  }
-
-  Widget _premiumCard() {
-    return Container(
+  Widget _qeduPremiumCard() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 800),
       margin: const EdgeInsets.only(top: 20),
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppTheme.gradTop.withOpacity(0.98), AppTheme.gradBottom.withOpacity(0.98)],
-        ),
-        boxShadow: [BoxShadow(color: AppTheme.gradTop.withOpacity(.28), blurRadius: 25, offset: Offset(0, 10))],
+        borderRadius: BorderRadius.circular(26),
+        color: Colors.white.withOpacity(0.07),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(.15),
-                  border: Border.all(color: Colors.white.withOpacity(.45), width: 1.3),
+                  color: Colors.white.withOpacity(0.1),
+                  border: Border.all(color: Colors.white.withOpacity(0.25)),
                 ),
-                child: const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 30),
+                child: const Icon(Icons.workspace_premium_rounded,
+                    color: Colors.white, size: 30),
               ),
-              const SizedBox(width: 18),
+              const SizedBox(width: 16),
               Expanded(
                 child: Text(
                   'Potenciador Premium',
-                  style: GoogleFonts.inter(
-                    textStyle: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                      letterSpacing: .8,
-                    ),
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                    letterSpacing: .6,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 18),
           _bullet('QEDU del día'),
           const SizedBox(height: 10),
           _bullet('Estadística avanzada'),
           const SizedBox(height: 10),
           _bullet('Consejo pro'),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           Text(
-            'Contenido exclusivo que rota automáticamente cada día para maximizar tus ganancias.',
-            style: TextStyle(
+            'Contenido exclusivo que se actualiza cada día para multiplicar tus ganancias y mantenerte al nivel profesional más alto.',
+            style: GoogleFonts.inter(
               color: Colors.white.withOpacity(.9),
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.w600,
               height: 1.4,
             ),
           ),
-          const SizedBox(height: 15),
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
+          const SizedBox(height: 18),
+          Center(
+            child: ElevatedButton(
               onPressed: _openPremium,
-              icon: const Icon(Icons.play_circle_fill_rounded, size: 20),
-              label: const Text('Ver ahora'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: AppTheme.gradTop,
+                backgroundColor: Colors.white.withOpacity(0.15),
+                foregroundColor: Colors.white,
                 shape: const StadiumBorder(),
-                textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                elevation: 2,
+                padding:
+                const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                textStyle: const TextStyle(
+                    fontWeight: FontWeight.w900, fontSize: 16),
+                elevation: 0,
               ),
+              child: const Text('Ver ahora'),
             ),
           ),
         ],
@@ -420,7 +405,11 @@ class _GananciasScreenState extends State<GananciasScreen> {
   Widget _bullet(String text) {
     return Row(
       children: [
-        Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
+        Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+                color: Colors.white, shape: BoxShape.circle)),
         const SizedBox(width: 10),
         Expanded(
           child: Text(
@@ -428,7 +417,7 @@ class _GananciasScreenState extends State<GananciasScreen> {
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w800,
-              fontSize: 16.5,
+              fontSize: 16,
               letterSpacing: .1,
             ),
           ),
@@ -436,62 +425,51 @@ class _GananciasScreenState extends State<GananciasScreen> {
       ],
     );
   }
-}
 
-class _GananciasResumen {
-  final int pendiente;
-  final int circulando;
-  final int recuperado;
-  final int ganancia;
-  final int prestado;
-  final double recuperacionPct;
-
-  const _GananciasResumen({
-    required this.pendiente,
-    required this.circulando,
-    required this.recuperado,
-    required this.ganancia,
-    required this.prestado,
-    required this.recuperacionPct,
-  });
-
-  factory _GananciasResumen.empty() => const _GananciasResumen(
-    pendiente: 0,
-    circulando: 0,
-    recuperado: 0,
-    ganancia: 0,
-    prestado: 0,
-    recuperacionPct: 0.0,
-  );
-}
-
-class _HeaderBar extends StatelessWidget {
-  final String title;
-  const _HeaderBar({required this.title});
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          style: ButtonStyle(
-            backgroundColor: MaterialStateProperty.all(AppTheme.gradTop.withOpacity(.9)),
-            shape: MaterialStateProperty.all(const CircleBorder()),
-            padding: MaterialStateProperty.all(const EdgeInsets.all(8)),
+  Widget _kpiCard(String label, int value, Icon icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
+      ),
+      child: Column(
+        children: [
+          icon,
+          const SizedBox(height: 8),
+          Text(
+            _rd(value),
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+            ),
           ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(title,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
-        ),
-      ],
+          Text(label,
+              style: GoogleFonts.inter(
+                  color: Colors.white.withOpacity(.8),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13)),
+        ],
+      ),
     );
   }
-}
 
-class _BrandX {
-  static const ink = Color(0xFF0F172A);
-  static const inkDim = Color(0xFF64748B);
+  Widget _botonBorrarGanancias() {
+    return ElevatedButton.icon(
+      onPressed: _confirmBorrarGananciasTotales,
+      icon: const Icon(Icons.delete_forever_rounded, color: Colors.white, size: 26),
+      label: const Text('Borrar ganancias totales',
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFFE11D48),
+        foregroundColor: Colors.white,
+        shape: const StadiumBorder(),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
+        elevation: 10,
+        shadowColor: Colors.redAccent.withOpacity(.4),
+      ),
+    );
+  }
 }

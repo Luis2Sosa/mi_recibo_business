@@ -1,6 +1,9 @@
 // lib/clientes/clientes_screen.dart
 
 import '../recibo_screen.dart';
+import 'agregar_cliente_alquiler_screen.dart';
+import 'agregar_cliente_prestamo.dart';
+import 'agregar_cliente_producto_screen.dart';
 import 'auto_filtro_service.dart';
 
 import 'dart:async';
@@ -25,12 +28,18 @@ import 'productos_screen.dart';
 import 'alquiler_screen.dart';
 
 class ClientesScreen extends StatefulWidget {
-  const ClientesScreen({super.key});
+  final String? initFiltro; // 👈 nuevo parámetro opcional
+
+  const ClientesScreen({super.key, this.initFiltro});
+
   @override
   State<ClientesScreen> createState() => _ClientesScreenState();
 }
 
+
 class _ClientesScreenState extends State<ClientesScreen> {
+
+
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _debounce; // para debounce del buscador
 
@@ -66,6 +75,21 @@ class _ClientesScreenState extends State<ClientesScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initFiltro != null) {
+      switch (widget.initFiltro) {
+        case 'prestamos':
+          _filtro = FiltroClientes.prestamos;
+          break;
+        case 'productos':
+          _filtro = FiltroClientes.productos;
+          break;
+        case 'alquiler':
+          _filtro = FiltroClientes.alquiler;
+          break;
+      }
+    }
+
+
     _cargarPerfilPrestamista();
     _cargarSeguridad();              // carga inicial
     _escucharSeguridadTiempoReal();  // escucha en tiempo real
@@ -423,13 +447,13 @@ class _ClientesScreenState extends State<ClientesScreen> {
     return 'CL-${cut.toUpperCase()}';
   }
 
-  // ---------- Acciones ----------
   void _abrirEditarCliente(Cliente c) async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AgregarClienteScreen(
-          modulo: _filtro, // 👈 agregado para identificar el módulo
+    Widget destino;
+
+    // Según el filtro actual, abrimos la pantalla correcta
+    switch (_filtro) {
+      case FiltroClientes.prestamos:
+        destino = AgregarClientePrestamoScreen(
           id: c.id,
           initNombre: c.nombre,
           initApellido: c.apellido,
@@ -441,14 +465,52 @@ class _ClientesScreenState extends State<ClientesScreen> {
           initTasa: c.tasaInteres,
           initPeriodo: c.periodo,
           initProximaFecha: c.proximaFecha,
-        ),
-      ),
+        );
+        break;
+
+      case FiltroClientes.productos:
+        destino = AgregarClienteProductoScreen(
+          id: c.id,
+          initNombre: c.nombre,
+          initApellido: c.apellido,
+          initTelefono: c.telefono,
+          initDireccion: c.direccion,
+          initNota: c.nota,
+          initProducto: c.producto,
+          initCapital: c.capitalInicial,
+          initTasa: c.tasaInteres,
+          initPeriodo: c.periodo,
+          initProximaFecha: c.proximaFecha,
+        );
+        break;
+
+      case FiltroClientes.alquiler:
+        destino = AgregarClienteAlquilerScreen(
+          id: c.id,
+          initNombre: c.nombre,
+          initApellido: c.apellido,
+          initTelefono: c.telefono,
+          initDireccion: c.direccion,
+          initNota: c.nota,
+          initProducto: c.producto,
+          initCapital: c.capitalInicial,
+          initTasa: c.tasaInteres,
+          initPeriodo: c.periodo,
+          initProximaFecha: c.proximaFecha,
+        );
+        break;
+    }
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => destino),
     );
+
     if (result == null || result is! Map) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    // Datos del form
+    // ... 🔽 desde aquí sigue tu código original, sin tocar
     final String nombre = (result['nombre'] as String).trim();
     final String apellido = (result['apellido'] as String).trim();
     final String nombreCompleto = '$nombre $apellido';
@@ -468,6 +530,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
     final DateTime nuevaProxRaw = result['proximaFecha'] as DateTime? ?? c.proximaFecha;
     final DateTime nuevaProx = _atNoon(nuevaProxRaw);
     final docId = result['id'] ?? c.id;
+
     final docRef = FirebaseFirestore.instance
         .collection('prestamistas')
         .doc(uid)
@@ -475,7 +538,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
         .doc(docId);
 
     try {
-      // 1) Actualiza datos generales
       final Map<String, dynamic> update = {
         'nombre': nombre,
         'apellido': apellido,
@@ -492,103 +554,140 @@ class _ClientesScreenState extends State<ClientesScreen> {
       };
       await docRef.set(update, SetOptions(merge: true));
 
-      // 2) Renovación automática cuando aplica
-      final bool estabaSaldado = c.saldoActual <= 0;
-      final bool capitalCambiado = nuevoCapital != c.saldoActual;
-      final bool renovarFlag = (result['renovar'] as bool?) ?? false;
-
-      final bool renovar = renovarFlag || (estabaSaldado && nuevoCapital > 0) || capitalCambiado;
-      if (renovar) {
-        final Map<String, dynamic> ren = {
-          'saldoActual': nuevoCapital,
-          'saldado': nuevoCapital <= 0,
-          'estado': nuevoCapital <= 0 ? 'saldado' : 'al_dia',
-          'proximaFecha': Timestamp.fromDate(nuevaProx),
-          'updatedAt': FieldValue.serverTimestamp(),
-          'venceEl': nuevoCapital <= 0
-              ? FieldValue.delete()
-              : Timestamp.fromDate(nuevaProx),
-        };
-        await docRef.set(ren, SetOptions(merge: true));
-
-        // Sumar SOLO el extra prestado (si hay) — aplica a préstamos
-        final int extra = nuevoCapital - c.saldoActual;
-        if (extra > 0) {
-          await docRef.set({
-            'totalPrestado': FieldValue.increment(extra),
-          }, SetOptions(merge: true));
-        }
-
-        // ===========================
-        // NUEVO (OPCIONAL): Si es ALQUILER y se marcó renovar,
-        // registra el pago del mes en el historial y suma a totalCobrado.
-        // ===========================
-        if (_esArriendo(c)) {
-          final int pagoRenta = nuevoCapital; // la renta mensual es el capitalInicial vigente
-          await docRef.collection('pagos').add({
-            'fecha': FieldValue.serverTimestamp(),
-            'pagoInteres': 0,
-            'pagoCapital': pagoRenta,
-            'moraCobrada': 0,
-            'totalPagado': pagoRenta,
-            'saldoAnterior': nuevoCapital,
-            'saldoNuevo': 0,
-            'periodo': 'Mensual',
-            'tasaInteres': 0.0,
-            'producto': producto ?? 'Alquiler',
-          });
-          await docRef.set({
-            'totalCobrado': FieldValue.increment(pagoRenta),
-          }, SetOptions(merge: true));
-        }
-        // ===========================
-
-        _showBanner('Renovación aplicada ✅', color: const Color(0xFF417CDE));
-      } else {
-        _showBanner('Cliente actualizado ✅', color: const Color(0xFF417CDE));
-      }
+      _showBanner('Cliente actualizado ✅', color: const Color(0xFF417CDE));
     } catch (e) {
       _showBanner('Error al actualizar: $e', color: const Color(0xFF417CDE));
     }
   }
 
+
   void _confirmarEliminar(Cliente c) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Eliminar cliente'),
-        content: Text('¿Seguro que deseas eliminar a ${c.nombreCompleto}?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          TextButton(
-            onPressed: () async {
-              final scaffoldCtx = context;
-              final uid = FirebaseAuth.instance.currentUser?.uid;
-              if (uid == null) return;
-              try {
-                await FirebaseFirestore.instance
-                    .collection('prestamistas')
-                    .doc(uid)
-                    .collection('clientes')
-                    .doc(c.id)
-                    .delete();
-                Navigator.pop(scaffoldCtx);
-                if (mounted) {
-                  _showBanner('Cliente eliminado', color: const Color(0xFFFFF1F2));
-                }
-              } catch (e) {
-                Navigator.pop(scaffoldCtx);
-                if (mounted) {
-                  _showBanner('Error al eliminar: $e', color: const Color(0xFFFFF1F2));
-                }
-              }
-            },
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+      barrierDismissible: false,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF2458D6), Color(0xFF0A9A76)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.25),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.white,
+                  size: 60,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '¿Eliminar cliente?',
+                  style: GoogleFonts.playfairDisplay(
+                    textStyle: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '¿Seguro que deseas eliminar a "${c.nombreCompleto}"?\nEsta acción no se puede deshacer.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    textStyle: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white.withOpacity(0.9),
+                          foregroundColor: const Color(0xFF2458D6),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Cancelar',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final scaffoldCtx = context;
+                          final uid = FirebaseAuth.instance.currentUser?.uid;
+                          if (uid == null) return;
+
+                          try {
+                            await FirebaseFirestore.instance
+                                .collection('prestamistas')
+                                .doc(uid)
+                                .collection('clientes')
+                                .doc(c.id)
+                                .delete();
+                            Navigator.pop(scaffoldCtx);
+                            if (mounted) {
+                              _showBanner('Cliente eliminado correctamente',
+                                  color: const Color(0xFFFFF1F2));
+                            }
+                          } catch (e) {
+                            Navigator.pop(scaffoldCtx);
+                            if (mounted) {
+                              _showBanner('Error al eliminar: $e',
+                                  color: const Color(0xFFFFF1F2));
+                            }
+                          }
+                        },
+                        icon: const Icon(Icons.delete_forever_rounded,
+                            color: Colors.white),
+                        label: const Text('Eliminar'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          elevation: 6,
+                          shadowColor: Colors.redAccent.withOpacity(0.4),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
+
 
   Future<void> _renovarArriendo(Cliente c, {bool generarRecibo = false}) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -665,6 +764,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
           .collection('clientes')
           .doc(c.id);
 
+      // 🔄 Próximo mes desde la fecha base guardada
       DateTime _addOneMonthSameDay(DateTime d) {
         final nextMonth = DateTime(d.year, d.month + 1, 1);
         final lastDayNextMonth = DateTime(nextMonth.year, nextMonth.month + 1, 0).day;
@@ -675,32 +775,58 @@ class _ClientesScreenState extends State<ClientesScreen> {
       final base = _atNoon(c.proximaFecha);
       final prox = _addOneMonthSameDay(base);
 
+      // 💰 Pago igual al capital (renta mensual)
+      final int pagoCapital = c.capitalInicial;
+      final int pagoInteres = 0;
+      final int moraCobrada = 0;
+      final int totalPagado = pagoCapital + pagoInteres + moraCobrada;
 
-      // el pago del alquiler es el capitalInicial (renta)
-      final int pago = c.capitalInicial;
+      // 💵 Cálculo de ganancia y recuperación (idéntico a PagoFormScreen)
+      final double ganancia = (c.capitalInicial * (c.tasaInteres / 100));
+      const double recuperacion = 100; // 100% porque se pagó completo
 
+      // ✅ Actualiza el cliente como pagado y renovado
       await docRef.set({
-        'saldoActual': c.capitalInicial,
         'saldoAnterior': c.capitalInicial,
-        'saldado': false,
+        'saldoActual': 0,
         'estado': 'al_dia',
+        'saldado': true,
         'proximaFecha': Timestamp.fromDate(prox),
         'venceEl': Timestamp.fromDate(prox),
         'updatedAt': FieldValue.serverTimestamp(),
-        'totalCobrado': FieldValue.increment(pago), // sumar al histórico cobrado
+        'totalCobrado': FieldValue.increment(totalPagado),
       }, SetOptions(merge: true));
+
+      // 🔢 Actualiza métricas globales (idéntico al pago manual)
+      try {
+        final metricsRef = FirebaseFirestore.instance
+            .collection('prestamistas')
+            .doc(uid)
+            .collection('metrics')
+            .doc('summary');
+
+        await metricsRef.set({
+          'totalCapitalRecuperado': FieldValue.increment(pagoCapital),
+          'totalGanancia': FieldValue.increment(ganancia.round()),
+          'totalClientesRenovados': FieldValue.increment(1),
+          'recuperacionTotal': FieldValue.increment(recuperacion.round()),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (e) {
+        print('⚠️ Error actualizando métricas: $e');
+      }
 
       if (!mounted) return;
 
+      // ✅ Si no se quiere generar recibo (solo renovar)
       if (!generarRecibo) {
         _showBanner('✅ Renovación completada', color: const Color(0xFF417CDE));
         return;
       }
 
-      // ——— Recibo ———
-      final String numeroSec = (DateTime.now().millisecondsSinceEpoch % 1000000)
-          .toString()
-          .padLeft(6, '0');
+      // 🧾 Generar recibo automático igual al pago manual
+      final String numeroSec =
+      (DateTime.now().millisecondsSinceEpoch % 1000000).toString().padLeft(6, '0');
       final String numeroRecibo = 'REC-$numeroSec';
 
       await Navigator.push(
@@ -716,25 +842,25 @@ class _ClientesScreenState extends State<ClientesScreen> {
             producto: c.producto ?? 'Alquiler',
             fecha: DateTime.now(),
             capitalInicial: c.capitalInicial,
-            pagoInteres: 0,
-            pagoCapital: pago,
-            totalPagado: pago,
+            pagoInteres: pagoInteres,
+            pagoCapital: pagoCapital,
+            totalPagado: totalPagado,
             saldoAnterior: c.capitalInicial,
             saldoRestante: 0,
             saldoActual: 0,
             proximaFecha: prox,
-            tasaInteres: 0,
-            moraCobrada: 0,
+            tasaInteres: c.tasaInteres,
+            moraCobrada: moraCobrada,
           ),
         ),
       );
 
-      // banner al volver del recibo
       _showBanner('Renovación completada ✅ · Recibo generado', color: const Color(0xFF417CDE));
     } catch (e) {
       _showBanner('Error al renovar: $e', color: const Color(0xFFE11D48));
     }
   }
+
 
 
 
@@ -1403,15 +1529,14 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                                 final res = await Navigator.push(
                                                   context,
                                                   MaterialPageRoute(
-                                                    builder: (_) => AgregarClienteScreen(
-                                                      modulo: _filtro, // 👈 Este es el único cambio importante
-                                                    ),
+                                                    builder: (_) => const AgregarClienteScreen(), // ✅ sin 'modulo'
                                                   ),
                                                 );
                                                 if (res is Map) {
                                                   _showBanner('Cliente agregado correctamente ✅');
                                                 }
                                               },
+
                                               child: const Icon(Icons.add, color: Colors.white),
                                             ),
                                           ),

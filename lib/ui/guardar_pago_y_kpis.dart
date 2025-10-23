@@ -1,8 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mi_recibo/core/estadisticas_totales_service.dart';
 
 /// Guarda el pago y actualiza los KPIs globales sin sobrescribir totales.
-/// Versión corregida y universal (suma préstamo, producto y alquiler).
+/// Versión corregida y universal (suma préstamo, producto y alquiler correctamente).
 Future<void> guardarPagoYActualizarKPIs({
   required DocumentReference<Map<String, dynamic>> docPrest,
   required DocumentReference<Map<String, dynamic>> clienteRef,
@@ -17,22 +18,30 @@ Future<void> guardarPagoYActualizarKPIs({
   if (saldoNuevo < 0) saldoNuevo = 0;
 
   // ==============================
-  // LEER CLIENTE Y DETERMINAR CATEGORÍA
+  // LEER CLIENTE Y DETERMINAR CATEGORÍA ROBUSTAMENTE
   // ==============================
   final cliSnap = await clienteRef.get();
   final m = cliSnap.data() ?? {};
 
-  final prodTxt = (m['producto'] ?? '').toString().toLowerCase().trim();
-  final tipoTxt = (m['tipo'] ?? '').toString().toLowerCase().trim();
+  final texto = '${m['tipo'] ?? ''} ${m['producto'] ?? ''}'.toLowerCase();
 
   String categoria = 'prestamo';
-  if (prodTxt.contains('alquiler') || prodTxt.contains('renta') ||
-      tipoTxt.contains('alquiler')) {
+  if (texto.contains('alquiler') ||
+      texto.contains('renta') ||
+      texto.contains('arriendo') ||
+      texto.contains('casa') ||
+      texto.contains('apartamento')) {
     categoria = 'alquiler';
-  } else if (prodTxt.contains('producto') || tipoTxt.contains('producto') ||
-      tipoTxt.isEmpty) {
+  } else if (texto.contains('producto') ||
+      texto.contains('mercancia') ||
+      texto.contains('mercancía') ||
+      texto.contains('articulo') ||
+      texto.contains('artículo') ||
+      texto.contains('venta')) {
     categoria = 'producto';
-  } else if (prodTxt.contains('prestamo') || tipoTxt.contains('prestamo')) {
+  } else if (texto.contains('prestamo') ||
+      texto.contains('crédito') ||
+      texto.contains('loan')) {
     categoria = 'prestamo';
   }
 
@@ -42,12 +51,17 @@ Future<void> guardarPagoYActualizarKPIs({
   int deltaGanancia = 0;
   switch (categoria) {
     case 'prestamo':
+    // Ganancia = Interés + Mora (si existe)
       deltaGanancia = pagoInteres + moraCobrada;
       break;
+
     case 'producto':
+    // Ganancia = Mora si existe, o el interés si se aplica
       deltaGanancia = moraCobrada > 0 ? moraCobrada : pagoInteres;
       break;
+
     case 'alquiler':
+    // Ganancia = Todo el monto pagado (ingreso total)
       deltaGanancia = totalPagado;
       break;
   }
@@ -68,6 +82,7 @@ Future<void> guardarPagoYActualizarKPIs({
     'totalPagado': totalPagado,
     'saldoAnterior': saldoAnterior,
     'saldoNuevo': saldoNuevo,
+    'categoria': categoria, // 🔹 Se guarda para referencia
   });
 
   // 2️⃣ Actualizar cliente
@@ -82,19 +97,22 @@ Future<void> guardarPagoYActualizarKPIs({
   await batch.commit();
 
   // ==============================
-// ACTUALIZAR ESTADÍSTICAS GLOBALES (corregido y universal)
-// ==============================
-  final prestamistaId = docPrest.id;
+  // ACTUALIZAR ESTADÍSTICAS GLOBALES (corregido y universal)
+  // ==============================
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+  final prestamistaId = user.uid;
+
   final summaryRef = FirebaseFirestore.instance
       .collection('prestamistas')
       .doc(prestamistaId)
       .collection('metrics')
       .doc('summary');
 
-// 🔹 Asegura estructura base
+  // 🔹 Asegura estructura base
   await EstadisticasTotalesService.ensureStructure(prestamistaId);
 
-// 🔹 Actualiza totales globales sumando sin borrar datos previos
+  // 🔹 Actualiza totales globales sumando sin borrar datos previos
   await summaryRef.set({
     'totalCapitalRecuperado': FieldValue.increment(pagoCapital),
     'totalCapitalPendiente': FieldValue.increment(-pagoCapital),
@@ -102,7 +120,7 @@ Future<void> guardarPagoYActualizarKPIs({
     'updatedAt': FieldValue.serverTimestamp(),
   }, SetOptions(merge: true));
 
-// 🔹 Actualiza estadísticas por categoría (prestamo, producto o alquiler)
+  // 🔹 Actualiza estadísticas por categoría
   await EstadisticasTotalesService.adjustCategoria(
     prestamistaId,
     categoria,
@@ -110,5 +128,20 @@ Future<void> guardarPagoYActualizarKPIs({
     capitalPendienteDelta: -pagoCapital,
     gananciaNetaDelta: deltaGanancia,
   );
-}
 
+  // 🔹 (Opcional) Registrar log global del pago
+  await FirebaseFirestore.instance
+      .collection('prestamistas')
+      .doc(prestamistaId)
+      .collection('historial_pagos')
+      .add({
+    'categoria': categoria,
+    'clienteId': clienteRef.id,
+    'pagoCapital': pagoCapital,
+    'pagoInteres': pagoInteres,
+    'moraCobrada': moraCobrada,
+    'totalPagado': totalPagado,
+    'fecha': FieldValue.serverTimestamp(),
+    'ganancia': deltaGanancia,
+  });
+}

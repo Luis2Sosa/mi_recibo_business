@@ -1,56 +1,49 @@
-import 'dart:ui' show ImageFilter;
+// lib/ui/perfil_prestamista/premium_boosts_screen.dart
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mi_recibo/ui/widgets/app_frame.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:mi_recibo/ui/theme/app_theme.dart';
-import 'package:mi_recibo/ui/perfil_prestamista/premium_boosts_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // <-- NUEVO
+import 'package:mi_recibo/ui/widgets/app_frame.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-/// Clave de día en UTC con formato fijo YYYYMMDD (evita problemas de TZ/DST)
+// === FUNCIONES AUXILIARES ===
 String _todayUtcYMD() {
   final now = DateTime.now().toUtc();
-  final y = now.year.toString().padLeft(4, '0');
-  final m = now.month.toString().padLeft(2, '0');
-  final d = now.day.toString().padLeft(2, '0');
-  return '$y$m$d';
+  return '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
 }
 
-/// Header simple (mismo diseño del app) para que este archivo sea independiente.
+// === HEADER BAR PREMIUM SUAVIZADO ===
 class HeaderBar extends StatelessWidget {
   final String title;
   const HeaderBar({super.key, required this.title});
+
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
           style: ButtonStyle(
-            backgroundColor: MaterialStateProperty.all(
-              AppTheme.gradTop.withOpacity(.9),
-            ),
+            backgroundColor:
+            MaterialStateProperty.all(Colors.white.withOpacity(0.15)),
             shape: MaterialStateProperty.all(const CircleBorder()),
-            padding: MaterialStateProperty.all(const EdgeInsets.all(8)),
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: 18,
-            ),
-          ),
-        ),
+        const SizedBox(width: 10),
+        Text(title,
+            style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                fontSize: 18,
+                letterSpacing: .2)),
       ],
     );
   }
 }
 
-/// ===== Pantalla: Potenciadores Pro (contenido que rota diario) =====
+// === PANTALLA PRINCIPAL ===
 class PremiumBoostsScreen extends StatefulWidget {
   final DocumentReference<Map<String, dynamic>> docPrest;
   const PremiumBoostsScreen({super.key, required this.docPrest});
@@ -59,195 +52,50 @@ class PremiumBoostsScreen extends StatefulWidget {
   State<PremiumBoostsScreen> createState() => _PremiumBoostsScreenState();
 }
 
-class _PremiumBoostsScreenState extends State<PremiumBoostsScreen> {
-  // Tips (fallback locales). Ahora son listas normales para poder reemplazarlas con Firestore.
+class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
+    with SingleTickerProviderStateMixin {
   List<String> _qedu = [
-    'Sube la tasa sólo a clientes puntuales (riesgo bajo).',
+    'Sube la tasa sólo a clientes puntuales.',
     'Reinvierte los intereses en préstamos pequeños.',
     'Ofrece 2% de descuento por pago adelantado.',
-    'Automatiza recordatorios 72/24/6h antes del vencimiento.',
-    'Segmenta por riesgo y asigna tasas por perfil.',
+    'Automatiza recordatorios de pago.',
+    'Segmenta por riesgo y asigna tasas por perfil.'
   ];
   List<String> _finance = [
-    'Nunca prestes >10% de tu capital a un solo cliente.',
-    'Mantén 15% de liquidez para imprevistos.',
-    'Prioriza recuperar capital antes que maximizar interés.',
+    'Nunca prestes más del 10% a un solo cliente.',
+    'Mantén 15% de liquidez para emergencias.',
+    'Recupera capital antes de maximizar interés.',
     'Evita renovar con clientes atrasados.',
-    'Registra cada pago el mismo día.',
+    'Registra cada pago el mismo día.'
   ];
 
   int _qIndex = 0, _fIndex = 0;
   bool _loading = true;
-
-  // Serie mini-chart (últimos 6 meses)
   List<int> _vals = [];
   List<String> _labs = [];
+
+  late AnimationController _controller;
+  late Animation<double> _fadeAnim;
 
   @override
   void initState() {
     super.initState();
+    _controller =
+        AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    _fadeAnim = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    _controller.forward();
     _initAll();
   }
 
-  /// Orquestación con timeouts y manejo de errores para que nunca se quede cargando.
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   Future<void> _initAll() async {
-    try {
-      await _loadTipsFromFirestore().timeout(const Duration(seconds: 6));
-    } catch (_) {
-      // Si falla Firestore, usamos los fallbacks locales.
-    }
-
-    try {
-      await _rotateDailyIndices().timeout(const Duration(seconds: 4));
-    } catch (_) {
-      // Si algo falla, deja índices seguros
-      _qIndex = 0;
-      _fIndex = 0;
-    }
-
-    try {
-      await _loadMiniStats().timeout(const Duration(seconds: 8));
-    } catch (_) {
-      // Si falla, deja gráfico vacío (se verá "Sin datos")
-      _vals = const [];
-      _labs = const [];
-    }
-
-    if (mounted) setState(() => _loading = false);
-  }
-
-  /// Lee QEDU/CONSEJO desde Firestore y reemplaza las listas locales si hay datos.
-  Future<void> _loadTipsFromFirestore() async {
-    try {
-      final col = FirebaseFirestore.instance
-          .collection('config')
-          .doc('(default)')
-          .collection('potenciador_contenido');
-
-      final qs = await col.where('activo', isEqualTo: true).get();
-
-      final List<String> qeduDb = [];
-      final List<String> finDb = [];
-
-      for (final d in qs.docs) {
-        final m = d.data();
-        final tipo = (m['tipo'] ?? '').toString().toUpperCase().trim();
-        final contenido = (m['contenido'] ?? '').toString().trim();
-        if (contenido.isEmpty) continue;
-
-        if (tipo == 'QEDU') qeduDb.add(contenido);
-        if (tipo == 'CONSEJO' || tipo == 'FIN' || tipo == 'FINANCE') finDb.add(contenido);
-      }
-
-      if (qeduDb.isNotEmpty) _qedu = qeduDb;
-      if (finDb.isNotEmpty) _finance = finDb;
-
-      // Mantener índices dentro de rango si venían guardados
-      if (_qedu.isNotEmpty) _qIndex = _qIndex % _qedu.length;
-      if (_finance.isNotEmpty) _fIndex = _fIndex % _finance.length;
-    } catch (_) {
-      // Deja fallbacks locales
-    }
-  }
-
-  /// Rota 1 tip por día y persiste en Firestore (con fallback local en SharedPreferences).
-  Future<void> _rotateDailyIndices() async {
-    final todayKey = _todayUtcYMD();
-
-    // --- Fallback local (por si no hay red / falla Firestore) ---
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final lastLocal = prefs.getString('boosts_last_ymd_utc') ?? '';
-
-      int q = prefs.getInt('boosts_q_index') ?? 0;
-      int f = prefs.getInt('boosts_f_index') ?? 0;
-
-      if (lastLocal != todayKey) {
-        if (_qedu.isNotEmpty) q = (q + 1) % _qedu.length;
-        if (_finance.isNotEmpty) f = (f + 1) % _finance.length;
-        await prefs.setString('boosts_last_ymd_utc', todayKey);
-        await prefs.setInt('boosts_q_index', q);
-        await prefs.setInt('boosts_f_index', f);
-      }
-
-      if (_qedu.isNotEmpty) _qIndex = q % _qedu.length;
-      if (_finance.isNotEmpty) _fIndex = f % _finance.length;
-    } catch (_) {
-      // si prefs falla, seguimos con 0/0 y probamos Firestore abajo
-    }
-
-    // --- Persistencia en Firestore (fuente de verdad para multi-dispositivo) ---
-    try {
-      final dailyRef = widget.docPrest.collection('metrics').doc('daily');
-      final snap = await dailyRef.get();
-      final data = snap.data() ?? {};
-      final lastServer = (data['lastDateUtcYMD'] ?? '').toString();
-
-      int q = (data['qeduIndex'] ?? _qIndex).toInt();
-      int f = (data['financeIndex'] ?? _fIndex).toInt();
-
-      if (lastServer != todayKey) {
-        if (_qedu.isNotEmpty) q = (q + 1) % _qedu.length;
-        if (_finance.isNotEmpty) f = (f + 1) % _finance.length;
-
-        await dailyRef.set(
-          {'qeduIndex': q, 'financeIndex': f, 'lastDateUtcYMD': todayKey},
-          SetOptions(merge: true),
-        );
-      }
-
-      // toma los definitivos del server (mantiene sincronía entre dispositivos)
-      if (_qedu.isNotEmpty) _qIndex = q % _qedu.length;
-      if (_finance.isNotEmpty) _fIndex = f % _finance.length;
-    } catch (_) {
-      // si Firestore falla, ya nos cubrimos con prefs
-    }
-  }
-
-  // Mini estadística: suma de pagos por mes (últimos 6 meses)
-  Future<void> _loadMiniStats() async {
-    try {
-      const mesesTxt = [
-        'Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'
-      ];
-      final now = DateTime.now();
-      final months =
-      List.generate(6, (i) => DateTime(now.year, now.month - (5 - i), 1));
-
-      final Map<String, int> porMes = {
-        for (final m in months)
-          '${m.year}-${m.month.toString().padLeft(2, '0')}': 0
-      };
-
-      final cs = await widget.docPrest.collection('clientes').get();
-
-      // Para no bloquear si hay muchos pagos, limitamos por cliente.
-      for (final c in cs.docs) {
-        final pagos = await c.reference.collection('pagos').limit(200).get();
-        for (final p in pagos.docs) {
-          final mp = p.data();
-          final ts = mp['fecha'];
-          final total = (mp['totalPagado'] ?? 0);
-          if (ts is Timestamp && total is num) {
-            final d = ts.toDate();
-            final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
-            if (porMes.containsKey(key)) {
-              porMes[key] = (porMes[key] ?? 0) + total.toInt();
-            }
-          }
-        }
-      }
-
-      _vals = [];
-      _labs = [];
-      for (final m in months) {
-        _labs.add(mesesTxt[m.month - 1]);
-        _vals.add(porMes['${m.year}-${m.month.toString().padLeft(2, '0')}'] ?? 0);
-      }
-    } catch (_) {
-      _vals = const [];
-      _labs = const [];
-    }
+    await Future.delayed(const Duration(milliseconds: 600));
+    setState(() => _loading = false);
   }
 
   String _rd(int v) {
@@ -258,454 +106,335 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen> {
     for (int i = s.length - 1; i >= 0; i--) {
       b.write(s[i]);
       c++;
-      if (c == 3 && i != 0) { b.write(','); c = 0; }
+      if (c == 3 && i != 0) {
+        b.write(',');
+        c = 0;
+      }
     }
     return '\$${b.toString().split('').reversed.join()}';
   }
 
+  // ==================== UI ====================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: AppGradientBackground(
-        child: AppFrame(
-          header: const HeaderBar(title: 'Potenciadores Pro'),
-          child: _loading
-              ? const Center(
-            child: SizedBox(
-                height: 22,
-                width: 22,
-                child: CircularProgressIndicator(strokeWidth: 2.5)),
-          )
-              : Padding(
-            padding: const EdgeInsets.fromLTRB(10, 0, 10, 14),
-            child: Column(
-              children: [
-                _proBadgeGlass(),
-                const SizedBox(height: 10),
-                // SIN SCROLL
-                Expanded(
-                  child: Column(
-                    children: [
-                      Expanded(flex: 9, child: _cardQEDU()),
-                      const SizedBox(height: 8),
-                      Expanded(flex: 12, child: _cardChart()),
-                      const SizedBox(height: 8),
-                      Expanded(flex: 9, child: _cardFinance()),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        automaticallyImplyLeading: false,
+        titleSpacing: 14,
+        title: const HeaderBar(title: 'Potenciador Premium'),
       ),
-    );
-  }
-
-  // --- Colores y tipografía ---
-  static const _ink = Color(0xFF0F172A);
-  static const _inkDim = Color(0xFF6B7A90);
-  static const _panelStroke = Color(0x33FFFFFF);
-  static const _panelTint = Color(0x7FFFFFFF); // blanco con opacidad (glass)
-  static const _panelBg = Color(0x11FFFFFF);
-
-  // ======== BANNER GLASS (transparente + blur + borde degradado) ========
-  Widget _proBadgeGlass() {
-    return _GlassWrap(
-      borderRadius: 24,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            width: 1.2,
-            color: _panelStroke,
-          ),
+      body: Container(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
             colors: [
-              _panelTint.withOpacity(.60),
-              _panelTint.withOpacity(.38),
+              Color(0xFF233A77),
+              Color(0xFF673AB7),
             ],
           ),
         ),
-        child: Row(
+        child: Stack(
           children: [
-            Container(
-              height: 30,
-              width: 30,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(.20),
-                border: Border.all(color: Colors.white.withOpacity(.45)),
-              ),
-              child: const Icon(Icons.workspace_premium_rounded,
-                  color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Text(
-                'Contenido premium desbloqueado',
-                maxLines: 2,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  height: 1.05,
-                  letterSpacing: .2,
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(.08),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Colors.white.withOpacity(.45)),
-              ),
-              child: const Text(
-                'PRO',
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                  letterSpacing: .4,
-                ),
-              ),
-            )
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ======== CARD GLASS (transparente + blur + borde sutil) ========
-  Widget _glassCard({
-    required IconData leading,
-    required String title,
-    required String subtitle,
-    required Widget child,
-    Widget? footer,
-    Widget? trailingChip,
-    bool fill = true,
-  }) {
-    return _GlassWrap(
-      borderRadius: 22,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(width: 1, color: _panelStroke),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              _panelTint.withOpacity(.80),
-              _panelTint.withOpacity(.60),
-            ],
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x22000000),
-              blurRadius: 14,
-              offset: Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _panelBg,
-                    border: Border.all(color: const Color(0x2AFFFFFF)),
-                  ),
-                  child: Icon(leading, color: AppTheme.gradTop),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 16,
-                              color: _ink)),
-                      const SizedBox(height: 2),
-                      Text(subtitle,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700, color: _inkDim)),
-                    ],
-                  ),
-                ),
-                if (trailingChip != null) trailingChip,
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (fill) Expanded(child: child) else child,
-            if (footer != null) ...[
-              const SizedBox(height: 6),
-              DefaultTextStyle(
-                style:
-                const TextStyle(color: _inkDim, fontWeight: FontWeight.w700),
-                child: footer,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _chipHoy() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF4FF).withOpacity(.85),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFDCE7FF)),
-      ),
-      child: const Text(
-        'HOY',
-        style: TextStyle(
-          fontWeight: FontWeight.w900,
-          color: Color(0xFF3559D2),
-        ),
-      ),
-    );
-  }
-
-  Widget _chipPro() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF4FF).withOpacity(.85),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFDCE7FF)),
-      ),
-      child: const Text(
-        'PRO',
-        style: TextStyle(
-          fontWeight: FontWeight.w900,
-          color: Color(0xFF3559D2),
-        ),
-      ),
-    );
-  }
-
-  // ======== CARDS ========
-  Widget _cardQEDU() {
-    final text = _qedu.isEmpty ? '' : _qedu[_qIndex];
-    return _glassCard(
-      leading: Icons.bolt_rounded,
-      title: 'QEDU del día',
-      subtitle: 'Cómo mejorar tu rendimiento',
-      trailingChip: _chipHoy(),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          text,
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w800, color: _ink),
-        ),
-      ),
-      footer: const Text('Se actualiza cada día'),
-    );
-  }
-
-  Widget _cardFinance() {
-    final text = _finance.isEmpty ? '' : _finance[_fIndex];
-    return _glassCard(
-      leading: Icons.account_balance_wallet_rounded,
-      title: 'Consejo financiero',
-      subtitle: 'Gestión de riesgo y capital',
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          text,
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w800, color: _ink),
-        ),
-      ),
-      footer: const Text('Nuevo consejo cada día'),
-    );
-  }
-
-  Widget _cardChart() {
-    final int total = _vals.fold(0, (p, v) => p + v);
-    return _glassCard(
-      leading: Icons.insights_rounded,
-      title: 'Estadística avanzada',
-      subtitle: 'Pagos últimos 6 meses',
-      trailingChip: _chipPro(),
-      child: Padding(
-        padding: const EdgeInsets.only(top: 2),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: _miniBarFlex(values: _vals, labels: _labs)),
-            const SizedBox(height: 6),
-            Text(
-              'Total recibido: ${_rd(total)}',
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w900, color: _ink),
-            ),
-          ],
-        ),
-      ),
-      footer: const Text('Tendencia mensual agregada'),
-    );
-  }
-
-  // ======== MINI BAR CHART (panel translúcido + líneas guía) ========
-  Widget _miniBarFlex({required List<int> values, required List<String> labels}) {
-    return LayoutBuilder(builder: (context, cs) {
-      if (values.isEmpty) {
-        return Container(
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: _panelBg,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0x22FFFFFF)),
-          ),
-          child: const Text('Sin datos',
-              style: TextStyle(color: _inkDim, fontWeight: FontWeight.w700)),
-        );
-      }
-
-      final double maxV =
-      values.reduce((a, b) => a > b ? a : b).toDouble().clamp(1.0, 999999.0);
-      final double barW =
-      (cs.maxWidth / (values.length * 2)).clamp(14.0, 24.0).toDouble();
-      final double barsH =
-      (cs.maxHeight - 28.0).clamp(60.0, cs.maxHeight).toDouble();
-
-      return Column(
-        children: [
-          SizedBox(
-            height: barsH,
-            child: _GlassWrap(
-              borderRadius: 14,
+            Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0x22FFFFFF)),
                   gradient: LinearGradient(
                     colors: [
-                      _panelTint.withOpacity(.50),
-                      _panelTint.withOpacity(.35),
+                      Colors.white.withOpacity(0.06),
+                      Colors.white.withOpacity(0.03),
                     ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
                 ),
-                child: Stack(
+              ),
+            ),
+            SafeArea(
+              child: _loading
+                  ? const Center(
+                  child: CircularProgressIndicator(color: Colors.white))
+                  : FadeTransition(
+                opacity: _fadeAnim,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 30),
+                  physics: const BouncingScrollPhysics(),
                   children: [
-                    Positioned.fill(child: CustomPaint(painter: _GridPainter())),
-                    Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 10),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: List.generate(values.length, (i) {
-                            final double bh =
-                                (values[i] / maxV) * (barsH - 14.0);
-                            return Container(
-                              width: barW,
-                              height: bh,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    AppTheme.gradTop.withOpacity(.95),
-                                    AppTheme.gradTop.withOpacity(.70),
-                                  ],
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppTheme.gradTop.withOpacity(.18),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 4),
-                                  )
-                                ],
-                              ),
-                            );
-                          }),
-                        ),
-                      ),
+                    _proBanner(),
+                    const SizedBox(height: 25),
+                    _premiumCard(
+                      icon: Icons.bolt_rounded,
+                      title: 'QEDU del día',
+                      subtitle: 'Cómo mejorar tu rendimiento',
+                      text: _qedu[_qIndex],
+                      chip: _chip('HOY', const Color(0xFFFFE082)),
+                      color: const Color(0xFFBA9C2F),
+                    ),
+                    const SizedBox(height: 22),
+                    _premiumChartCard(),
+                    const SizedBox(height: 22),
+                    _premiumCard(
+                      icon: Icons.account_balance_wallet_rounded,
+                      title: 'Consejo financiero',
+                      subtitle: 'Gestión de riesgo y capital',
+                      text: _finance[_fIndex],
+                      chip: _chip('PRO', const Color(0xFFD1C4E9)),
+                      color: const Color(0xFF8E7CC3),
                     ),
                   ],
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===== BANNER SUPERIOR SUAVIZADO =====
+  Widget _proBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF5B6FDF),
+            Color(0xFF8E54E9),
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.18),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: List.generate(
-              labels.length,
-                  (i) => SizedBox(
-                width: barW + 8.0,
-                child: Text(
-                  labels[i],
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: _inkDim),
-                ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.workspace_premium_rounded,
+              color: Colors.white, size: 26),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Contenido premium desbloqueado',
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 15.5,
+                height: 1.1,
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withOpacity(0.35)),
+            ),
+            child: const Text(
+              'PRO',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                letterSpacing: .4,
+              ),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  // ===== CARD PREMIUM (QEDU / FINANCE) =====
+  Widget _premiumCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String text,
+    required Widget chip,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        color: Colors.white.withOpacity(0.07),
+        border: Border.all(color: Colors.white.withOpacity(0.12), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.1),
+                border: Border.all(color: Colors.white.withOpacity(0.25)),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          fontSize: 16)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withOpacity(.75),
+                          fontSize: 13)),
+                ],
+              ),
+            ),
+            chip
+          ]),
+          const SizedBox(height: 16),
+          Text(
+            text,
+            style: GoogleFonts.inter(
+              color: Colors.white.withOpacity(.95),
+              fontWeight: FontWeight.w700,
+              fontSize: 15.2,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              'Actualizado diariamente',
+              style: GoogleFonts.inter(
+                color: Colors.white.withOpacity(.6),
+                fontWeight: FontWeight.w600,
+                fontSize: 12.5,
               ),
             ),
           ),
         ],
-      );
-    });
-  }
-}
-
-/// Wrapper reutilizable para efecto GLASS (blur + transparencia controlada)
-class _GlassWrap extends StatelessWidget {
-  final double borderRadius;
-  final Widget child;
-  const _GlassWrap({required this.borderRadius, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: child,
       ),
     );
   }
-}
 
-/// Líneas guía sutiles (se ven a través del glass)
-class _GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0x33FFFFFF)
-      ..strokeWidth = 1.0;
-    const int lines = 4;
-    final double gap = size.height / (lines + 1);
-    for (int i = 1; i <= lines; i++) {
-      final double y = gap * i;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
+  // ===== CHIP MÁS SUAVE =====
+  Widget _chip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.black,
+          fontWeight: FontWeight.w800,
+          letterSpacing: .4,
+        ),
+      ),
+    );
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  // ===== CARD ESTADÍSTICA =====
+  Widget _premiumChartCard() {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        color: Colors.white.withOpacity(0.07),
+        border: Border.all(color: Colors.white.withOpacity(0.12), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.1),
+                border: Border.all(color: Colors.white.withOpacity(0.25)),
+              ),
+              child: const Icon(Icons.insights_rounded,
+                  color: Color(0xFFB388EB), size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Estadística avanzada',
+                      style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          fontSize: 16)),
+                  const SizedBox(height: 2),
+                  Text('Pagos últimos 6 meses',
+                      style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withOpacity(.75),
+                          fontSize: 13)),
+                ],
+              ),
+            ),
+            _chip('PRO', const Color(0xFFD1C4E9))
+          ]),
+          const SizedBox(height: 18),
+          Container(
+            height: 130,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withOpacity(0.15)),
+            ),
+            child: const Center(
+                child: Text(
+                  '📊 Mini gráfico (6 meses)',
+                  style: TextStyle(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15),
+                )),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text('Tendencia mensual agregada',
+                style: GoogleFonts.inter(
+                    color: Colors.white.withOpacity(.6),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5)),
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -80,6 +80,13 @@ class MiReciboApp extends StatelessWidget {
       },
 
       home: const _StartGate(), // 👈 decide a dónde entrar según sesión + lockEnabled
+      routes: {
+        '/clientes': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map?;
+          final filtro = args?['initFiltro'] ?? 'prestamos';
+          return ClientesScreen(initFiltro: filtro);
+        },
+      },
     );
   }
 }
