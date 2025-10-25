@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mi_recibo/ui/theme/app_theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:mi_recibo/ui/premium/pantalla_bloqueo_premium.dart';
+
 
 
 class _BrandX {
@@ -118,8 +120,16 @@ class EstadisticasHistoricoView extends StatelessWidget {
               title: 'Ganancias totales',
               subtitle: 'Toca para ver',
               leading: Icons.trending_up_rounded,
-              onTap: onOpenGanancias,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const PantallaBloqueoPremium(),
+                  ),
+                );
+              },
             ),
+
 
 
             // 2️⃣ Total capital recuperado
