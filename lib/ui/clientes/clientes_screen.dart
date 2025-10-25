@@ -5,6 +5,8 @@ import 'agregar_cliente_alquiler_screen.dart';
 import 'agregar_cliente_prestamo.dart';
 import 'agregar_cliente_producto_screen.dart';
 import 'auto_filtro_service.dart';
+import 'agregar_cliente_producto_screen.dart';
+
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -478,11 +480,12 @@ class _ClientesScreenState extends State<ClientesScreen> {
           initNota: c.nota,
           initProducto: c.producto,
           initCapital: c.capitalInicial,
-          initTasa: c.tasaInteres,
+          initTasa: c.tasaInteres?.toDouble(),
           initPeriodo: c.periodo,
           initProximaFecha: c.proximaFecha,
         );
         break;
+
 
       case FiltroClientes.alquiler:
         destino = AgregarClienteAlquilerScreen(

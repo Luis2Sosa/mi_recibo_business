@@ -47,6 +47,9 @@ dependencies:
   # 🔄 Detección de conexión a internet
   connectivity_plus: ^6.0.3
 
+  # 📈 Gráficos modernos
+  fl_chart: ^0.68.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

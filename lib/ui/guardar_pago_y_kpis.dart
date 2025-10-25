@@ -1,9 +1,8 @@
+// lib/core/guardar_pago_y_actualizar_kpis.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mi_recibo/core/estadisticas_totales_service.dart';
 
-/// Guarda el pago y actualiza los KPIs globales sin sobrescribir totales.
-/// Versión corregida y universal (suma préstamo, producto y alquiler correctamente).
 Future<void> guardarPagoYActualizarKPIs({
   required DocumentReference<Map<String, dynamic>> docPrest,
   required DocumentReference<Map<String, dynamic>> clienteRef,
@@ -14,134 +13,175 @@ Future<void> guardarPagoYActualizarKPIs({
   required int saldoAnterior,
   required DateTime proximaFecha,
 }) async {
-  int saldoNuevo = saldoAnterior - pagoCapital;
-  if (saldoNuevo < 0) saldoNuevo = 0;
+  try {
+    int saldoNuevo = saldoAnterior - pagoCapital;
+    if (saldoNuevo < 0) saldoNuevo = 0;
 
-  // ==============================
-  // LEER CLIENTE Y DETERMINAR CATEGORÍA ROBUSTAMENTE
-  // ==============================
-  final cliSnap = await clienteRef.get();
-  final m = cliSnap.data() ?? {};
+    // ==============================
+    // 🔹 LEER CLIENTE Y DETERMINAR CATEGORÍA
+    // ==============================
+    final cliSnap = await clienteRef.get();
+    final m = cliSnap.data() ?? {};
 
-  final texto = '${m['tipo'] ?? ''} ${m['producto'] ?? ''}'.toLowerCase();
+    final texto = '${m['tipo'] ?? ''} ${m['producto'] ?? ''}'.toLowerCase();
+    String categoria = 'prestamo';
 
-  String categoria = 'prestamo';
-  if (texto.contains('alquiler') ||
-      texto.contains('renta') ||
-      texto.contains('arriendo') ||
-      texto.contains('casa') ||
-      texto.contains('apartamento')) {
-    categoria = 'alquiler';
-  } else if (texto.contains('producto') ||
-      texto.contains('mercancia') ||
-      texto.contains('mercancía') ||
-      texto.contains('articulo') ||
-      texto.contains('artículo') ||
-      texto.contains('venta')) {
-    categoria = 'producto';
-  } else if (texto.contains('prestamo') ||
-      texto.contains('crédito') ||
-      texto.contains('loan')) {
-    categoria = 'prestamo';
-  }
+    if (texto.contains('alquiler') ||
+        texto.contains('renta') ||
+        texto.contains('arriendo') ||
+        texto.contains('casa') ||
+        texto.contains('apartamento')) {
+      categoria = 'alquiler';
+    } else if (texto.contains('producto') ||
+        texto.contains('mercancia') ||
+        texto.contains('mercancía') ||
+        texto.contains('articulo') ||
+        texto.contains('artículo') ||
+        texto.contains('venta')) {
+      categoria = 'producto';
+    }
 
-  // ==============================
-  // GANANCIA REAL DEL PAGO
-  // ==============================
-  int deltaGanancia = 0;
-  switch (categoria) {
-    case 'prestamo':
-    // Ganancia = Interés + Mora (si existe)
+    // ==============================
+    // 🔹 CALCULAR GANANCIA DEL PAGO
+    // ==============================
+    int deltaGanancia = 0;
+
+    if (categoria == 'prestamo') {
       deltaGanancia = pagoInteres + moraCobrada;
-      break;
-
-    case 'producto':
-    // Ganancia = Mora si existe, o el interés si se aplica
-      deltaGanancia = moraCobrada > 0 ? moraCobrada : pagoInteres;
-      break;
-
-    case 'alquiler':
-    // Ganancia = Todo el monto pagado (ingreso total)
+    } else if (categoria == 'alquiler') {
       deltaGanancia = totalPagado;
-      break;
+    } else if (categoria == 'producto') {
+      final gananciaTotal = (m['gananciaTotal'] ?? 0) as int;
+      final capitalInicial = (m['capitalInicial'] ?? 1) as int;
+
+      if (gananciaTotal > 0 && capitalInicial > 0) {
+        if (saldoNuevo <= 0) {
+          // ✅ Producto completamente pagado → registrar ganancia total
+          deltaGanancia = gananciaTotal;
+        } else {
+          // 📉 Pago parcial → registrar ganancia proporcional
+          final pagado = saldoAnterior - saldoNuevo;
+          deltaGanancia = ((gananciaTotal * pagado) / capitalInicial).round();
+        }
+      }
+    }
+
+    if (deltaGanancia < 0) deltaGanancia = 0;
+
+    // ==============================
+    // 🔹 GUARDAR EL PAGO Y ACTUALIZAR CLIENTE
+    // ==============================
+    final batch = FirebaseFirestore.instance.batch();
+
+    final pagosRef = clienteRef.collection('pagos').doc();
+    batch.set(pagosRef, {
+      'fecha': FieldValue.serverTimestamp(),
+      'pagoInteres': pagoInteres,
+      'pagoCapital': pagoCapital,
+      'moraCobrada': moraCobrada,
+      'totalPagado': totalPagado,
+      'saldoAnterior': saldoAnterior,
+      'saldoNuevo': saldoNuevo,
+      'categoria': categoria,
+      'gananciaPago': deltaGanancia,
+    });
+
+    batch.set(clienteRef, {
+      'saldoActual': saldoNuevo,
+      'proximaFecha': Timestamp.fromDate(proximaFecha),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'estado': saldoNuevo <= 0 ? 'saldado' : 'al_dia',
+    }, SetOptions(merge: true));
+
+    await batch.commit();
+
+    // ==============================
+    // 🔹 REFERENCIAS GENERALES
+    // ==============================
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final prestamistaId = user.uid;
+    final db = FirebaseFirestore.instance;
+
+    final summaryRef = db
+        .collection('prestamistas')
+        .doc(prestamistaId)
+        .collection('metrics')
+        .doc('summary');
+
+    // ==============================
+    // 🔹 ACTUALIZAR ESTADÍSTICAS NORMALES
+    // ==============================
+    await EstadisticasTotalesService.ensureStructure(prestamistaId);
+
+    await summaryRef.set({
+      'totalCapitalRecuperado': FieldValue.increment(pagoCapital),
+      'totalCapitalPendiente': FieldValue.increment(-pagoCapital),
+      'totalGanancia': FieldValue.increment(deltaGanancia),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    await EstadisticasTotalesService.adjustCategoria(
+      prestamistaId,
+      categoria,
+      capitalRecuperadoDelta: pagoCapital,
+      capitalPendienteDelta: -pagoCapital,
+      gananciaNetaDelta: deltaGanancia,
+    );
+
+    // ==============================
+    // 🔹 SI EL PRODUCTO SE SALDÓ → REGISTRAR GANANCIA TOTAL HISTÓRICA
+    // ==============================
+    if (categoria == 'producto' && saldoNuevo <= 0) {
+      final gananciaTotal = (m['gananciaTotal'] ?? 0) as int;
+      final capitalTotal = (m['capitalInicial'] ?? 0) as int;
+
+      if (gananciaTotal > 0) {
+        // 📈 Actualiza métricas globales
+        await summaryRef.set({
+          'totalGanancia': FieldValue.increment(gananciaTotal),
+          'totalCapitalRecuperado': FieldValue.increment(capitalTotal),
+          'totalCapitalPendiente': FieldValue.increment(-capitalTotal),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        // 📊 Actualiza categoría "producto"
+        final estadisticaProducto = db
+            .collection('prestamistas')
+            .doc(prestamistaId)
+            .collection('estadisticas')
+            .doc('producto');
+
+        await estadisticaProducto.set({
+          'gananciaNeta': FieldValue.increment(gananciaTotal),
+          'capitalRecuperado': FieldValue.increment(capitalTotal),
+          'capitalPendiente': FieldValue.increment(-capitalTotal),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        // 🧾 Registrar evento en historial
+        await db
+            .collection('prestamistas')
+            .doc(prestamistaId)
+            .collection('historial_pagos')
+            .add({
+          'categoria': 'producto',
+          'clienteId': clienteRef.id,
+          'pagoCapital': capitalTotal,
+          'pagoInteres': pagoInteres,
+          'moraCobrada': moraCobrada,
+          'totalPagado': totalPagado,
+          'fecha': FieldValue.serverTimestamp(),
+          'ganancia': gananciaTotal,
+          'nota': 'Producto saldado — ganancia total registrada',
+        });
+
+        print('✅ Ganancia total registrada correctamente en "producto".');
+      }
+    }
+
+    print('✅ KPI actualizado: $categoria (+$deltaGanancia ganancia)');
+  } catch (e) {
+    print('⚠️ Error en guardarPagoYActualizarKPIs: $e');
   }
-  if (deltaGanancia < 0) deltaGanancia = 0;
-
-  // ==============================
-  // GUARDAR PAGO Y ACTUALIZAR CLIENTE
-  // ==============================
-  final batch = FirebaseFirestore.instance.batch();
-
-  // 1️⃣ Registrar el pago dentro del cliente
-  final pagosRef = clienteRef.collection('pagos').doc();
-  batch.set(pagosRef, {
-    'fecha': FieldValue.serverTimestamp(),
-    'pagoInteres': pagoInteres,
-    'pagoCapital': pagoCapital,
-    'moraCobrada': moraCobrada,
-    'totalPagado': totalPagado,
-    'saldoAnterior': saldoAnterior,
-    'saldoNuevo': saldoNuevo,
-    'categoria': categoria, // 🔹 Se guarda para referencia
-  });
-
-  // 2️⃣ Actualizar cliente
-  batch.set(clienteRef, {
-    'saldoActual': saldoNuevo,
-    'proximaFecha': Timestamp.fromDate(proximaFecha),
-    'updatedAt': FieldValue.serverTimestamp(),
-    'saldado': saldoNuevo <= 0,
-    'estado': saldoNuevo <= 0 ? 'saldado' : 'al_dia',
-  }, SetOptions(merge: true));
-
-  await batch.commit();
-
-  // ==============================
-  // ACTUALIZAR ESTADÍSTICAS GLOBALES (corregido y universal)
-  // ==============================
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) return;
-  final prestamistaId = user.uid;
-
-  final summaryRef = FirebaseFirestore.instance
-      .collection('prestamistas')
-      .doc(prestamistaId)
-      .collection('metrics')
-      .doc('summary');
-
-  // 🔹 Asegura estructura base
-  await EstadisticasTotalesService.ensureStructure(prestamistaId);
-
-  // 🔹 Actualiza totales globales sumando sin borrar datos previos
-  await summaryRef.set({
-    'totalCapitalRecuperado': FieldValue.increment(pagoCapital),
-    'totalCapitalPendiente': FieldValue.increment(-pagoCapital),
-    'totalGanancia': FieldValue.increment(deltaGanancia),
-    'updatedAt': FieldValue.serverTimestamp(),
-  }, SetOptions(merge: true));
-
-  // 🔹 Actualiza estadísticas por categoría
-  await EstadisticasTotalesService.adjustCategoria(
-    prestamistaId,
-    categoria,
-    capitalRecuperadoDelta: pagoCapital,
-    capitalPendienteDelta: -pagoCapital,
-    gananciaNetaDelta: deltaGanancia,
-  );
-
-  // 🔹 (Opcional) Registrar log global del pago
-  await FirebaseFirestore.instance
-      .collection('prestamistas')
-      .doc(prestamistaId)
-      .collection('historial_pagos')
-      .add({
-    'categoria': categoria,
-    'clienteId': clienteRef.id,
-    'pagoCapital': pagoCapital,
-    'pagoInteres': pagoInteres,
-    'moraCobrada': moraCobrada,
-    'totalPagado': totalPagado,
-    'fecha': FieldValue.serverTimestamp(),
-    'ganancia': deltaGanancia,
-  });
 }

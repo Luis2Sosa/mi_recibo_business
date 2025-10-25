@@ -289,12 +289,29 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       needsUpdate = true;
     }
 
-    if (_saldoActual <= 0 && !(saldado == true)) {
+    // 🔒 Detectar si es cliente de alquiler
+    final productoTxt = (widget.producto).toLowerCase();
+    final esAlquiler = productoTxt.contains('alquiler') ||
+        productoTxt.contains('arriendo') ||
+        productoTxt.contains('renta') ||
+        productoTxt.contains('casa') ||
+        productoTxt.contains('apart') ||
+        productoTxt.contains('estudio');
+
+// ⚙️ Evitar que los alquileres se marquen saldados
+    if (esAlquiler) {
+      if ((data['estado'] ?? '') != 'al_dia' || saldado == true) {
+        updates['saldado'] = false;
+        updates['estado'] = 'al_dia';
+        needsUpdate = true;
+      }
+    } else if (_saldoActual <= 0 && !(saldado == true)) {
       updates['saldado'] = true;
       updates['estado'] = 'saldado';
       updates['venceEl'] = FieldValue.delete();
       needsUpdate = true;
     }
+
 
     if (needsUpdate) {
       await ref.set(updates, SetOptions(merge: true));
@@ -609,6 +626,27 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           saldoAnterior: saldoAnterior,
           proximaFecha: proxNoon,
         );
+
+        // 🔧 Bloque especial: evitar que los alquileres se marquen saldados o bajen a 0
+        final textoProducto = widget.producto.toLowerCase();
+        final esAlquiler = textoProducto.contains('alquiler') ||
+            textoProducto.contains('renta') ||
+            textoProducto.contains('arriendo') ||
+            textoProducto.contains('apart') ||
+            textoProducto.contains('casa') ||
+            textoProducto.contains('estudio');
+
+        if (esAlquiler) {
+          await clienteRef.set({
+            'saldado': false,
+            'estado': 'al_dia',
+            'saldoActual': saldoAnterior, // 🔒 mantiene su monto original
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+          print('✅ Alquiler actualizado: al día, saldo conservado ($saldoAnterior)');
+        }
+
 
         // 3.b) Incrementar correlativo del cliente (NO tocamos saldos aquí)
         await FirebaseFirestore.instance.runTransaction((tx) async {

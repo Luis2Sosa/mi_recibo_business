@@ -50,7 +50,27 @@ class AlquilerScreen extends StatelessWidget {
     return EstadoVenc.alDia;
   }
 
-  bool _esSaldado(Cliente c) => c.saldoActual <= 0;
+  bool _esSaldado(Cliente c) {
+    final texto = (c.producto ?? '').toLowerCase().trim();
+
+    final esAlquiler = texto.contains('alquiler') ||
+        texto.contains('arriendo') ||
+        texto.contains('renta') ||
+        texto.contains('rent') ||
+        texto.contains('lease') ||
+        texto.contains('casa') ||
+        texto.contains('apart') ||
+        texto.contains('estudio') ||
+        texto.contains('apartaestudio') ||
+        texto.contains('aparta estudio');
+
+    // 🔹 Si es un alquiler, nunca se marca como saldado
+    if (esAlquiler) return false;
+
+    // 🔹 Solo préstamos o productos pueden marcarse saldados
+    return c.saldoActual <= 0;
+  }
+
 
   int _compareClientes(Cliente a, Cliente b) {
     final sa = _esSaldado(a);
@@ -160,7 +180,7 @@ class AlquilerScreen extends StatelessWidget {
               onLongPress: () => onLongPressCliente(c),
               child: ClienteCard(
                 cliente: c,
-                estado: estado,
+                estado: EstadoVenc.alDia, // 👈 fuerza que siempre estén “al día”
                 diasHasta: _diasHasta(c.proximaFecha),
                 resaltar: resaltarVencimientos,
                 codigoCorto: codigoCorto,

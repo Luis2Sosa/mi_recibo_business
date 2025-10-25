@@ -1,11 +1,11 @@
-// lib/clientes/agregar_cliente_producto_screen.dart
+// lib/ui/clientes/agregar_cliente_producto_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
-
+import '../../core/estadisticas_totales_service.dart';
 import 'clientes_screen.dart';
 
 // --- Formateador automático de teléfono ---
@@ -15,19 +15,16 @@ class TelefonoInputFormatter extends TextInputFormatter {
       TextEditingValue oldValue, TextEditingValue newValue) {
     final text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
     var newText = '';
-
     for (int i = 0; i < text.length; i++) {
       newText += text[i];
-      if (i == 2 || i == 5) newText += '-'; // agrega guiones automáticamente
+      if (i == 2 || i == 5) newText += '-';
     }
-
     return TextEditingValue(
       text: newText,
       selection: TextSelection.collapsed(offset: newText.length),
     );
   }
 }
-
 
 class AgregarClienteProductoScreen extends StatefulWidget {
   final String? id;
@@ -66,25 +63,17 @@ class _AgregarClienteProductoScreenState
     extends State<AgregarClienteProductoScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  late final TextEditingController _nombreCtrl;
-  late final TextEditingController _apellidoCtrl;
-  late final TextEditingController _telefonoCtrl;
-  late final TextEditingController _direccionCtrl;
-  late final TextEditingController _notaCtrl;
-  late final TextEditingController _productoCtrl;
-  late final TextEditingController _precioBaseCtrl;
-  late final TextEditingController _precioClienteCtrl;
-  late final TextEditingController _montoTotalCtrl;
-  late final TextEditingController _pagoInicialCtrl;
-  late final TextEditingController _capitalCtrl;
+  final _nombreCtrl = TextEditingController();
+  final _apellidoCtrl = TextEditingController();
+  final _telefonoCtrl = TextEditingController();
+  final _direccionCtrl = TextEditingController();
+  final _notaCtrl = TextEditingController();
+  final _pagoInicialCtrl = TextEditingController(text: '0');
 
-  bool _moraEnabled = false;
-  String _moraTipo = 'porcentaje';
-  double _moraValor = 10;
-  bool _mora15 = true,
-      _mora30 = false;
+  List<Map<String, TextEditingController>> _productos = [];
 
-  String _periodo = 'Mensual';
+  double _gananciaTotal = 0;
+  double _montoTotal = 0;
   DateTime? _proximaFecha;
   bool _guardando = false;
 
@@ -93,90 +82,66 @@ class _AgregarClienteProductoScreenState
   @override
   void initState() {
     super.initState();
-    _nombreCtrl = TextEditingController(text: widget.initNombre ?? '');
-    _apellidoCtrl = TextEditingController(text: widget.initApellido ?? '');
-    _telefonoCtrl = TextEditingController(text: widget.initTelefono ?? '');
-    _direccionCtrl = TextEditingController(text: widget.initDireccion ?? '');
-    _notaCtrl = TextEditingController(text: widget.initNota ?? '');
-    _productoCtrl = TextEditingController(text: widget.initProducto ?? '');
-    _precioBaseCtrl = TextEditingController();
-    _precioClienteCtrl = TextEditingController();
-    _montoTotalCtrl = TextEditingController();
-    _pagoInicialCtrl = TextEditingController(text: '0');
-    _capitalCtrl = TextEditingController();
-
-    _periodo = widget.initPeriodo ?? 'Mensual';
+    _nombreCtrl.text = widget.initNombre ?? '';
+    _apellidoCtrl.text = widget.initApellido ?? '';
+    _telefonoCtrl.text = widget.initTelefono ?? '';
+    _direccionCtrl.text = widget.initDireccion ?? '';
+    _notaCtrl.text = widget.initNota ?? '';
     _proximaFecha = widget.initProximaFecha;
-
-    _montoTotalCtrl.addListener(_syncCapital);
-    _pagoInicialCtrl.addListener(_syncCapital);
+    _agregarProducto();
   }
 
-  void _syncCapital() {
-    final total = int.tryParse(_montoTotalCtrl.text) ?? 0;
-    final inicial = int.tryParse(_pagoInicialCtrl.text) ?? 0;
-    final restante = (total - inicial).clamp(0, 999999999);
-    _capitalCtrl.text = restante.toString();
+  void _agregarProducto() {
+    setState(() {
+      _productos.add({
+        'nombre': TextEditingController(text: widget.initProducto ?? ''),
+        'precioBase': TextEditingController(),
+        'precioCliente': TextEditingController(),
+      });
+    });
   }
 
-  @override
-  void dispose() {
-    _nombreCtrl.dispose();
-    _apellidoCtrl.dispose();
-    _telefonoCtrl.dispose();
-    _direccionCtrl.dispose();
-    _notaCtrl.dispose();
-    _productoCtrl.dispose();
-    _precioBaseCtrl.dispose();
-    _precioClienteCtrl.dispose();
-    _montoTotalCtrl.dispose();
-    _pagoInicialCtrl.dispose();
-    _capitalCtrl.dispose();
-    super.dispose();
+  void _calcularTotales() {
+    double ganancia = 0;
+    double total = 0;
+    for (final prod in _productos) {
+      final base = double.tryParse(prod['precioBase']!.text) ?? 0;
+      final cliente = double.tryParse(prod['precioCliente']!.text) ?? 0;
+      ganancia += (cliente - base);
+      total += cliente;
+    }
+    setState(() {
+      _gananciaTotal = ganancia;
+      _montoTotal = total;
+    });
   }
 
-  InputDecoration _deco(String label, {IconData? icon}) =>
-      InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Color(0xFF64748B)),
-        floatingLabelStyle: const TextStyle(
-          color: Color(0xFF2563EB),
-          fontWeight: FontWeight.w600,
-        ),
-        filled: true,
-        fillColor: Colors.white,
-        prefixIcon:
-        icon != null ? Icon(icon, color: const Color(0xFF94A3B8)) : null,
-        contentPadding:
-        const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
-        ),
-      );
-
-  String _fmtFecha(DateTime d) {
-    const meses = [
-      'ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.',
-      'jul.', 'ago.', 'sept.', 'oct.', 'nov.', 'dic.'
-    ];
-    return '${d.day} ${meses[d.month - 1]} ${d.year}';
-  }
+  InputDecoration _deco(String label, {IconData? icon}) => InputDecoration(
+    labelText: label,
+    labelStyle: const TextStyle(color: Color(0xFF64748B)),
+    floatingLabelStyle: const TextStyle(
+      color: Color(0xFF2563EB),
+      fontWeight: FontWeight.w600,
+    ),
+    filled: true,
+    fillColor: Colors.white,
+    prefixIcon:
+    icon != null ? Icon(icon, color: const Color(0xFF94A3B8)) : null,
+    contentPadding:
+    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
-    final double h = MediaQuery
-        .of(context)
-        .size
-        .height;
+    final double h = MediaQuery.of(context).size.height;
 
     return Scaffold(
       body: Container(
@@ -232,12 +197,6 @@ class _AgregarClienteProductoScreenState
   }
 
   Widget _formBody() {
-    final ganancia = (int.tryParse(_precioClienteCtrl.text) ?? 0) -
-        (int.tryParse(_precioBaseCtrl.text) ?? 0);
-    final saldoRestante =
-        (int.tryParse(_montoTotalCtrl.text) ?? 0) -
-            (int.tryParse(_pagoInicialCtrl.text) ?? 0);
-
     return Form(
       key: _formKey,
       child: Column(
@@ -267,262 +226,174 @@ class _AgregarClienteProductoScreenState
             ),
           ),
           const SizedBox(height: 16),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.12),
-                  blurRadius: 18,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _nombreCtrl,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: _deco('Nombre', icon: Icons.person),
-                        validator: (v) =>
-                        (v == null || v.isEmpty) ? 'Obligatorio' : null,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _apellidoCtrl,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: _deco('Apellido', icon: Icons.badge),
-                        validator: (v) =>
-                        (v == null || v.isEmpty) ? 'Obligatorio' : null,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _telefonoCtrl,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [
-                    TelefonoInputFormatter(), // 👈 activa los guiones automáticos
-                  ],
-                  decoration: _deco('Teléfono', icon: Icons.call),
-                  validator: (v) =>
-                  (v == null || v.isEmpty) ? 'Obligatorio' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _direccionCtrl,
+          _formPrincipal(),
+          const SizedBox(height: 16),
+          _listaProductos(),
+          const SizedBox(height: 16),
+          _resumenTotales(),
+          const SizedBox(height: 20),
+          _fechaSection(),
+          const SizedBox(height: 20),
+          _botonGuardar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _formPrincipal() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _nombreCtrl,
                   textCapitalization: TextCapitalization.sentences,
-                  decoration: _deco('Dirección (opcional)', icon: Icons.home),
+                  decoration: _deco('Nombre', icon: Icons.person),
+                  validator: (v) =>
+                  (v == null || v.isEmpty) ? 'Obligatorio' : null,
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _notaCtrl,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextFormField(
+                  controller: _apellidoCtrl,
                   textCapitalization: TextCapitalization.sentences,
-                  decoration:
-                  _deco('Nota (opcional)', icon: Icons.note_alt_outlined),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _productoCtrl,
-                  decoration: _deco('Producto o servicio',
-                      icon: Icons.local_offer_rounded),
+                  decoration: _deco('Apellido', icon: Icons.badge),
                   validator: (v) =>
                   (v == null || v.isEmpty) ? 'Obligatorio' : null,
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _precioBaseCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: _deco('Precio base (costo real)',
-                      icon: Icons.inventory_2_rounded),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _precioClienteCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: _deco('Precio al cliente (venta total)',
-                      icon: Icons.attach_money_rounded),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Ganancia estimada:',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0F172A))),
-                    Text('\$ $ganancia',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF0F172A))),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _montoTotalCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: _deco('Monto total del producto',
-                      icon: Icons.sell_rounded),
-                  validator: (v) =>
-                  (v == null || v.isEmpty) ? 'Obligatorio' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _pagoInicialCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: _deco('Pago inicial (opcional)',
-                      icon: Icons.price_check_rounded),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Saldo restante:',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0F172A))),
-                    Text('\$ $saldoRestante',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF0F172A))),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _moraSection(),
-                const SizedBox(height: 16),
-                _fechaSection(),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 58,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2458D6),
-                      foregroundColor: Colors.white,
-                      elevation: 6,
-                      shadowColor: Colors.black.withOpacity(0.3),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    onPressed: _guardando ? null : _guardar,
-                    child: _guardando
-                        ? const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            )),
-                        SizedBox(width: 10),
-                        Text('Guardando...'),
-                      ],
-                    )
-                        : const Text('Guardar'),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _telefonoCtrl,
+            keyboardType: TextInputType.phone,
+            inputFormatters: [TelefonoInputFormatter()],
+            decoration: _deco('Teléfono', icon: Icons.call),
+            validator: (v) => (v == null || v.isEmpty) ? 'Obligatorio' : null,
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _direccionCtrl,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: _deco('Dirección (opcional)', icon: Icons.home),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _notaCtrl,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: _deco('Nota (opcional)', icon: Icons.note_alt_outlined),
+            maxLines: 3,
           ),
         ],
       ),
     );
   }
 
-  Widget _moraSection() {
+  Widget _listaProductos() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Productos o Servicios',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white)),
+            IconButton(
+              icon: const Icon(Icons.add_circle, color: Colors.white, size: 28),
+              onPressed: _agregarProducto,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (int i = 0; i < _productos.length; i++) _productoCard(i),
+      ],
+    );
+  }
+
+  Widget _productoCard(int index) {
+    final prod = _productos[index];
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.10),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        children: [
+          TextFormField(
+            controller: prod['nombre'],
+            decoration: _deco('Producto o Servicio', icon: Icons.local_offer),
+            validator: (v) =>
+            (v == null || v.isEmpty) ? 'Obligatorio' : null,
+          ),
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: prod['precioBase'],
+            keyboardType: TextInputType.number,
+            decoration: _deco('Precio base (costo real)',
+                icon: Icons.inventory_2_rounded),
+            onChanged: (_) => _calcularTotales(),
+          ),
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: prod['precioCliente'],
+            keyboardType: TextInputType.number,
+            decoration: _deco('Precio al cliente (venta total)',
+                icon: Icons.attach_money_rounded),
+            onChanged: (_) => _calcularTotales(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _resumenTotales() {
+    return Container(
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFFF7F8FA),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text('Mora por atraso',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
-              ),
-              Switch.adaptive(
-                value: _moraEnabled,
-                activeColor: const Color(0xFF2563EB), // Azul principal (ON)
-                inactiveTrackColor: Colors.grey.shade400, // gris visible cuando está apagado
-                inactiveThumbColor: Colors.grey.shade200, // gris claro para el botón
-                onChanged: (v) => setState(() => _moraEnabled = v),
-              ),
-            ],
+          Text('Ganancia estimada: \$${_gananciaTotal.toStringAsFixed(0)}',
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Text('Monto total: \$${_montoTotal.toStringAsFixed(0)}',
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _pagoInicialCtrl,
+            keyboardType: TextInputType.number,
+            decoration:
+            _deco('Pago inicial (opcional)', icon: Icons.price_check),
           ),
-          if (_moraEnabled) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                ChoiceChip(
-                  label: const Text('Porcentaje'),
-                  selected: _moraTipo == 'porcentaje',
-                  onSelected: (_) => setState(() => _moraTipo = 'porcentaje'),
-                ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('Monto fijo'),
-                  selected: _moraTipo == 'fijo',
-                  onSelected: (_) => setState(() => _moraTipo = 'fijo'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              initialValue: _moraValor.toString(),
-              keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))
-              ],
-              decoration: _deco(_moraTipo == 'porcentaje'
-                  ? 'Valor de mora (%)'
-                  : 'Valor de mora (monto)'),
-              onChanged: (v) =>
-              _moraValor = double.tryParse(v.replaceAll(',', '.')) ?? 0,
-            ),
-            const SizedBox(height: 8),
-            const Text('Aplicar si pasan:',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 8,
-              children: [
-                FilterChip(
-                  label: const Text('15 días'),
-                  selected: _mora15,
-                  onSelected: (s) => setState(() => _mora15 = s),
-                ),
-                FilterChip(
-                  label: const Text('30 días'),
-                  selected: _mora30,
-                  onSelected: (s) => setState(() => _mora30 = s),
-                ),
-              ],
-            ),
-          ],
         ],
       ),
     );
@@ -530,8 +401,7 @@ class _AgregarClienteProductoScreenState
 
   Widget _fechaSection() {
     return Container(
-      padding:
-      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFFF7F8FA),
         borderRadius: BorderRadius.circular(14),
@@ -542,54 +412,77 @@ class _AgregarClienteProductoScreenState
           width: 1.2,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _proximaFecha == null
-                      ? 'Próxima fecha: (selecciona)'
-                      : 'Próxima fecha: ${_fmtFecha(_proximaFecha!)}',
-                  style: TextStyle(
-                    color: _proximaFecha == null
-                        ? const Color(0xFFEF4444)
-                        : const Color(0xFF374151),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              TextButton.icon(
-                icon: const Icon(Icons.date_range),
-                label: const Text('Elegir'),
-                onPressed: () async {
-                  final sel = await showDatePicker(
-                    context: context,
-                    initialDate: _proximaFecha ?? DateTime.now(),
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime(2100),
-                  );
-                  if (sel != null) {
-                    setState(() => _proximaFecha = sel);
-                  }
-                },
-              ),
-            ],
-          ),
-          if (_proximaFecha == null)
-            const Padding(
-              padding: EdgeInsets.only(top: 4),
-              child: Text(
-                'Debes elegir una fecha de pago',
-                style: TextStyle(
-                  color: Color(0xFFEF4444),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
+          Expanded(
+            child: Text(
+              _proximaFecha == null
+                  ? 'Próxima fecha: (selecciona)'
+                  : 'Próxima fecha: ${_proximaFecha!.day}/${_proximaFecha!.month}/${_proximaFecha!.year}',
+              style: TextStyle(
+                color: _proximaFecha == null
+                    ? const Color(0xFFEF4444)
+                    : const Color(0xFF374151),
+                fontWeight: FontWeight.w600,
               ),
             ),
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.date_range),
+            label: const Text('Elegir'),
+            onPressed: () async {
+              final sel = await showDatePicker(
+                context: context,
+                initialDate: _proximaFecha ?? DateTime.now(),
+                firstDate: DateTime.now(),
+                lastDate: DateTime(2100),
+              );
+              if (sel != null) {
+                setState(() => _proximaFecha = sel);
+              }
+            },
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _botonGuardar() {
+    return SizedBox(
+      width: double.infinity,
+      height: 58,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF2458D6),
+          foregroundColor: Colors.white,
+          elevation: 6,
+          shadowColor: Colors.black.withOpacity(0.3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
+        ),
+        onPressed: _guardando ? null : _guardar,
+        child: _guardando
+            ? const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                )),
+            SizedBox(width: 10),
+            Text('Guardando...'),
+          ],
+        )
+            : const Text('Guardar'),
       ),
     );
   }
@@ -605,7 +498,6 @@ class _AgregarClienteProductoScreenState
 
     setState(() => _guardando = true);
 
-    // ✅ Aquí se declara correctamente uid
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -615,54 +507,77 @@ class _AgregarClienteProductoScreenState
       return;
     }
 
-    final clientesRef = FirebaseFirestore.instance
-        .collection('prestamistas')
-        .doc(uid)
-        .collection('clientes');
+    final db = FirebaseFirestore.instance;
+    final clientesRef =
+    db.collection('prestamistas').doc(uid).collection('clientes');
 
-    final total = int.tryParse(_montoTotalCtrl.text) ?? 0;
-    final inicial = int.tryParse(_pagoInicialCtrl.text) ?? 0;
-    final capital = (total - inicial).clamp(0, 999999999);
-
-    final nombre = _nombreCtrl.text.trim();
-    final apellido = _apellidoCtrl.text.trim();
-    final telefono = _telefonoCtrl.text.trim();
-    final producto = _productoCtrl.text.trim();
-    final direccion = _direccionCtrl.text.trim();
-    final nota = _notaCtrl.text.trim();
+    final pagoInicial = double.tryParse(_pagoInicialCtrl.text) ?? 0;
+    final saldoActual = (_montoTotal - pagoInicial).clamp(0, 999999999);
 
     final data = {
-      'nombre': nombre,
-      'apellido': apellido,
-      'telefono': telefono,
-      'producto': producto,
-      'direccion': direccion.isEmpty ? null : direccion,
-      'nota': nota.isEmpty ? null : nota,
-      'capitalInicial': capital,
-      'saldoActual': capital,
-      'productoMontoTotal': total,
-      'productoPagoInicial': inicial,
-      'periodo': _periodo,
+      'nombre': _nombreCtrl.text.trim(),
+      'apellido': _apellidoCtrl.text.trim(),
+      'telefono': _telefonoCtrl.text.trim(),
+      'producto': _productos.isNotEmpty
+          ? _productos.first['nombre']!.text.trim()
+          : '',
+      'direccion': _direccionCtrl.text.trim().isEmpty
+          ? null
+          : _direccionCtrl.text.trim(),
+      'nota': _notaCtrl.text.trim().isEmpty ? null : _notaCtrl.text.trim(),
+      'productos': _productos.map((p) {
+        return {
+          'nombre': p['nombre']!.text.trim(),
+          'precioBase': (double.tryParse(p['precioBase']!.text) ?? 0).toInt(),
+          'precioCliente':
+          (double.tryParse(p['precioCliente']!.text) ?? 0).toInt(),
+        };
+      }).toList(),
+      'gananciaTotal': _gananciaTotal.toInt(),
+      'montoTotal': _montoTotal.toInt(),
+      'pagoInicial': pagoInicial.toInt(),
+      'saldoActual': saldoActual.toInt(),
+      'capitalInicial': _montoTotal.toInt(),
+      'periodo': widget.initPeriodo ?? 'Mensual',
       'proximaFecha': Timestamp.fromDate(_proximaFecha!),
-      'mora': _moraEnabled
-          ? {
-        'tipo': _moraTipo,
-        'valor': _moraValor,
-        'umbralesDias': [
-          if (_mora15) 15,
-          if (_mora30) 30,
-        ],
-      }
-          : null,
+      'estado': saldoActual <= 0 ? 'saldado' : 'al_dia',
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
-      'estado': capital == 0 ? 'saldado' : 'al_dia',
     };
 
     try {
+      // 🔹 Guarda el cliente nuevo
       await clientesRef.add(data);
-      if (!mounted) return;
 
+      // 🔹 Calcula los valores para las estadísticas
+      final ganancia = _gananciaTotal.toInt();
+      final capital = _montoTotal.toInt();
+
+      // ✅ Asegurar estructura base (para que exista /estadisticas/producto)
+      await EstadisticasTotalesService.ensureStructure(uid);
+
+      // ✅ Actualizar métricas globales (summary)
+      final summaryRef = db
+          .collection('prestamistas')
+          .doc(uid)
+          .collection('metrics')
+          .doc('summary');
+
+      await summaryRef.set({
+        'totalGanancia': FieldValue.increment(ganancia),
+        'totalCapitalRecuperado': FieldValue.increment(capital),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // ✅ Actualizar categoría PRODUCTO usando servicio oficial
+      await EstadisticasTotalesService.adjustCategoria(
+        uid,
+        'producto',
+        gananciaNetaDelta: ganancia,
+        capitalRecuperadoDelta: capital,
+      );
+
+      if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (_) => const ClientesScreen(initFiltro: 'productos'),
@@ -676,6 +591,5 @@ class _AgregarClienteProductoScreenState
 
     if (mounted) setState(() => _guardando = false);
   }
+
 }
-
-

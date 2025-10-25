@@ -572,13 +572,16 @@ class _AgregarClienteAlquilerScreenState
       'estado': 'al_dia',
     };
 
-    try {if (_isEdit) {
-      await clientesRef.doc(widget.id).update(data);
-    } else {
-      await clientesRef.add(data);
-    }
+    try {
+      if (_isEdit && widget.id != null) {
+        // 🔹 Actualiza si ya existe el cliente
+        await clientesRef.doc(widget.id).update(data);
+      } else {
+        // 🔹 Crea uno nuevo si no existe
+        await clientesRef.add(data);
+      }
 
-    if (!mounted) return;
+      if (!mounted) return;
 
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(

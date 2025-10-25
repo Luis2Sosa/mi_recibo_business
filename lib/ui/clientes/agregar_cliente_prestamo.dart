@@ -549,7 +549,14 @@ class _AgregarClientePrestamoScreenState
     };
 
     try {
-      await clientesRef.add(data);
+      if (_isEdit && widget.id != null) {
+        // 🔹 Si el cliente ya existe, se actualiza
+        await clientesRef.doc(widget.id).update(data);
+      } else {
+        // 🔹 Si es nuevo, se agrega normalmente
+        await clientesRef.add(data);
+      }
+
       if (!mounted) return;
 
       Navigator.of(context).pushAndRemoveUntil(
@@ -564,6 +571,7 @@ class _AgregarClientePrestamoScreenState
     }
 
     if (mounted) setState(() => _guardando = false);
+
 
   }
 }

@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mi_recibo/ui/theme/app_theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 
 class _BrandX {
   static const ink = Color(0xFF0F172A);
@@ -112,13 +114,13 @@ class EstadisticasHistoricoView extends StatelessWidget {
           mainAxisSpacing: 12,
           children: [
             // 1️⃣ Ganancias totales
-            _kpiPremium(
+            KPIPremiumCard(
               title: 'Ganancias totales',
               subtitle: 'Toca para ver',
               leading: Icons.trending_up_rounded,
               onTap: onOpenGanancias,
-              gradient: const [Color(0xFFDFFCEF), Color(0xFFC5F5FF)],
             ),
+
 
             // 2️⃣ Total capital recuperado
             Builder(
@@ -576,73 +578,173 @@ Widget _kpiGlass({
   );
 }
 
-Widget _kpiPremium({
-  required String title,
-  required String subtitle,
-  required IconData leading,
-  required VoidCallback onTap,
-  required List<Color> gradient,
-}) {
-  return InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(18),
-    child: Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: gradient),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(.65), width: 1.4),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.10), blurRadius: 16, offset: const Offset(0, 6))],
-      ),
-      child: Center(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(leading, size: 18, color: AppTheme.gradTop),
-              const SizedBox(height: 6),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  textStyle: const TextStyle(
-                    color: _BrandX.ink,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                    letterSpacing: .2,
+class KPIPremiumCard extends StatefulWidget {
+  final String title;
+  final String subtitle;
+  final IconData leading;
+  final VoidCallback onTap;
+
+  const KPIPremiumCard({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.leading,
+    required this.onTap,
+  });
+
+  @override
+  State<KPIPremiumCard> createState() => _KPIPremiumCardState();
+}
+
+class _KPIPremiumCardState extends State<KPIPremiumCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _shineCtrl;
+  bool _shining = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _shineCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 5), // 💎 brillo lento, elegante y fluido
+    );
+
+    // 🔁 Cada 10 s lanza el brillo una vez (efecto premium sutil)
+    Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted && !_shineCtrl.isAnimating) {
+        _shineCtrl.forward(from: 0);
+      }
+    });
+  }
+
+
+  @override
+  void dispose() {
+    _shineCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: widget.onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: AnimatedBuilder(
+        animation: _shineCtrl,
+        builder: (context, child) {
+          final double t = _shineCtrl.value;
+          final double pos = (t * 2.4) - 1.2; // recorre diagonalmente
+
+          return Container(
+            constraints: const BoxConstraints(minHeight: 120, maxHeight: 150),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF0D1B2A),
+                  Color(0xFF1E2A78),
+                  Color(0xFF431F91),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              border: Border.all(color: Colors.white.withOpacity(.15), width: 1.4),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(.25),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                // ✨ Brillo diagonal que cruza toda la tarjeta (visible al pasar)
+                if (t > 0 && t < 1)
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: ShaderMask(
+                        shaderCallback: (rect) {
+                          return LinearGradient(
+                            begin: Alignment(-1.5 + pos, -1),
+                            end: Alignment(1.5 + pos, 1),
+                            colors: [
+                              Colors.transparent,
+                              Colors.white.withOpacity(0.9),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.35, 0.5, 0.65],
+                          ).createShader(rect);
+                        },
+                        blendMode: BlendMode.overlay,
+                        child: Container(color: Colors.white.withOpacity(0.05)),
+                      ),
+                    ),
+                  ),
+
+                // 📱 Contenido
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.center,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(widget.leading, color: Colors.white, size: 24),
+                        const SizedBox(height: 6),
+                        Text(
+                          widget.title,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 17,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: Colors.white.withOpacity(0.35)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.touch_app_rounded,
+                                  size: 14, color: Colors.white70),
+                              const SizedBox(width: 5),
+                              Text(
+                                widget.subtitle,
+                                style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFFE1E8F5)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.touch_app_rounded, size: 14, color: _BrandX.inkDim),
-                    const SizedBox(width: 6),
-                    Text(
-                      subtitle,
-                      style: TextStyle(fontWeight: FontWeight.w900, color: AppTheme.gradTop, fontSize: 12.5),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+              ],
+            ),
+          );
+        },
       ),
-    ),
-  );
+    );
+  }
 }
+
+
 
 Widget _card({required Widget child}) {
   return Container(

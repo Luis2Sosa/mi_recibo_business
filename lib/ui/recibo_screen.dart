@@ -1162,25 +1162,9 @@ class _ReceiptContent extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
                                   const SizedBox(height: 6),
-                                  Text(
-                                    'Gracias por cumplir tu compromiso.',
-                                    style: const TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black87,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
+
                                   const SizedBox(height: 12),
-                                  Text(
-                                    'Cliente al día',
-                                    style: const TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.black,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
+
                                 ],
                               ),
                             ],
@@ -1198,17 +1182,44 @@ class _ReceiptContent extends StatelessWidget {
                             ],
 
                             const SizedBox(height: 50),
-                            Text(
-                              esArriendo
-                                  ? 'No quedan pagos pendientes.'
-                                  : esProducto
-                                  ? (saldoRestante > 0
-                                  ? 'Gracias por tu compra. Nos vemos en el próximo pago.'
-                                  : '¡Disfruta tu compra! No quedan pagos pendientes.')
-                                  : 'No quedan pagos pendientes.',
-                              style: cfg.labelStyle,
-                              textAlign: TextAlign.center,
+                            Transform.translate(
+                              offset: const Offset(0, -45), // 👈 valor negativo = sube el texto (ajústalo -5, -10 o -15 según lo que veas)
+                              child: Text(
+                                esArriendo
+                                    ? 'Nos vemos en tu próxima fecha de pago.'
+                                    : esProducto
+                                    ? (saldoRestante > 0
+                                    ? 'Gracias por tu compra. Nos vemos en el próximo pago.'
+                                    : '¡Disfruta tu compra! No quedan pagos pendientes.')
+                                    : 'No quedan pagos pendientes.',
+                                style: cfg.labelStyle,
+                                textAlign: TextAlign.center,
+                              ),
                             ),
+
+
+                            const SizedBox(height: 18),
+                            ShaderMask(
+                              shaderCallback: (bounds) => const LinearGradient(
+                                colors: [Color(0xFF2458D6), Color(0xFF0A9A76)], // 👈 azul a verde azulado
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ).createShader(bounds),
+                              child: Text(
+                                'Este recibo fue generado con Mi Recibo Business',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.3,
+                                  color: Colors.white, // 👈 obligatorio para que se vea el degradado
+                                ),
+                              ),
+                            ),
+
+
+
+
                           ],
                         )
                             : Column(
