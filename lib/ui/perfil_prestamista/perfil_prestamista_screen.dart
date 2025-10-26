@@ -6,6 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:fl_chart/fl_chart.dart';
+
 
 import '../home_screen.dart';
 import '../widgets/charts_common.dart';
@@ -413,7 +415,9 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
 
       final now = DateTime.now();
       final monthsList = List.generate(6, (i) => DateTime(now.year, now.month - (5 - i), 1));
-      final Map<String, int> porMes = { for (final m in monthsList) '${m.year}-${m.month.toString().padLeft(2, '0')}': 0 };
+      final Map<String, int> porMes = {
+        for (final m in monthsList) '${m.year}-${m.month.toString().padLeft(2, '0')}': 0
+      };
 
       int sumPagos = 0;
       int sumIntereses = 0;
@@ -425,6 +429,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       double sumaRates = 0.0;
       int nRates = 0;
 
+      // 🔹 Recorrer clientes y sus pagos
       for (final d in cs.docs) {
         final m = d.data();
         final cap = (m['capitalInicial'] ?? 0) as int;
@@ -457,6 +462,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
           }
         }
 
+        // 🔹 Pagos reales (solo estos activan el histórico)
         final pagos = await d.reference.collection('pagos').get();
         for (final p in pagos.docs) {
           final mp = p.data();
@@ -485,6 +491,9 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         }
       }
 
+      // ===========================
+      // 🔹 Estadísticas generales
+      // ===========================
       totalPrestado = prestado;
       totalPendiente = pendiente;
       totalRecuperado = prestado - pendiente;
@@ -512,7 +521,22 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       clientesPagando = pagando;
       clientesVencidos = vencidos;
 
-      // Histórico persistido (sin tocar ganancias)
+      // ===========================
+      // 🔹 Resumen histórico (solo si hay pagos)
+      // ===========================
+      if (countPagos > 0) {
+        histPrimerPago = firstPay == null ? '—' : _fmtFecha(firstPay!);
+        histUltimoPago = lastPay == null ? '—' : _fmtFecha(lastPay!);
+        histMesTop = topMesVal <= 0 ? '—' : '$topMesKey (${_rd(topMesVal)})';
+      } else {
+        histPrimerPago = '—';
+        histUltimoPago = '—';
+        histMesTop = '—';
+      }
+
+      // ===========================
+      // 🔹 Histórico persistido (Firestore)
+      // ===========================
       try {
         final doc = await _docPrest!.collection('metrics').doc('summary').get();
         final data = doc.data();
@@ -524,25 +548,20 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
           lifetimeRecuperado = (data['lifetimeRecuperado'] ?? totalRecuperado) as int;
           lifetimePagosProm = (data['lifetimePagosProm'] ?? basePromedio) as int;
         } else {
-          lifetimePrestado = totalPrestado;
-          lifetimeRecuperado = totalRecuperado;
-          lifetimePagosProm = basePromedio;
+          lifetimePrestado = 0;
+          lifetimeRecuperado = 0;
+          lifetimePagosProm = 0;
         }
       } catch (_) {
         lifetimePrestado = totalPrestado;
         lifetimeRecuperado = totalRecuperado;
         lifetimePagosProm = countPagos == 0 ? 0 : (sumPagos / countPagos).round();
       }
-
-
-
-      histPrimerPago = firstPay == null ? '—' : _fmtFecha(firstPay!);
-      histUltimoPago = lastPay == null ? '—' : _fmtFecha(lastPay!);
-      histMesTop = topMesVal <= 0 ? '—' : '$topMesKey (${_rd(topMesVal)})';
     } finally {
       if (mounted) setState(() => _loadingStats = false);
     }
   }
+
 
   // ====================== UI ======================
   @override
@@ -976,93 +995,300 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
 
   // ===== GENERAL =====
   Widget _generalContent() {
-    // Caja informativa
-    final infoBox = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.25), width: 1),
-        ),
-        child: const Text(
-          'Puedes elegir una categoría para ver resultados detallados.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, height: 1.5),
-        ),
-      ),
-    );
 
-    // Filtros premium
+    // 🌟 Tarjeta Premium horizontal delgada — transparente, elegante y alineada con los KPI
+    Widget _categoriaCard({
+      required IconData icon,
+      required String title,
+      required Color color,
+      required VoidCallback onTap,
+    }) {
+      return Expanded(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          splashColor: color.withOpacity(0.15),
+          highlightColor: Colors.white.withOpacity(0.05),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: Colors.white.withOpacity(0.05),
+              border: Border.all(color: Colors.white.withOpacity(0.22)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 🔹 Ícono circular colorido
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        color.withOpacity(0.9),
+                        color.withOpacity(0.6),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 18),
+                ),
+
+                const SizedBox(height: 5),
+
+                // 🔹 Título
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.8,
+                  ),
+                ),
+
+                const SizedBox(height: 3),
+
+                // 🔹 Ícono del dedo táctil
+                Icon(
+                  Icons.touch_app_rounded,
+                  color: Colors.white.withOpacity(0.85),
+                  size: 13.5,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+// 🔹 Fila de botones ajustada al ancho exacto de los KPI
     final filtrosRow = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween, // 👈 más abierto
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _botonCircularPremiumV7(
+          _categoriaCard(
             icon: Icons.request_quote_rounded,
-            label: 'Préstamos',
-            gradienteBase: const [Color(0xFF2563EB), Color(0xFF1E3A8A)],
-            onTap: () { setState(() => _catSel = PerfilCategoria.prestamos); _openPrestamos(); },
-            activo: _catSel == PerfilCategoria.prestamos,
+            title: 'Préstamos',
+            color: const Color(0xFF2563EB),
+            onTap: () {
+              setState(() => _catSel = PerfilCategoria.prestamos);
+              _openPrestamos();
+            },
           ),
-          _botonCircularPremiumV7(
+          _categoriaCard(
             icon: Icons.shopping_bag_rounded,
-            label: 'Productos',
-            gradienteBase: const [Color(0xFF10B981), Color(0xFF047857)],
-            onTap: () { setState(() => _catSel = PerfilCategoria.productos); _openProductos(); },
-            activo: _catSel == PerfilCategoria.productos,
+            title: 'Productos',
+            color: const Color(0xFF10B981),
+            onTap: () {
+              setState(() => _catSel = PerfilCategoria.productos);
+              _openProductos();
+            },
           ),
-          _botonCircularPremiumV7(
+          _categoriaCard(
             icon: Icons.house_rounded,
-            label: 'Alquiler',
-            gradienteBase: const [Color(0xFFF59E0B), Color(0xFFB45309)],
-            onTap: () { setState(() => _catSel = PerfilCategoria.alquiler); _openAlquiler(); },
-            activo: _catSel == PerfilCategoria.alquiler,
+            title: 'Alquiler',
+            color: const Color(0xFFF59E0B),
+            onTap: () {
+              setState(() => _catSel = PerfilCategoria.alquiler);
+              _openAlquiler();
+            },
           ),
         ],
       ),
     );
 
-
-    // Bloques summary
     final bloqueHistorico = EstadisticasHistoricoView(
-      lifetimePrestado: totalPrestado,        // ← usa el total ACTUAL
-      lifetimeRecuperado: totalRecuperado,    // ← usa el recuperado ACTUAL
+      lifetimePrestado: totalPrestado,
+      lifetimeRecuperado: totalRecuperado,
       histPrimerPago: histPrimerPago,
       histUltimoPago: histUltimoPago,
       histMesTop: histMesTop,
       onOpenGanancias: _openGanancias,
       onOpenGananciaClientes: _openGananciaClientes,
       rd: _rd,
-    );
-
-
-    final bloqueActual = EstadisticasActualView(
-      totalPrestado: totalPrestado,
-      totalRecuperado: totalRecuperado,
-      totalPendiente: totalPendiente,
       mayorNombre: mayorNombre,
       mayorSaldo: mayorSaldo,
-      promInteres: promInteres,
-      proximoVenc: proximoVenc,
-      rd: _rd,
     );
 
 
-    // Gráficos
-    final chartsCard = _card(
-      child: LayoutBuilder(builder: (c, cs) {
-        const leftTitle = 'Pagos recibidos por mes';
-        final isWide = cs.maxWidth > 560;
-        final left = _chartBlock(leftTitle, _barChart(values: pagosMes, labels: pagosMesLabels));
-        final right = _chartBlock('Distribución de clientes', _donutSection());
-        return isWide
-            ? Row(children: [Expanded(child: left), const SizedBox(width: 12), Expanded(child: right)])
-            : Column(children: [left, const SizedBox(height: 12), right]);
-      }),
+
+    final chartsCard = Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFEAF2FF), Color(0xFFDCE6F9)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ==========================================
+          // 📊 PAGO MENSUAL (gráfico moderno)
+          // ==========================================
+          Text(
+            'Pagos recibidos por mes',
+            style: GoogleFonts.inter(
+              textStyle: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            height: 180,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: 20000,
+                  getDrawingHorizontalLine: (value) => FlLine(
+                    color: Colors.grey.withOpacity(0.1),
+                    strokeWidth: 1,
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 20000,
+                      reservedSize: 42,
+                      getTitlesWidget: (value, _) => Text(
+                        '\$${value ~/ 1000}k',
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 30,
+                      getTitlesWidget: (value, _) {
+                        const meses = ['May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct'];
+                        if (value.toInt() >= 0 && value.toInt() < meses.length) {
+                          return Text(
+                            meses[value.toInt()],
+                            style: const TextStyle(
+                              color: Color(0xFF64748B),
+                              fontSize: 12,
+                            ),
+                          );
+                        }
+                        return const SizedBox();
+                      },
+                    ),
+                  ),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                borderData: FlBorderData(show: false),
+                minX: 0,
+                maxX: 5,
+                minY: 0,
+                maxY: 60000,
+                lineBarsData: [
+                  LineChartBarData(
+                    isCurved: true,
+                    color: const Color(0xFF2563EB),
+                    barWidth: 3,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(
+                        radius: 4,
+                        color: Colors.white,
+                        strokeWidth: 3,
+                        strokeColor: const Color(0xFF2563EB),
+                      ),
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF2563EB).withOpacity(0.3),
+                          const Color(0xFF60A5FA).withOpacity(0.05),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                    spots: [
+                      const FlSpot(0, 10000),
+                      const FlSpot(1, 15000),
+                      const FlSpot(2, 20000),
+                      const FlSpot(3, 25000),
+                      const FlSpot(4, 35000),
+                      const FlSpot(5, 48000),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 28),
+
+          // =======================================
+          // 🟢 DISTRIBUCIÓN DE CLIENTES (moderna)
+          // =======================================
+          Text(
+            'Distribución de clientes',
+            style: GoogleFonts.inter(
+              textStyle: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              children: [
+                _donutSection(),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
+
+
 
     // Card borrar histórico
     final borrarHistoricoCard = Container(
@@ -1124,20 +1350,19 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        infoBox,
-        const SizedBox(height: 12), // 🔹 separa el texto azul del grupo de botones
         filtrosRow,
         const SizedBox(height: 10),
-        bloqueHistorico,
 
+        // 🔹 Primero el bloqueHistorico (para mostrar los KPIs)
+        bloqueHistorico,
         const SizedBox(height: 12),
-        bloqueActual,
-        const SizedBox(height: 12),
+
         chartsCard,
         const SizedBox(height: 12),
         borrarHistoricoCard,
       ],
     );
+
   }
 
   // ===== Dona
@@ -1546,3 +1771,47 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     );
   }
 }
+
+// =======================================================
+// 🎨 Mini gráfico de líneas suaves (Pagos por mes)
+// =======================================================
+class _MiniLineChartPainter extends CustomPainter {
+  final List<int> values;
+  _MiniLineChartPainter(this.values);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty) return;
+
+    final maxVal = values.reduce((a, b) => a > b ? a : b).toDouble().clamp(1.0, 999999.0);
+    final paintLine = Paint()
+      ..strokeWidth = 3
+      ..color = const Color(0xFF2563EB)
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final path = Path();
+    final stepX = size.width / (values.length - 1);
+    for (int i = 0; i < values.length; i++) {
+      final x = i * stepX;
+      final y = size.height - (values[i] / maxVal) * (size.height - 10);
+      if (i == 0) path.moveTo(x, y);
+      else path.lineTo(x, y);
+    }
+
+    // Línea principal
+    canvas.drawPath(path, paintLine);
+
+    // Puntos decorativos sutiles
+    final dotPaint = Paint()..color = const Color(0xFF2563EB);
+    for (int i = 0; i < values.length; i++) {
+      final x = i * stepX;
+      final y = size.height - (values[i] / maxVal) * (size.height - 10);
+      canvas.drawCircle(Offset(x, y), 3.5, dotPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+

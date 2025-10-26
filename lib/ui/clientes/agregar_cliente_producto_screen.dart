@@ -546,8 +546,14 @@ class _AgregarClienteProductoScreenState
     };
 
     try {
-      // 🔹 Guarda el cliente nuevo
-      await clientesRef.add(data);
+      if (_isEdit && widget.id != null) {
+        // ✅ Si estás editando, actualiza el cliente existente
+        await clientesRef.doc(widget.id).update(data);
+      } else {
+        // ✅ Si es nuevo, crea un registro nuevo
+        await clientesRef.add(data);
+      }
+
 
       // 🔹 Calcula los valores para las estadísticas
       final ganancia = _gananciaTotal.toInt();
@@ -565,16 +571,14 @@ class _AgregarClienteProductoScreenState
 
       await summaryRef.set({
         'totalGanancia': FieldValue.increment(ganancia),
-        'totalCapitalRecuperado': FieldValue.increment(capital),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // ✅ Actualizar categoría PRODUCTO usando servicio oficial
       await EstadisticasTotalesService.adjustCategoria(
         uid,
         'producto',
         gananciaNetaDelta: ganancia,
-        capitalRecuperadoDelta: capital,
+        capitalRecuperadoDelta: 0,
       );
 
       if (!mounted) return;

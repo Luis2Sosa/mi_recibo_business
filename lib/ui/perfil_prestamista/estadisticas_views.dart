@@ -15,56 +15,6 @@ class _BrandX {
   static const divider = Color(0xFFD7E1EE);
 }
 
-/// ==== ACTUAL ====
-class EstadisticasActualView extends StatelessWidget {
-  final int totalPrestado;
-  final int totalRecuperado;
-  final int totalPendiente;
-
-  final String mayorNombre;
-  final int mayorSaldo;
-  final String promInteres;
-  final String proximoVenc;
-
-  final String Function(int) rd;
-
-  const EstadisticasActualView({
-    super.key,
-    required this.totalPrestado,
-    required this.totalRecuperado,
-    required this.totalPendiente,
-    required this.mayorNombre,
-    required this.mayorSaldo,
-    required this.promInteres,
-    required this.proximoVenc,
-    required this.rd,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // Sin KPIs aquí para evitar duplicados
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 16),
-        _card(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _kv('Cliente con mayor saldo', (mayorSaldo >= 0) ? mayorNombre : '—'),
-              _divider(),
-              _kv('Saldo más alto', (mayorSaldo >= 0) ? rd(mayorSaldo) : '—'),
-              _divider(),
-              _kv('Promedio interés', promInteres.isNotEmpty ? promInteres : '—'),
-              _divider(),
-              _kv('Próximo vencimiento', proximoVenc.isNotEmpty ? proximoVenc : '—'),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 /// ==== HISTÓRICO ====
 class EstadisticasHistoricoView extends StatelessWidget {
@@ -82,6 +32,10 @@ class EstadisticasHistoricoView extends StatelessWidget {
   /// Para flecha de tendencia en Recuperación (opcional).
   final double? previousRecoveryPercent;
 
+  // 🔹 Campos nuevos para “Cliente con mayor deuda”
+  final String mayorNombre;
+  final int mayorSaldo;
+
   const EstadisticasHistoricoView({
     super.key,
     required this.lifetimePrestado,
@@ -93,7 +47,10 @@ class EstadisticasHistoricoView extends StatelessWidget {
     required this.onOpenGananciaClientes,
     required this.rd,
     this.previousRecoveryPercent,
+    required this.mayorNombre,
+    required this.mayorSaldo,
   });
+
 
   @override
   Widget build(BuildContext context) {
@@ -199,25 +156,159 @@ class EstadisticasHistoricoView extends StatelessWidget {
           ],
         ),
 
+        // 🧾 Bloque “Cliente con mayor deuda”
         const SizedBox(height: 20),
-
-        _card(
-          child: Column(
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF1E293B), // azul gris oscuro elegante
+                Color(0xFF334155), // tono profundo premium
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(.20),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _kv('Primer pago registrado', histPrimerPago),
-              _divider(),
-              _kv('Último pago registrado', histUltimoPago),
-              _divider(),
-              _kv('Mes con más cobros', histMesTop),
-              _divider(),
-              _kv('Recuperación histórica',
-                  lifetimePrestado > 0
-                      ? '${recRate.toStringAsFixed(0)}%'
-                      : '—'),
+              // 🔹 Información del cliente
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Cliente con mayor deuda',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      mayorNombre.isNotEmpty ? mayorNombre : '—',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Saldo más alto: ${rd(mayorSaldo)}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ⚠️ Icono de alerta premium
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.08),
+                  border: Border.all(color: Colors.white.withOpacity(0.25), width: 1.5),
+                ),
+                child: const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.white70,
+                  size: 26,
+                ),
+              ),
             ],
           ),
         ),
+
+
+        const SizedBox(height: 20),
+
+        // 🌤️ Bloque moderno y equilibrado — Resumen histórico visible
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.38), // 💡 visibilidad mejorada
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.55)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(.10),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Resumen histórico',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Primera fila
+              Row(
+                children: [
+                  _miniStatBalanced(
+                    icon: Icons.calendar_today_rounded,
+                    label: 'Primer pago',
+                    value: histPrimerPago,
+                  ),
+                  const SizedBox(width: 10),
+                  _miniStatBalanced(
+                    icon: Icons.payments_rounded,
+                    label: 'Último pago',
+                    value: histUltimoPago,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 10),
+
+              // Segunda fila
+              Row(
+                children: [
+                  _miniStatBalanced(
+                    icon: Icons.trending_up_rounded,
+                    label: 'Mes con más cobros',
+                    value: histMesTop,
+                  ),
+                  const SizedBox(width: 10),
+                  _miniStatBalanced(
+                    icon: Icons.water_drop_rounded,
+                    label: 'Recuperación histórica',
+                    value: lifetimePrestado > 0
+                        ? '${recRate.toStringAsFixed(0)}%'
+                        : '—',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+
+
       ],
     );
   }
@@ -887,3 +978,45 @@ class _LinearWaveSimulation extends Simulation {
   @override
   bool isDone(double time) => false;
 }
+
+Widget _miniStatBalanced({
+  required IconData icon,
+  required String label,
+  required String value,
+}) {
+  return Expanded(
+    child: Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.45),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: Colors.blueAccent.shade700, size: 18),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.black87,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 14.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+
