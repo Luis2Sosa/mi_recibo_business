@@ -412,12 +412,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
 
       final hoy = DateTime.now();
       final hoyOnly = DateTime(hoy.year, hoy.month, hoy.day);
-
       final now = DateTime.now();
-      final monthsList = List.generate(6, (i) => DateTime(now.year, now.month - (5 - i), 1));
-      final Map<String, int> porMes = {
-        for (final m in monthsList) '${m.year}-${m.month.toString().padLeft(2, '0')}': 0
-      };
 
       int sumPagos = 0;
       int sumIntereses = 0;
@@ -473,9 +468,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
 
           if (ts is Timestamp) {
             final dt = ts.toDate();
-            final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
-            porMes[key] = (porMes[key] ?? 0) + totalPagado;
-
             if (firstPay == null || dt.isBefore(firstPay!)) firstPay = dt;
             if (lastPay == null || dt.isAfter(lastPay!)) lastPay = dt;
           }
@@ -491,16 +483,54 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         }
       }
 
-      // ===========================
-      // 🔹 Estadísticas generales
-      // ===========================
+      // =====================================================
+      // 🔹 Construcción premium de meses dinámicos (Ene–Dic)
+      // =====================================================
+      const mesesTxt = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+      // 🔸 Si hay pagos, el año base y mes base será el del primer pago
+      final baseYear = firstPay?.year ?? now.year;
+      final baseMonth = firstPay?.month ?? now.month;
+
+      // 🔸 Generamos los 12 meses del año, pero rotando para comenzar desde el mes del primer pago
+      final allMonths = List.generate(12, (i) => DateTime(baseYear, i + 1, 1));
+      final monthsList = [
+        ...allMonths.sublist(baseMonth - 1),
+        ...allMonths.sublist(0, baseMonth - 1)
+      ];
+
+      // 🔸 Mapa vacío con todos los meses
+      final Map<String, int> porMes = {
+        for (final m in monthsList) '${m.year}-${m.month.toString().padLeft(2, '0')}': 0
+      };
+
+      // 🔸 Recontar los pagos por mes
+      for (final d in cs.docs) {
+        final pagos = await d.reference.collection('pagos').get();
+        for (final p in pagos.docs) {
+          final mp = p.data();
+          final ts = mp['fecha'];
+          final int totalPagado = (mp['totalPagado'] ?? 0) as int;
+          if (ts is Timestamp) {
+            final dt = ts.toDate();
+            final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
+            if (porMes.containsKey(key)) {
+              porMes[key] = (porMes[key] ?? 0) + totalPagado;
+            }
+          }
+        }
+      }
+
+      // =====================================================
+      // 🔹 Cálculos de totales y etiquetas
+      // =====================================================
       totalPrestado = prestado;
       totalPendiente = pendiente;
       totalRecuperado = prestado - pendiente;
 
       pagosMes = [];
       pagosMesLabels = [];
-      const mesesTxt = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
       for (final m in monthsList) {
         final key = '${m.year}-${m.month.toString().padLeft(2, '0')}';
         final val = porMes[key] ?? 0;
@@ -512,6 +542,9 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         }
       }
 
+      // =====================================================
+      // 🔹 Estadísticas generales premium
+      // =====================================================
       mayorNombre = maxSaldo >= 0 ? maxNombre : '—';
       mayorSaldo = maxSaldo;
       promInteres = (nRates > 0) ? '${(sumaRates / nRates).toStringAsFixed(0)}%' : '—';
@@ -521,9 +554,9 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       clientesPagando = pagando;
       clientesVencidos = vencidos;
 
-      // ===========================
-      // 🔹 Resumen histórico (solo si hay pagos)
-      // ===========================
+      // =====================================================
+      // 🔹 Resumen histórico
+      // =====================================================
       if (countPagos > 0) {
         histPrimerPago = firstPay == null ? '—' : _fmtFecha(firstPay!);
         histUltimoPago = lastPay == null ? '—' : _fmtFecha(lastPay!);
@@ -533,34 +566,11 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         histUltimoPago = '—';
         histMesTop = '—';
       }
-
-      // ===========================
-      // 🔹 Histórico persistido (Firestore)
-      // ===========================
-      try {
-        final doc = await _docPrest!.collection('metrics').doc('summary').get();
-        final data = doc.data();
-
-        final int basePromedio = countPagos == 0 ? 0 : (sumPagos / countPagos).round();
-
-        if (data != null) {
-          lifetimePrestado = (data['lifetimePrestado'] ?? totalPrestado) as int;
-          lifetimeRecuperado = (data['lifetimeRecuperado'] ?? totalRecuperado) as int;
-          lifetimePagosProm = (data['lifetimePagosProm'] ?? basePromedio) as int;
-        } else {
-          lifetimePrestado = 0;
-          lifetimeRecuperado = 0;
-          lifetimePagosProm = 0;
-        }
-      } catch (_) {
-        lifetimePrestado = totalPrestado;
-        lifetimeRecuperado = totalRecuperado;
-        lifetimePagosProm = countPagos == 0 ? 0 : (sumPagos / countPagos).round();
-      }
     } finally {
       if (mounted) setState(() => _loadingStats = false);
     }
   }
+
 
 
   // ====================== UI ======================
@@ -1187,10 +1197,10 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                       showTitles: true,
                       reservedSize: 30,
                       getTitlesWidget: (value, _) {
-                        const meses = ['May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct'];
-                        if (value.toInt() >= 0 && value.toInt() < meses.length) {
+                        final idx = value.toInt();
+                        if (idx >= 0 && idx < pagosMesLabels.length) {
                           return Text(
-                            meses[value.toInt()],
+                            pagosMesLabels[idx],
                             style: const TextStyle(
                               color: Color(0xFF64748B),
                               fontSize: 12,
@@ -1206,9 +1216,13 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                 ),
                 borderData: FlBorderData(show: false),
                 minX: 0,
-                maxX: 5,
+                maxX: pagosMes.isEmpty ? 5 : pagosMes.length - 1,
                 minY: 0,
-                maxY: 60000,
+                maxY: (pagosMes.isEmpty
+                    ? 60000
+                    : pagosMes.reduce((a, b) => a > b ? a : b) * 1.2)
+                    .clamp(20000, 100000)
+                    .toDouble(),
                 lineBarsData: [
                   LineChartBarData(
                     isCurved: true,
@@ -1236,18 +1250,15 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                       ),
                     ),
                     spots: [
-                      const FlSpot(0, 10000),
-                      const FlSpot(1, 15000),
-                      const FlSpot(2, 20000),
-                      const FlSpot(3, 25000),
-                      const FlSpot(4, 35000),
-                      const FlSpot(5, 48000),
+                      for (int i = 0; i < pagosMes.length; i++)
+                        FlSpot(i.toDouble(), pagosMes[i].toDouble()),
                     ],
                   ),
                 ],
               ),
             ),
           ),
+
 
           const SizedBox(height: 28),
 
@@ -1511,7 +1522,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             ],
           ),
           content: const Text(
-            'Esto reiniciará los totales acumulados (como el total capital recuperado), '
+            'Esto reiniciará las métricas acumuladas (como el capital recuperado o promedios), '
                 'pero no eliminará clientes ni pagos.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 15, color: Color(0xFF475569)),
@@ -1542,52 +1553,59 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         );
       },
     );
+
     if (ok == true) await _borrarHistorico();
   }
 
-
-  // 🚫 No tocar ni modificar:
-// Esta función borra el documento "summary" (histórico) y reinicia solo el totalCapitalRecuperado.
-// NO borra ni modifica las ganancias totales ni el documento "estadisticas/totales".
   Future<void> _borrarHistorico() async {
     if (_docPrest == null) return;
 
     try {
-      // 🔹 1. Borrar el documento de histórico (summary)
+      // 🔹 1. Eliminar resumen anterior (summary)
       await _docPrest!.collection('metrics').doc('summary').delete();
 
-      // 🔹 2. Reiniciar solo el campo totalCapitalRecuperado (sin tocar totalGanancia)
+      // 🔹 2. Reiniciar los campos principales
       final refSummary = _docPrest!.collection('metrics').doc('summary');
       await refSummary.set({
         'totalCapitalRecuperado': 0,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // 🔹 3. Actualizar también en estadísticas/totales (si existe)
       final refTotales = _docPrest!.collection('estadisticas').doc('totales');
       await refTotales.set({
         'totalCapitalRecuperado': 0,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
+      // 🔹 3. Reiniciar gráfico de pagos mensuales (12 meses planos)
+      setState(() {
+        pagosMes = List.filled(12, 0);
+        pagosMesLabels = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+      });
+
     } catch (e) {
       print('Error al borrar histórico: $e');
     }
 
-    // 🔹 4. Refrescar los valores visuales en la pantalla
+    // 🔹 4. Refrescar métricas visuales
     setState(() {
       lifetimePrestado = 0;
-      lifetimeRecuperado = 0; // ✅ solo este se borra visualmente
-      // Mantiene la ganancia
-      lifetimeGanancia = lifetimeGanancia;
+      lifetimeRecuperado = 0;
       lifetimePagosProm = 0;
       histPrimerPago = '—';
       histUltimoPago = '—';
       histMesTop = '—';
     });
 
-    _toast('Histórico borrado (solo capital recuperado)', color: _Brand.softRed, icon: Icons.delete_outline);
+    // 🔹 5. Feedback visual tipo dashboard premium
+    _toast(
+      'Histórico restablecido correctamente',
+      color: _Brand.softRed,
+      icon: Icons.check_circle_outline_rounded,
+    );
   }
+
+
 
 
 

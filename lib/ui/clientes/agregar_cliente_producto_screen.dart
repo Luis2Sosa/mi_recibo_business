@@ -578,7 +578,6 @@ class _AgregarClienteProductoScreenState
         uid,
         'producto',
         gananciaNetaDelta: ganancia,
-        capitalRecuperadoDelta: 0,
       );
 
       if (!mounted) return;

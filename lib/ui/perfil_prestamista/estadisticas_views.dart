@@ -94,13 +94,12 @@ class EstadisticasHistoricoView extends StatelessWidget {
               builder: (context) {
                 final uid = FirebaseAuth.instance.currentUser?.uid;
                 if (uid == null) {
-                  // Sin auth: usa el valor que llega por props
-                  return _kpiGlass(
+                  return _KPIFintechPremium(
                     title: 'Total capital recuperado',
                     value: rd(lifetimeRecuperado),
-                    gradient: const [Color(0xFFE9FFF2), Color(0xFFD6FFF3)],
-                    accent: const Color(0xFF16A34A),
-                    shadow: const Color(0xFF16A34A),
+                    activo: lifetimeRecuperado > 0,
+                    invertida: false, // sube
+                    colorBase: const Color(0xFF00C853), // verde premium
                   );
                 }
 
@@ -113,18 +112,19 @@ class EstadisticasHistoricoView extends StatelessWidget {
                 return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                   stream: summaryRef.snapshots(),
                   builder: (context, snap) {
-                    int cr = lifetimeRecuperado; // fallback local
+                    int cr = lifetimeRecuperado;
                     final data = snap.data?.data();
-                    if (data != null) {final raw = data['totalCapitalRecuperado'];
-                    if (raw is num) cr = raw.round();
+                    if (data != null) {
+                      final raw = data['totalCapitalRecuperado'];
+                      if (raw is num) cr = raw.round();
                     }
 
-                    return _kpiGlass(
+                    return _KPIFintechPremium(
                       title: 'Total capital recuperado',
                       value: rd(cr),
-                      gradient: const [Color(0xFFE9FFF2), Color(0xFFD6FFF3)],
-                      accent: const Color(0xFF16A34A),
-                      shadow: const Color(0xFF16A34A),
+                      activo: cr > 0,
+                      invertida: false,
+                      colorBase: const Color(0xFF00C853),
                     );
                   },
                 );
@@ -132,19 +132,12 @@ class EstadisticasHistoricoView extends StatelessWidget {
             ),
 
             // 3️⃣ Total capital pendiente
-            _kpiGlass(
+            _KPIFintechPremium(
               title: 'Total capital pendiente',
               value: rd(pendienteHist),
-              gradient: pendienteHist > 0
-                  ? const [Color(0xFFFFEFF2), Color(0xFFFFE8EC)] // rojo suave
-                  : const [Color(0xFFE9FFF2), Color(0xFFD6FFF3)],
-              // verde éxito
-              accent: pendienteHist > 0
-                  ? const Color(0xFFDC2626)
-                  : const Color(0xFF16A34A),
-              shadow: pendienteHist > 0
-                  ? const Color(0xFFEF4444)
-                  : const Color(0xFF16A34A),
+              activo: pendienteHist > 0,
+              invertida: true, // baja
+              colorBase: const Color(0xFF8B0000), // rojo vino elegante
             ),
 
 
@@ -156,7 +149,7 @@ class EstadisticasHistoricoView extends StatelessWidget {
           ],
         ),
 
-        // 🧾 Bloque “Cliente con mayor deuda”
+        // 🧾 Bloque “Cliente con mayor deuda” (transparencia final, tono premium sutil)
         const SizedBox(height: 20),
         Container(
           padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 18),
@@ -166,22 +159,23 @@ class EstadisticasHistoricoView extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF1E293B), // azul gris oscuro elegante
-                Color(0xFF334155), // tono profundo premium
+                Color(0xA62B2F3A), // mismo tono gris azulado, 65 % opaco
+                Color(0xA63B4250), // ligeramente más claro, también 65 %
               ],
             ),
+            border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(.20),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
+                color: Colors.black.withOpacity(.08),
+                blurRadius: 5,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // 🔹 Información del cliente
+              // 🔹 Información del cliente (alineación vertical premium)
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,50 +183,73 @@ class EstadisticasHistoricoView extends StatelessWidget {
                     const Text(
                       'Cliente con mayor deuda',
                       style: TextStyle(
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
+                        color: Colors.white54,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14.5,
+                        letterSpacing: 0.3,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 10), // 💨 más espacio para que respire
                     Text(
                       mayorNombre.isNotEmpty ? mayorNombre : '—',
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
-                        fontSize: 18,
+                        fontSize: 21, // 🔹 un poco más grande
+                        letterSpacing: 0.5,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black38, // 💎 sutil relieve
+                            blurRadius: 4,
+                            offset: Offset(1, 1),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Saldo más alto: ${rd(mayorSaldo)}',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withOpacity(0.12), width: 1),
+                      ),
+                      child: Text(
+                        'Saldo: ${rd(mayorSaldo)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
 
-              // ⚠️ Icono de alerta premium
+
+              // ⚠️ Ícono de alerta elegante y discreto
               Container(
+                margin: const EdgeInsets.only(left: 12),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.08),
-                  border: Border.all(color: Colors.white.withOpacity(0.25), width: 1.5),
+                  color: Colors.white.withOpacity(0.03),
+                  border: Border.all(color: Colors.white.withOpacity(0.12), width: 1),
                 ),
                 child: const Icon(
                   Icons.warning_amber_rounded,
-                  color: Colors.white70,
-                  size: 26,
+                  color: Color(0xFFFFD66B),
+                  size: 24,
                 ),
               ),
             ],
           ),
+
         ),
+
+
 
 
         const SizedBox(height: 20),
@@ -386,7 +403,11 @@ class _RecoveryFillCardState extends State<RecoveryFillCard>
     // Agua: roja <50, verde >=50
     final bool good = pct >= 50;
     final Color water = good ? const Color(0xFF16A34A) : const Color(0xFFE11D48);
-    final List<Color> cardGrad = const [Color(0xFFEAF7EE), Color(0xFFDFF2E8)];
+    final List<Color> cardGrad = const [
+      Color(0xFF2C2F3A), // gris azulado profundo
+      Color(0xFF3E4452), // tono más claro
+    ];
+
 
     // Porcentaje: verde/rojo con borde negro (stroke)
     final Color pctFill = good ? const Color(0xFF16A34A) : const Color(0xFFE11D48);
@@ -438,12 +459,17 @@ class _RecoveryFillCardState extends State<RecoveryFillCard>
                     Center(
                       child: Text(
                         'Recuperación total',
-                        style: GoogleFonts.inter(
-                          textStyle: const TextStyle(
-                            color: _BrandX.inkDim,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                          ),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white, // ✅ blanco elegante
+                          shadows: const [
+                            Shadow(
+                              color: Colors.black45,
+                              blurRadius: 4,
+                              offset: Offset(1, 1),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -1019,4 +1045,211 @@ Widget _miniStatBalanced({
   );
 }
 
+// 💎 KPI con fondo animado tipo Fintech Premium
+class _KPIFintechPremium extends StatefulWidget {
+  final String title;
+  final String value;
+  final bool activo;
+  final bool invertida;
+  final Color colorBase;
 
+  const _KPIFintechPremium({
+    required this.title,
+    required this.value,
+    required this.activo,
+    required this.invertida,
+    required this.colorBase,
+  });
+
+  @override
+  State<_KPIFintechPremium> createState() => _KPIFintechPremiumState();
+}
+
+class _KPIFintechPremiumState extends State<_KPIFintechPremium>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 8), // 🔹 animación lenta, elegante
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: Stack(
+        children: [
+          // Fondo animado Fintech
+          AnimatedBuilder(
+            animation: _ctrl,
+            builder: (context, _) {
+              return CustomPaint(
+                painter: _KPIBackgroundFintechPainter(
+                  anim: _ctrl.value,
+                  activo: widget.activo,
+                  invertida: widget.invertida,
+                  colorBase: widget.colorBase,
+                ),
+                size: Size.infinite,
+              );
+            },
+          ),
+
+          // Contenido visible
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      widget.title,
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                        shadows: const [
+                          Shadow(
+                            color: Colors.black54,
+                            blurRadius: 6,
+                            offset: Offset(1, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.value,
+                    style: GoogleFonts.inter(
+                      fontSize: 34,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      shadows: const [
+                        Shadow(
+                          color: Colors.black54,
+                          blurRadius: 8,
+                          offset: Offset(1, 1),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+// 💎 Fondo Premium tipo Fintech: curva viva + pulso de luz diagonal
+class _KPIBackgroundFintechPainter extends CustomPainter {
+  final double anim;
+  final bool activo;
+  final bool invertida; // false = sube, true = baja
+  final Color colorBase;
+
+  _KPIBackgroundFintechPainter({
+    required this.anim,
+    required this.activo,
+    required this.invertida,
+    required this.colorBase,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // 🔹 Fondo degradado base
+    final gradient = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          colorBase.withOpacity(0.95),
+          colorBase.withOpacity(0.75),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(Rect.fromLTWH(0, 0, w, h));
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), const Radius.circular(18)),
+      gradient,
+    );
+
+    if (!activo) return;
+
+    // 🔹 Curva animada (onda suave tipo gráfico)
+    final path = Path();
+    final curvePaint = Paint()
+      ..color = Colors.white.withOpacity(0.25)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5;
+
+    final steps = 30;
+    final amplitude = invertida ? -8.0 : 8.0;
+    final baseY = h * 0.6;
+
+    for (int i = 0; i <= steps; i++) {
+      final x = w * (i / steps);
+      final y = baseY +
+          math.sin((i / steps * 2 * math.pi) + anim * 2 * math.pi) * amplitude;
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    canvas.drawPath(path, curvePaint);
+
+    // 🌈 Pulso de luz diagonal premium con entrada/salida suave
+    final double cycle = (anim % 1.0); // animación continua
+    final double lightOffset = (cycle * 3.4) - 1.7; // recorre de fuera a fuera
+
+// 🔹 Curva de opacidad suave (entra y sale gradualmente)
+    double smoothOpacity(double x) {
+      if (x < 0.15) return x / 0.15; // fade in suave
+      if (x > 0.85) return (1.0 - x) / 0.15; // fade out suave
+      return 1.0; // brillo máximo estable
+    }
+
+    final double fade = smoothOpacity(cycle);
+
+    final lightPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment(-1.7 + lightOffset, -1.7),
+        end: Alignment(1.7 + lightOffset, 1.7),
+        colors: [
+          Colors.white.withOpacity(0.0),
+          Colors.white.withOpacity(0.18 * fade),
+          Colors.white.withOpacity(0.0),
+        ],
+        stops: const [0.3, 0.5, 0.7],
+      ).createShader(Rect.fromLTWH(0, 0, w, h));
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), const Radius.circular(18)),
+      lightPaint,
+    );
+
+  }
+
+  @override
+  bool shouldRepaint(covariant _KPIBackgroundFintechPainter oldDelegate) => true;
+}

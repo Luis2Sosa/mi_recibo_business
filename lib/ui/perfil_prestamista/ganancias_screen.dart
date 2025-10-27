@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:mi_recibo/ui/perfil_prestamista/premium_boosts_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'dart:ui'; // 👈 importante para el desenfoque
 
 
 class GananciasScreen extends StatefulWidget {
@@ -21,6 +22,8 @@ class _GananciasScreenState extends State<GananciasScreen>
     with SingleTickerProviderStateMixin {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   int _displayedTotal = 0;
+  bool _reiniciarGrafico = false;
+
 
   late AnimationController _controller;
   late Animation<double> _fadeAnim;
@@ -72,7 +75,183 @@ class _GananciasScreenState extends State<GananciasScreen>
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Ganancias totales reiniciadas correctamente 💎')));
+
+    if (mounted) {
+      setState(() {
+        _displayedTotal = 0;
+        _reiniciarGrafico = true; // ⚡ activa modo "línea plana"
+      });
+    }
+
   }
+
+
+
+  void _mostrarBannerConfirmacion() {
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+
+    entry = OverlayEntry(
+      builder: (_) => Stack(
+        children: [
+          // Fondo desenfocado real + sombra sutil
+          GestureDetector(
+            onTap: () => entry.remove(),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+              child: Container(color: Colors.black.withOpacity(0.5)),
+            ),
+          ),
+
+          // Banner corporativo central
+          Center(
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.95, end: 1),
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              builder: (context, scale, _) {
+                return Transform.scale(
+                  scale: scale,
+                  child: Container(
+                    width: MediaQuery.of(context).size.width * 0.85,
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 26),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A).withOpacity(0.75),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                          color: Colors.white.withOpacity(0.1), width: 1.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.35),
+                          blurRadius: 35,
+                          offset: const Offset(0, 15),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Ícono de advertencia con tono amarillo quemado (oro viejo)
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFFD4A017), // Amarillo quemado tipo oro viejo
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.25),
+                                blurRadius: 15,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.warning_amber_rounded,
+                            color: Colors.white,
+                            size: 44,
+                          ),
+                        ),
+
+
+
+                        const SizedBox(height: 20),
+                        Text(
+                          'Confirmar acción',
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 20,
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          '¿Seguro que deseas borrar todas las ganancias totales?',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            color: Colors.white70,
+                            fontSize: 15.5,
+                            height: 1.4,
+                            fontWeight: FontWeight.w500,
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                        const SizedBox(height: 26),
+
+                        // Botones estilo Fluent Design
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  elevation: 0,
+                                  backgroundColor:
+                                  Colors.white.withOpacity(0.08),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 14, horizontal: 18),
+                                ),
+                                onPressed: () => entry.remove(),
+                                child: Text(
+                                  'Cancelar',
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                    decoration: TextDecoration.none,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  elevation: 6,
+                                  backgroundColor: const Color(0xFFDC2626),
+                                  shadowColor: Colors.redAccent.withOpacity(0.3),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 14, horizontal: 18),
+                                ),
+                                onPressed: () async {
+                                  entry.remove();
+                                  await _borrarGananciasTotales();
+                                },
+                                child: Text(
+                                  'Sí, borrar',
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                    decoration: TextDecoration.none,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+
+    overlay.insert(entry);
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -355,12 +534,14 @@ class _GananciasScreenState extends State<GananciasScreen>
                                     .clamp(0.3, 1.0);
                                 return Stack(
                                   children: [
-                                    // Fondo premium con líneas diagonales y transparencia
-                                    CustomPaint(
-                                      painter: _GridBackgroundPainter(),
-                                      size: const Size(
-                                          double.infinity, double.infinity),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(20), // mismo radio del container
+                                      child: CustomPaint(
+                                        painter: _GridBackgroundPainter(),
+                                        size: const Size(double.infinity, double.infinity),
+                                      ),
                                     ),
+
 
                                     // Línea principal con degradado dinámico
                                     LineChart(
@@ -415,18 +596,28 @@ class _GananciasScreenState extends State<GananciasScreen>
                                                         .transparent,
                                                   ),
                                             ),
-                                            spots: [
-                                              FlSpot(0, 1.4 +
-                                                  0.6 * sin(animValue * 3.14)),
-                                              FlSpot(1,
-                                                  2.3 * animValue + 0.5 * glow),
+                                            spots: _reiniciarGrafico
+                                                ? [
+                                              // 🧊 Modo reiniciado: línea plana
+                                              FlSpot(0, 0),
+                                              FlSpot(1, 0),
+                                              FlSpot(2, 0),
+                                              FlSpot(3, 0),
+                                              FlSpot(4, 0),
+                                              FlSpot(5, 0),
+                                              FlSpot(6, 0),
+                                            ]
+                                                : [
+                                              // 🎢 Modo normal: animado
+                                              FlSpot(0, 1.4 + 0.6 * sin(animValue * 3.14)),
+                                              FlSpot(1, 2.3 * animValue + 0.5 * glow),
                                               FlSpot(2, 1.7 + 0.6 * animValue),
                                               FlSpot(3, 3.0 * animValue),
                                               FlSpot(4, 2.6 + 0.4 * glow),
                                               FlSpot(5, 3.3 * animValue),
-                                              FlSpot(6, 2.5 +
-                                                  0.7 * sin(animValue * 3.14)),
+                                              FlSpot(6, 2.5 + 0.7 * sin(animValue * 3.14)),
                                             ],
+
                                           ),
                                         ],
                                         lineTouchData: LineTouchData(
@@ -482,7 +673,7 @@ class _GananciasScreenState extends State<GananciasScreen>
 
                     const SizedBox(height: 35),
                     ElevatedButton.icon(
-                      onPressed: _borrarGananciasTotales,
+                      onPressed: _mostrarBannerConfirmacion,
                       icon: const Icon(Icons.delete_forever_rounded,
                           color: Colors.white, size: 24),
                       label: const Text('Borrar ganancias totales'),
@@ -490,14 +681,13 @@ class _GananciasScreenState extends State<GananciasScreen>
                         backgroundColor: const Color(0xFFE11D48),
                         foregroundColor: Colors.white,
                         shape: const StadiumBorder(),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 36, vertical: 18),
-                        textStyle: const TextStyle(
-                            fontWeight: FontWeight.w900, fontSize: 16),
+                        padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 18),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
                         shadowColor: Colors.redAccent.withOpacity(.4),
                         elevation: 10,
                       ),
                     ),
+
                     const SizedBox(height: 40),
                   ],
                 ),
