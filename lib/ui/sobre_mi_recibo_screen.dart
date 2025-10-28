@@ -387,6 +387,7 @@ class _PremiumPanel extends StatelessWidget {
       ),
       child: Column(
         children: [
+          // Ícono dorado
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
@@ -400,7 +401,10 @@ class _PremiumPanel extends StatelessWidget {
               size: 48,
             ),
           ),
+
           const SizedBox(height: 14),
+
+          // Título principal
           Text(
             'Mi Recibo Business Premium',
             textAlign: TextAlign.center,
@@ -410,56 +414,67 @@ class _PremiumPanel extends StatelessWidget {
               fontSize: 20,
             ),
           ),
+
           const SizedBox(height: 10),
+
+          // Texto mejorado
           Text(
-            'Desbloquea todo el potencial de la app: accede a tus ganancias totales, '
-                'al Potenciador Premium con consejos personalizados, métricas visuales y vista avanzada de rendimiento.\n\n'
-                'Solo por US\$2 al mes, sin anuncios y con prioridad de soporte.',
+            'Lleva tu gestión al siguiente nivel. Visualiza tus ganancias totales y '
+                'métricas profesionales en tiempo real, sin interrupciones ni anuncios.\n\n'
+                'Accede al Potenciador Premium con consejos exclusivos para hacer crecer tu negocio '
+                'de forma clara, rápida y profesional.',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               color: Colors.white.withOpacity(.9),
               fontSize: 14.5,
-              height: 1.4,
+              height: 1.45,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 20),
-          GestureDetector(
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Simulación: Redirigiendo a la suscripción Premium 💎',
-                  ),
-                ),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF00FFD1), Color(0xFF00B8FF)],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
-                borderRadius: BorderRadius.circular(50),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 14,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+
+          const SizedBox(height: 22),
+
+          // Botón con precio
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF00FFD1), Color(0xFF00B8FF)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
               ),
-              child: const Text(
-                'Activar Premium – US\$2 / mes',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 15,
+              borderRadius: BorderRadius.circular(50),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 14,
+                  offset: const Offset(0, 8),
                 ),
+              ],
+            ),
+            child: const Text(
+              ' Sin anuncios • Acceso total • US\$1.99/mes',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.w900,
+                fontSize: 13,
               ),
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          // Frase final más llamativa
+          Text(
+            'Premium no es un extra, es la experiencia completa.\n'
+                'Haz tu negocio más rentable, más claro y más tuyo.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              color: Colors.white.withOpacity(.8),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              height: 1.4,
             ),
           ),
         ],

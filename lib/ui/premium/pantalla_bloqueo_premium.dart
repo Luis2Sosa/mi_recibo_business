@@ -24,9 +24,14 @@ class PantallaBloqueoPremium extends StatelessWidget {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF0D1B2A), Color(0xFF1E2A78), Color(0xFF431F91)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF0E1630), // azul oscuro
+              Color(0xFF1C2C63), // azul intermedio
+              Color(0xFF342B70), // violeta elegante
+              Color(0xFF241C3A), // base gris púrpura
+            ],
           ),
         ),
         child: SafeArea(
@@ -35,71 +40,86 @@ class PantallaBloqueoPremium extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const SizedBox(height: 40),
+                const SizedBox(height: 45),
 
-                // ✨ Ícono Premium
+                // 💎 Ícono Premium profesional
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  width: 100,
+                  height: 100,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.1),
-                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFFD700), Color(0xFFF5C400)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.25),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
+                        color: const Color(0xFFFFD700).withOpacity(0.5),
+                        blurRadius: 25,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
                   child: const Icon(
                     Icons.workspace_premium_rounded,
-                    color: Color(0xFFFFD700),
-                    size: 70,
+                    color: Colors.white,
+                    size: 55,
                   ),
                 ),
 
-                const SizedBox(height: 25),
+                const SizedBox(height: 32),
 
-                // Título
+                // 🏷️ Título
                 Text(
                   'Contenido Premium Bloqueado',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
-                    fontSize: 22,
+                    fontSize: 23,
+                    letterSpacing: 0.4,
                   ),
                 ),
 
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
 
                 // Descripción
                 Text(
-                  'Suscríbete a Mi Recibo Business Premium para acceder a:',
+                  'Desbloquea las funciones exclusivas de Mi Recibo Business Premium:',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
                     color: Colors.white.withOpacity(0.9),
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
-                    height: 1.5,
+                    height: 1.6,
                   ),
                 ),
 
-                const SizedBox(height: 30),
+                const SizedBox(height: 35),
 
-                // Lista de beneficios
+                // 🧾 Lista de beneficios
                 Column(
                   children: [
-                    _beneficio('📈 Ver tus ganancias totales y gráficas en tiempo real'),
-                    _beneficio('💡 Acceder al Potenciador Premium con consejos diarios'),
-                    _beneficio('🔒 Sin anuncios y con prioridad de soporte'),
+                    _beneficio(
+                      icon: Icons.show_chart_rounded,
+                      texto: 'Ver tus ganancias totales y gráficas avanzadas en tiempo real',
+                    ),
+                    _beneficio(
+                      icon: Icons.lightbulb_rounded,
+                      texto: 'Acceder al Potenciador Premium con estrategias y consejos diarios',
+                    ),
+                    _beneficio(
+                      icon: Icons.block_flipped,
+                      texto: 'Sin anuncios y con soporte prioritario',
+                    ),
                   ],
                 ),
 
                 const Spacer(),
 
-                // Botón Premium
+                // 🔓 Botón Premium
                 GestureDetector(
                   onTap: () {
                     Navigator.push(
@@ -119,44 +139,56 @@ class PantallaBloqueoPremium extends StatelessWidget {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(50),
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF00FFD1), Color(0xFF00B8FF)],
+                        colors: [Color(0xFF00D8FF), Color(0xFF0078FF)],
                         begin: Alignment.centerLeft,
                         end: Alignment.centerRight,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.25),
-                          blurRadius: 15,
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 18,
                           offset: const Offset(0, 6),
                         ),
                       ],
                     ),
                     child: Text(
-                      'Activar Premium – US\$2/mes',
+                      'Activar Premium – US\$1.99/mes',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.poppins(
-                        color: Colors.black,
-                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
                         fontSize: 16,
+                        letterSpacing: 0.3,
                       ),
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 18),
+                const SizedBox(height: 22),
 
-                // Texto inferior
+                // Texto inferior (visible y nítido)
                 Text(
-                  'Mejora tu experiencia y desbloquea todo el poder de Mi Recibo Business 💎',
+                  'Convierte tu gestión en un verdadero negocio con Mi Recibo Business Premium 💼',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
-                    color: Colors.white.withOpacity(0.8),
-                    fontSize: 13,
-                    height: 1.4,
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 13.2,
+                    height: 1.5,
                   ),
                 ),
 
-                const SizedBox(height: 35),
+                const SizedBox(height: 6),
+                Text(
+                  'Puedes cancelar en cualquier momento desde Google Play.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 12,
+                    height: 1.3,
+                  ),
+                ),
+
+                const SizedBox(height: 30),
               ],
             ),
           ),
@@ -165,20 +197,40 @@ class PantallaBloqueoPremium extends StatelessWidget {
     );
   }
 
-  Widget _beneficio(String texto) {
+  // === Beneficio corporativo ===
+  Widget _beneficio({required IconData icon, required String texto}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 22),
-          const SizedBox(width: 10),
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFD700), Color(0xFFF5C400)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFFD700).withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(6),
+            child: Icon(icon, color: Colors.white, size: 18),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               texto,
               style: GoogleFonts.inter(
                 color: Colors.white,
-                fontSize: 14.5,
+                fontSize: 14.8,
                 fontWeight: FontWeight.w600,
+                height: 1.4,
               ),
             ),
           ),
