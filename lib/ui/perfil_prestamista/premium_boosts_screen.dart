@@ -1,8 +1,8 @@
 // lib/ui/perfil_prestamista/premium_boosts_screen.dart
 import 'dart:math';
 import 'dart:ui';
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -50,20 +50,105 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
   late Animation<double> _fadeAnim;
 
   final List<String> _qedu = [
-    'Sube la tasa sólo a clientes puntuales.',
-    'Reinvierte los intereses en préstamos pequeños.',
-    'Ofrece 2% de descuento por pago adelantado.',
-    'Automatiza recordatorios de pago.',
-    'Segmenta por riesgo y asigna tasas por perfil.'
+    'Cobra temprano y duerme tranquilo.',
+    'Invierte primero en ti antes que en los demás.',
+    'Cada préstamo puntual te acerca a la libertad.',
+    'No regales tu tiempo, valora tu esfuerzo.',
+    'Una buena tasa vence cualquier excusa.',
+    'Clientes responsables crean carteras fuertes.',
+    'Anota cada movimiento, no confíes en la memoria.',
+    'Pequeños cobros a tiempo valen más que grandes atrasos.',
+    'El interés compuesto es tu mejor socio silencioso.',
+    'Lo que no controlas, te controla.',
+    'Tu sistema de cobros define tu estabilidad.',
+    'Si no lo mides, no puedes mejorarlo.',
+    'La rentabilidad no depende del azar.',
+    'Sé constante, no perfecto.',
+    'La puntualidad de tus clientes depende de tu disciplina.',
+    'El dinero ama la claridad.',
+    'Nunca prestes sin propósito.',
+    'Cobra con respeto, pero cobra siempre.',
+    'Aprende de cada error financiero.',
+    'El riesgo controlado es progreso asegurado.',
+    'Tu negocio crece al ritmo de tu organización.',
+    'El flujo de caja es tu oxígeno.',
+    'Invierte tu tiempo donde da resultados.',
+    'Cada decisión financiera tiene consecuencias.',
+    'Un sistema sólido vence al talento sin orden.',
+    'Haz que tu dinero trabaje cuando tú descansas.',
+    'Nunca subestimes el poder del hábito diario.',
+    'Lo que hoy aprendes, mañana te paga.',
+    'Quien domina sus cobros, domina su futuro.',
+    'Tu negocio refleja tus decisiones diarias.',
   ];
 
+
   final List<String> _finance = [
-    'Nunca prestes más del 10% a un solo cliente.',
-    'Mantén 15% de liquidez para emergencias.',
-    'Recupera capital antes de maximizar interés.',
-    'Evita renovar con clientes atrasados.',
-    'Registra cada pago el mismo día.'
+    'Gasta menos de lo que ganas, siempre.',
+    'Ahorra al menos el 20% de cada ingreso.',
+    'Registra todos tus gastos, incluso los pequeños.',
+    'Evita las deudas que no generan ingresos.',
+    'Diversifica tus fuentes de dinero.',
+    'Paga tus deudas más caras primero.',
+    'No compres por impulso, planifica tus compras.',
+    'Tu ahorro es tu escudo contra emergencias.',
+    'Aprende a distinguir necesidad de deseo.',
+    'El tiempo es el mejor aliado del interés compuesto.',
+    'Invierte solo en lo que entiendas.',
+    'No dependas de una sola fuente de ingreso.',
+    'Tu presupuesto es tu mapa financiero.',
+    'Las metas claras hacen crecer el dinero.',
+    'Evita préstamos personales innecesarios.',
+    'Compra activos, no pasivos.',
+    'No pongas todos tus ahorros en el mismo lugar.',
+    'Revisa tus finanzas cada fin de mes.',
+    'Reduce gastos invisibles: suscripciones, antojos, comisiones.',
+    'Tu dinero debe trabajar más que tú.',
+    'Construye un fondo de emergencia para 3–6 meses.',
+    'No inviertas por emoción, hazlo por estrategia.',
+    'Controla tus deudas antes de invertir.',
+    'Cada peso cuenta si lo administras con propósito.',
+    'Aumenta tus ingresos sin aumentar tus gastos.',
+    'Tu educación financiera vale más que cualquier inversión.',
+    'El dinero sin control se desvanece rápido.',
+    'Haz que tus ingresos pasivos crezcan cada año.',
+    'Vive por debajo de tus posibilidades, no de tus sueños.',
+    'La estabilidad financiera es una decisión diaria.',
   ];
+
+  final List<String> _growth = [
+    'Tu crecimiento comienza cuando analizas tus números cada semana.',
+    'Una cartera ordenada crece más que una cartera grande.',
+    'El crecimiento sostenido vale más que un pico temporal.',
+    'Cada pago puntual impulsa tu flujo de caja mensual.',
+    'La estabilidad es el verdadero motor del crecimiento.',
+    'Reinvertir el 10% de tus ganancias acelera tu expansión.',
+    'Reducir gastos innecesarios multiplica tu rentabilidad.',
+    'Cada cliente satisfecho es una puerta a nuevos ingresos.',
+    'Automatizar tus procesos te da tiempo para crecer.',
+    'Medir tus resultados es el primer paso para mejorarlos.',
+    'El crecimiento llega cuando tomas decisiones con datos.',
+    'Crecimiento no es suerte: es constancia y organización.',
+    'Optimiza tus cobros antes de buscar más clientes.',
+    'Tu disciplina financiera define tu tamaño futuro.',
+    'Aumentar ingresos sin aumentar deudas es progreso real.',
+    'El crecimiento saludable requiere control, no prisa.',
+    'Analiza tus meses más rentables y repite el patrón.',
+    'Cada mejora en eficiencia se traduce en ganancias.',
+    'Diversifica tu cartera sin perder el enfoque principal.',
+    'Mantén liquidez para aprovechar oportunidades de expansión.',
+    'Reducir la mora es el mejor impulso para crecer.',
+    'Tu mejor inversión es mejorar tu propio sistema.',
+    'El crecimiento es la suma de pequeños avances diarios.',
+    'Evalúa, ajusta y mejora: ese es el ciclo del progreso.',
+    'Cada decisión inteligente fortalece tu base financiera.',
+    'El crecimiento inteligente no depende del tamaño, sino del control.',
+    'Optimiza primero, expande después.',
+    'El orden financiero crea resultados predecibles.',
+    'Crecimiento sostenible significa estabilidad a largo plazo.',
+    'El éxito llega cuando tu sistema trabaja por ti.',
+  ];
+
 
   @override
   void initState() {
@@ -85,44 +170,7 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
     super.dispose();
   }
 
-  Future<Map<String, dynamic>?> _obtenerContenidoDelDia(String tipo) async {
-    try {
-      debugPrint('📡 CONSULTA FIRESTORE INICIADA para tipo: $tipo');
-
-      // 👇 quita todos los filtros, solo lee todo lo que haya en tu colección
-      final snapshot = await FirebaseFirestore.instance
-          .collection('potenciador_contenido')
-          .get();
-
-      debugPrint('📊 Total documentos encontrados: ${snapshot.docs.length}');
-      for (final doc in snapshot.docs) {
-        debugPrint('🧩 ${doc.id} → ${doc.data()}');
-      }
-
-      if (snapshot.docs.isEmpty) {
-        debugPrint('⚠️ No se encontraron documentos en la colección.');
-        return null;
-      }
-
-      // Selecciona un documento según el día
-      final lista = snapshot.docs.map((d) => d.data()).toList();
-      final index = (DateTime.now().day - 1) % lista.length;
-      final data = lista[index];
-
-      debugPrint('✅ Documento seleccionado: $data');
-      return data;
-    } catch (e, s) {
-      debugPrint('❌ ERROR al obtener contenido: $e');
-      debugPrint('STACKTRACE: $s');
-      return null;
-    }
-  }
-
-
-
-
-
-  // ===================== UI PRINCIPAL =====================
+  /// ===================== UI PRINCIPAL =====================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -149,60 +197,112 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
               : FadeTransition(
             opacity: _fadeAnim,
             child: ListView(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 20, vertical: 16),
+              padding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               physics: const BouncingScrollPhysics(),
               children: [
                 _bloqueLecturaDelDia(),
                 const SizedBox(height: 25),
+
                 // ======= QEDU del día (desde Firestore) =======
-                FutureBuilder<Map<String, dynamic>?>(
-                  future: _obtenerContenidoDelDia('QEDU'),
+                FutureBuilder<QuerySnapshot>(
+                  future: FirebaseFirestore.instance
+                      .collection('config')
+                      .doc('(default)')
+                      .collection('potenciador_contenido')
+                      .where('tipo', isEqualTo: 'QEDU')
+                  // 🔧 por ahora quitamos el segundo filtro para evitar bloqueo de índice
+                      .get(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: Colors.white),
+                      );
+                    }
+
+                    if (snapshot.hasError) {
+                      return _premiumCard(
+                        icon: Icons.error_outline_rounded,
+                        title: 'Error al cargar QEDU',
+                        subtitle: 'Verifica la conexión con la base de datos',
+                        text: '⚠️ No se pudo obtener el QEDU del día.',
+                        chip: _chip('ERROR', Colors.redAccent),
+                        color: Colors.redAccent,
+                        miniChart: _miniChart(Colors.redAccent, tipo: 'qedu'),
+                      );
+                    }
+
+                    final docs = snapshot.data?.docs ?? [];
+                    if (docs.isEmpty) {
                       return _premiumCard(
                         icon: Icons.bolt_rounded,
                         title: 'QEDU del día',
                         subtitle: 'Cómo mejorar tu rendimiento',
-                        text: 'Cargando sugerencia...',
-                        chip: _chip('HOY', const Color(0xFFFFE082)),
+                        text: '⚡ No hay QEDU activo en este momento.',
+                        chip: _chip('VACÍO', const Color(0xFFFFE082)),
                         color: const Color(0xFFBA9C2F),
-                        miniChart: _miniChart(const Color(0xFF00E5FF)),
+                        miniChart: _miniChart(const Color(0xFF00E5FF), tipo: 'qedu'),
                       );
                     }
 
-                    final data = snapshot.data!;
+                    final activos = docs.where((d) => d['activo'] == true).toList();
+                    if (activos.isEmpty) {
+                      return _premiumCard(
+                        icon: Icons.bolt_rounded,
+                        title: 'QEDU del día',
+                        subtitle: 'Cómo mejorar tu rendimiento',
+                        text: '⚡ No hay QEDU activo en este momento.',
+                        chip: _chip('INACTIVO', const Color(0xFFFFE082)),
+                        color: const Color(0xFFBA9C2F),
+                        miniChart: _miniChart(const Color(0xFF00E5FF), tipo: 'qedu'),
+                      );
+                    }
+
+                    final index = DateTime.now().day % activos.length;
+                    final contenido = activos[index]['contenido'] ?? 'Sin contenido';
                     return _premiumCard(
                       icon: Icons.bolt_rounded,
-                      title: data['titulo'] ?? 'QEDU del día',
+                      title: 'QEDU del día',
                       subtitle: 'Cómo mejorar tu rendimiento',
-                      text: data['contenido'] ?? '',
+                      text: contenido,
                       chip: _chip('HOY', const Color(0xFFFFE082)),
                       color: const Color(0xFFBA9C2F),
-                      miniChart: _miniChart(const Color(0xFF00E5FF)),
+                      miniChart: _miniChart(const Color(0xFF00E5FF), tipo: 'qedu'),
                     );
                   },
                 ),
 
+
                 const SizedBox(height: 22),
+
+                // ======= Consejo financiero =======
                 _premiumCard(
                   icon: Icons.account_balance_wallet_rounded,
                   title: 'Consejo financiero',
                   subtitle: 'Gestión de riesgo y capital',
-                  text: _finance[DateTime.now().day % _finance.length],
+                  text: _finance[DateTime
+                      .now()
+                      .day % _finance.length],
                   chip: _chip('PRO', const Color(0xFFD1C4E9)),
                   color: const Color(0xFF8E7CC3),
-                  miniChart: _miniChart(const Color(0xFFB388EB)),
+                  miniChart:
+                  _miniChart(const Color(0xFFB388EB), tipo: 'finance'),
                 ),
+
                 const SizedBox(height: 22),
+
+                // ======= Tendencia de crecimiento =======
                 _premiumCard(
                   icon: Icons.trending_up_rounded,
                   title: 'Tendencia de crecimiento',
                   subtitle: 'Evolución de ganancias',
-                  text: 'Analiza tu progreso y ajusta tus estrategias.',
+                  text: _growth[DateTime
+                      .now()
+                      .day % _growth.length],
                   chip: _chip('LIVE', const Color(0xFFB2F5EA)),
                   color: const Color(0xFF00E5FF),
-                  miniChart: _miniChart(const Color(0xFF00FF88)),
+                  miniChart:
+                  _miniChart(const Color(0xFF00FF88), tipo: 'growth'),
                 ),
               ],
             ),
@@ -211,6 +311,7 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
       ),
     );
   }
+
 
   // ===================== BLOQUE PREMIUM "LECTURA DEL DÍA" =====================
   Widget _bloqueLecturaDelDia() {
@@ -236,39 +337,131 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
 
         // === 30 frases financieras ===
         final frases = [
-          {"autor": "Warren Buffett", "texto": "La regla número uno es no perder dinero. La regla número dos es no olvidar la regla número uno."},
-          {"autor": "Robert Kiyosaki", "texto": "El dinero no te hace rico. La educación financiera sí."},
-          {"autor": "Benjamin Franklin", "texto": "Un pequeño gasto puede arruinar una gran fortuna. Vigila las fugas pequeñas."},
-          {"autor": "Napoleon Hill", "texto": "Piensa en grande. Lo que la mente puede concebir y creer, lo puede lograr."},
-          {"autor": "Peter Lynch", "texto": "Invertir sin investigar es como jugar póker sin mirar las cartas."},
-          {"autor": "John D. Rockefeller", "texto": "No tengas miedo de renunciar a lo bueno para ir tras lo grandioso."},
-          {"autor": "Charlie Munger", "texto": "Invierte siempre en lo que entiendes. El conocimiento compone intereses igual que el dinero."},
-          {"autor": "George S. Clason", "texto": "Haz que tu dinero trabaje para ti. Cada moneda debe convertirse en un obrero más."},
-          {"autor": "Suze Orman", "texto": "Cada dólar que gastas hoy es un dólar menos de libertad mañana."},
-          {"autor": "Dave Ramsey", "texto": "Vive por debajo de tus posibilidades y podrás vivir sin deudas."},
-          {"autor": "Elon Musk", "texto": "El riesgo viene de no saber lo que estás haciendo. Aprende antes de invertir."},
-          {"autor": "Grant Cardone", "texto": "Ahorra para invertir, no para acumular. El dinero guardado pierde poder."},
-          {"autor": "Ray Dalio", "texto": "Quien no entiende los ciclos económicos, está destinado a sufrirlos."},
-          {"autor": "Mark Cuban", "texto": "Trabaja como si alguien quisiera quitarte todo lo que tienes."},
-          {"autor": "Jim Rohn", "texto": "La disciplina pesa gramos. El arrepentimiento pesa toneladas."},
-          {"autor": "Tony Robbins", "texto": "Tu libertad financiera no depende del salario, sino de cómo lo administras."},
-          {"autor": "Andrew Carnegie", "texto": "El hombre que muere rico, muere en desgracia. La riqueza se debe poner a trabajar."},
-          {"autor": "Morgan Housel", "texto": "El dinero es el mejor espejo del comportamiento humano."},
-          {"autor": "Thomas J. Stanley", "texto": "Los verdaderos millonarios gastan menos de lo que ganan y ahorran más de lo que parece."},
-          {"autor": "Jeff Bezos", "texto": "Si duplicas el número de experimentos, duplicas tus oportunidades de éxito."},
-          {"autor": "Bill Gates", "texto": "Está bien celebrar el éxito, pero es más importante aprender de los fracasos."},
-          {"autor": "Paul Samuelson", "texto": "Invertir debería ser como ver la pintura secarse. Si quieres emoción, ve a Las Vegas."},
-          {"autor": "Henry Ford", "texto": "El fracaso es simplemente la oportunidad de comenzar de nuevo, pero más inteligentemente."},
-          {"autor": "Phil Knight", "texto": "No pares. Nunca te conformes con menos de lo que sabes que puedes lograr."},
-          {"autor": "Earl Nightingale", "texto": "El éxito es la realización progresiva de un ideal digno."},
-          {"autor": "Bodo Schäfer", "texto": "La libertad financiera comienza cuando dejas de trabajar solo por dinero."},
-          {"autor": "Jim Collins", "texto": "La grandeza no es una circunstancia, es una elección."},
-          {"autor": "Stephen Covey", "texto": "Empieza con un fin en mente. Las finanzas también se planean con propósito."},
-          {"autor": "Howard Marks", "texto": "Ser consciente del riesgo es más importante que buscar el beneficio."},
-          {"autor": "Carlos Slim", "texto": "El éxito no está en vencer siempre, sino en no desanimarse nunca."},
+          {
+            "autor": "Warren Buffett",
+            "texto": "La regla número uno es no perder dinero. La regla número dos es no olvidar la regla número uno."
+          },
+          {
+            "autor": "Robert Kiyosaki",
+            "texto": "El dinero no te hace rico. La educación financiera sí."
+          },
+          {
+            "autor": "Benjamin Franklin",
+            "texto": "Un pequeño gasto puede arruinar una gran fortuna. Vigila las fugas pequeñas."
+          },
+          {
+            "autor": "Napoleon Hill",
+            "texto": "Piensa en grande. Lo que la mente puede concebir y creer, lo puede lograr."
+          },
+          {
+            "autor": "Peter Lynch",
+            "texto": "Invertir sin investigar es como jugar póker sin mirar las cartas."
+          },
+          {
+            "autor": "John D. Rockefeller",
+            "texto": "No tengas miedo de renunciar a lo bueno para ir tras lo grandioso."
+          },
+          {
+            "autor": "Charlie Munger",
+            "texto": "Invierte siempre en lo que entiendes. El conocimiento compone intereses igual que el dinero."
+          },
+          {
+            "autor": "George S. Clason",
+            "texto": "Haz que tu dinero trabaje para ti. Cada moneda debe convertirse en un obrero más."
+          },
+          {
+            "autor": "Suze Orman",
+            "texto": "Cada dólar que gastas hoy es un dólar menos de libertad mañana."
+          },
+          {
+            "autor": "Dave Ramsey",
+            "texto": "Vive por debajo de tus posibilidades y podrás vivir sin deudas."
+          },
+          {
+            "autor": "Elon Musk",
+            "texto": "El riesgo viene de no saber lo que estás haciendo. Aprende antes de invertir."
+          },
+          {
+            "autor": "Grant Cardone",
+            "texto": "Ahorra para invertir, no para acumular. El dinero guardado pierde poder."
+          },
+          {
+            "autor": "Ray Dalio",
+            "texto": "Quien no entiende los ciclos económicos, está destinado a sufrirlos."
+          },
+          {
+            "autor": "Mark Cuban",
+            "texto": "Trabaja como si alguien quisiera quitarte todo lo que tienes."
+          },
+          {
+            "autor": "Jim Rohn",
+            "texto": "La disciplina pesa gramos. El arrepentimiento pesa toneladas."
+          },
+          {
+            "autor": "Tony Robbins",
+            "texto": "Tu libertad financiera no depende del salario, sino de cómo lo administras."
+          },
+          {
+            "autor": "Andrew Carnegie",
+            "texto": "El hombre que muere rico, muere en desgracia. La riqueza se debe poner a trabajar."
+          },
+          {
+            "autor": "Morgan Housel",
+            "texto": "El dinero es el mejor espejo del comportamiento humano."
+          },
+          {
+            "autor": "Thomas J. Stanley",
+            "texto": "Los verdaderos millonarios gastan menos de lo que ganan y ahorran más de lo que parece."
+          },
+          {
+            "autor": "Jeff Bezos",
+            "texto": "Si duplicas el número de experimentos, duplicas tus oportunidades de éxito."
+          },
+          {
+            "autor": "Bill Gates",
+            "texto": "Está bien celebrar el éxito, pero es más importante aprender de los fracasos."
+          },
+          {
+            "autor": "Paul Samuelson",
+            "texto": "Invertir debería ser como ver la pintura secarse. Si quieres emoción, ve a Las Vegas."
+          },
+          {
+            "autor": "Henry Ford",
+            "texto": "El fracaso es simplemente la oportunidad de comenzar de nuevo, pero más inteligentemente."
+          },
+          {
+            "autor": "Phil Knight",
+            "texto": "No pares. Nunca te conformes con menos de lo que sabes que puedes lograr."
+          },
+          {
+            "autor": "Earl Nightingale",
+            "texto": "El éxito es la realización progresiva de un ideal digno."
+          },
+          {
+            "autor": "Bodo Schäfer",
+            "texto": "La libertad financiera comienza cuando dejas de trabajar solo por dinero."
+          },
+          {
+            "autor": "Jim Collins",
+            "texto": "La grandeza no es una circunstancia, es una elección."
+          },
+          {
+            "autor": "Stephen Covey",
+            "texto": "Empieza con un fin en mente. Las finanzas también se planean con propósito."
+          },
+          {
+            "autor": "Howard Marks",
+            "texto": "Ser consciente del riesgo es más importante que buscar el beneficio."
+          },
+          {
+            "autor": "Carlos Slim",
+            "texto": "El éxito no está en vencer siempre, sino en no desanimarse nunca."
+          },
         ];
 
-        final lecturaDelDia = frases[(DateTime.now().day - 1) % frases.length];
+        final lecturaDelDia = frases[(DateTime
+            .now()
+            .day - 1) % frases.length];
 
         final colorLinea =
         totalGanancia > 0 ? const Color(0xFF00E676) : Colors.amberAccent;
@@ -383,10 +576,11 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
                         ),
                         spots: List.generate(
                           6,
-                              (i) => FlSpot(
-                            i.toDouble(),
-                            (sin(i * 0.9) * 1.5 + 2.5),
-                          ),
+                              (i) =>
+                              FlSpot(
+                                i.toDouble(),
+                                (sin(i * 0.9) * 1.5 + 2.5),
+                              ),
                         ),
                       ),
                     ],
@@ -399,8 +593,6 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
       },
     );
   }
-
-
 
 
   // ===================== TARJETAS PREMIUM =====================
@@ -505,10 +697,41 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
     );
   }
 
-  // ===================== MINIGRÁFICOS =====================
-  Widget _miniChart(Color color) {
-    final random = (List<double>.generate(
-        6, (i) => (1 + i + (i % 2 == 0 ? 0.3 : 0.6)) + i / 3));
+  // ===================== MINIGRÁFICOS PERSONALIZADOS =====================
+  Widget _miniChart(Color color, {String tipo = 'qedu'}) {
+    List<FlSpot> spots;
+
+    switch (tipo) {
+      case 'qedu': // ⚡ Curva eléctrica tipo ola
+        spots = List.generate(
+          7,
+              (i) => FlSpot(i.toDouble(), (sin(i * 1.0) * 1.4 + 3.0)),
+        );
+        break;
+
+      case 'finance': // 💼 Curva ascendente estable
+        spots = List.generate(
+          7,
+              (i) => FlSpot(i.toDouble(), (1.2 + i * 0.5 + sin(i * 0.4) * 0.3)),
+        );
+        break;
+
+      case 'growth': // 📈 Impulso progresivo con picos altos
+        spots = List.generate(
+          7,
+              (i) =>
+              FlSpot(i.toDouble(),
+                  (pow(i, 0.8) * 0.9 + 1.5 + Random().nextDouble() * 0.8)),
+        );
+        break;
+
+      default:
+        spots = List.generate(
+          7,
+              (i) => FlSpot(i.toDouble(), (2 + sin(i * 0.8) * 1.0)),
+        );
+    }
+
     return SizedBox(
       height: 90,
       child: LineChart(
@@ -525,15 +748,12 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
               belowBarData: BarAreaData(
                 show: true,
                 gradient: LinearGradient(
-                  colors: [color.withOpacity(0.4), color.withOpacity(0.0)],
+                  colors: [color.withOpacity(0.35), color.withOpacity(0.0)],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
               ),
-              spots: List.generate(
-                random.length,
-                    (i) => FlSpot(i.toDouble(), random[i]),
-              ),
+              spots: spots,
             ),
           ],
         ),
@@ -542,7 +762,7 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
   }
 }
 
-Widget _noDataCard() {
+  Widget _noDataCard() {
   return Container(
     padding: const EdgeInsets.all(22),
     decoration: BoxDecoration(

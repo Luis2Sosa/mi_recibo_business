@@ -480,23 +480,33 @@ class _GananciasScreenState extends State<GananciasScreen>
                     _premiumCard(),
 
                     const SizedBox(height: 35),
+                    // ===== BOTÓN DISCRETO PREMIUM =====
                     ElevatedButton.icon(
                       onPressed: _mostrarBannerConfirmacion,
-                      icon: const Icon(Icons.delete_forever_rounded,
-                          color: Colors.white, size: 24),
+                      icon: const Icon(Icons.delete_outline_rounded, color: Colors.white70, size: 18),
                       label: const Text('Borrar ganancias totales'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFE11D48),
-                        foregroundColor: Colors.white,
-                        shape: const StadiumBorder(),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 36, vertical: 18),
-                        textStyle: const TextStyle(
-                            fontWeight: FontWeight.w900, fontSize: 16),
-                        shadowColor: Colors.redAccent.withOpacity(.4),
-                        elevation: 10,
+                        backgroundColor: Colors.white.withOpacity(0.08),
+                        foregroundColor: Colors.white70,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                        elevation: 0,
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: Text(
+                        'Esta acción es irreversible. Los datos se borrarán de forma permanente.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.4),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -605,7 +615,7 @@ class _GananciasScreenState extends State<GananciasScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'Accede a estrategias avanzadas\npara optimizar tus ganancias diarias.',
+              'Descubre tu poder financiero diario\ncon estrategias premium para crecer más cada día.',
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 color: Colors.white.withOpacity(0.9),
@@ -616,28 +626,39 @@ class _GananciasScreenState extends State<GananciasScreen>
             ),
             const SizedBox(height: 18),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(22),
-                color: Colors.white.withOpacity(0.08),
-                border: Border.all(color: Colors.white.withOpacity(0.25)),
+                borderRadius: BorderRadius.circular(20),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFD700), Color(0xFF00E5FF)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blueAccent.withOpacity(0.35),
+                    blurRadius: 15,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: const [
-                  Icon(Icons.touch_app_rounded, color: Colors.white70, size: 18),
+                  Icon(Icons.bolt_rounded, color: Colors.black, size: 20),
                   SizedBox(width: 8),
                   Text(
-                    'Toca para ver',
+                    'Entrar al Potenciador',
                     style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
+                      color: Colors.black,
+                      fontWeight: FontWeight.w800,
                       fontSize: 14,
                     ),
                   ),
                 ],
               ),
             ),
+
           ],
         ),
       ),

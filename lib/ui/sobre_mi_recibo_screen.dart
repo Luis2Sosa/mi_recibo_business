@@ -372,39 +372,31 @@ class _PremiumPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 28),
       decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
         borderRadius: BorderRadius.circular(26),
-        color: Colors.white.withOpacity(0.06),
-        border: Border.all(color: Colors.white.withOpacity(0.12), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withOpacity(0.06), width: 1.2),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Ícono dorado
+          // 🏅 Icono Premium elegante con borde dorado
           Container(
-            padding: const EdgeInsets.all(18),
+            width: 90,
+            height: 90,
             decoration: BoxDecoration(
+              color: Colors.black,
               shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.1),
-              border: Border.all(color: Colors.white.withOpacity(0.25)),
+              border: Border.all(color: const Color(0xFFE0B85A), width: 2),
             ),
-            child: const Icon(
-              Icons.workspace_premium_rounded,
-              color: Color(0xFFFFD700),
-              size: 48,
-            ),
+            child: const Icon(Icons.workspace_premium_rounded,
+                color: Colors.white, size: 48),
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
 
-          // Título principal
+          // ✨ Título principal
           Text(
             'Mi Recibo Business Premium',
             textAlign: TextAlign.center,
@@ -415,65 +407,52 @@ class _PremiumPanel extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 10),
-
-          // Texto mejorado
+          const SizedBox(height: 8),
           Text(
-            'Lleva tu gestión al siguiente nivel. Visualiza tus ganancias totales y '
-                'métricas profesionales en tiempo real, sin interrupciones ni anuncios.\n\n'
-                'Accede al Potenciador Premium con consejos exclusivos para hacer crecer tu negocio '
-                'de forma clara, rápida y profesional.',
+            'Por solo US\$0.99 al mes',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
-              color: Colors.white.withOpacity(.9),
-              fontSize: 14.5,
-              height: 1.45,
-              fontWeight: FontWeight.w600,
+              color: const Color(0xFFE0B85A),
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
             ),
           ),
 
           const SizedBox(height: 22),
 
-          // Botón con precio
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF00FFD1), Color(0xFF00B8FF)],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ),
-              borderRadius: BorderRadius.circular(50),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 14,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: const Text(
-              ' Sin anuncios • Acceso total • US\$1.99/mes',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.w900,
-                fontSize: 13,
-              ),
-            ),
+          // 📈 Beneficios resumidos
+          _benefit(
+            icon: Icons.bar_chart_rounded,
+            color: const Color(0xFF2563EB),
+            text:
+            'Consulta tus ganancias totales y divididas por categoría: préstamos, productos y alquileres.',
+          ),
+          const SizedBox(height: 14),
+
+          _benefit(
+            icon: Icons.auto_awesome_rounded,
+            color: const Color(0xFF10B981),
+            text:
+            'Recibe estrategias diarias exclusivas con el Potenciador Premium.',
+          ),
+          const SizedBox(height: 14),
+
+          _benefit(
+            icon: Icons.shield_rounded,
+            color: const Color(0xFF8B5CF6),
+            text:
+            'Acceso sin anuncios y con soporte técnico prioritario para profesionales.',
           ),
 
-          const SizedBox(height: 18),
+          const SizedBox(height: 26),
 
-          // Frase final más llamativa
+          // 🧠 Frase final inspiradora
           Text(
-            'Premium no es un extra, es la experiencia completa.\n'
-                'Haz tu negocio más rentable, más claro y más tuyo.',
+            'Haz crecer tu negocio con herramientas premium diseñadas para emprendedores reales.',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
-              color: Colors.white.withOpacity(.8),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+              color: Colors.white.withOpacity(0.85),
+              fontSize: 13.5,
               height: 1.4,
             ),
           ),
@@ -481,4 +460,40 @@ class _PremiumPanel extends StatelessWidget {
       ),
     );
   }
+
+  // Widget para ítems de beneficios
+  static Widget _benefit({
+    required IconData icon,
+    required Color color,
+    required String text,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.inter(
+              color: Colors.white.withOpacity(0.92),
+              fontSize: 14.2,
+              height: 1.45,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
+
+
+
