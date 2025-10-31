@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Servicio global de estadísticas (solo capital)
-/// Versión estable: no borra totales y suma todas las categorías correctamente.
+/// Versión estable + historial mensual automático.
 class EstadisticasTotalesService {
   static final _db = FirebaseFirestore.instance;
 
@@ -12,12 +12,15 @@ class EstadisticasTotalesService {
   static DocumentReference<Map<String, dynamic>> _catDoc(String prestamistaId, String cat) =>
       _db.collection('prestamistas').doc(prestamistaId).collection('estadisticas').doc(cat);
 
+  static DocumentReference<Map<String, dynamic>> _totalesDoc(String prestamistaId) =>
+      _db.collection('prestamistas').doc(prestamistaId).collection('estadisticas').doc('totales');
+
   // ================== ESTRUCTURA BASE ==================
   static Future<void> ensureStructure(String prestamistaId) async {
     final docRef = _summaryDoc(prestamistaId);
     final snap = await docRef.get();
 
-    // ✅ Solo crea el documento si no existe, nunca lo reinicia
+    // ✅ Solo crea el documento si no existe
     if (!snap.exists) {
       await docRef.set({
         'totalCapitalPrestado': 0,
@@ -43,6 +46,23 @@ class EstadisticasTotalesService {
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }
+    }
+
+    // ✅ Crea el documento de totales si no existe
+    final totRef = _totalesDoc(prestamistaId);
+    final totSnap = await totRef.get();
+    if (!totSnap.exists) {
+      await totRef.set({
+        'totalGanancia': 0,
+        'totalCapitalRecuperado': 0,
+        'totalCapitalPrestado': 0,
+        'totalRecuperado': 0,
+        'gananciaAlquiler': 0,
+        'gananciaPrestamo': 0,
+        'gananciaProducto': 0,
+        'historialGanancias': {},
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     }
   }
 
@@ -89,7 +109,7 @@ class EstadisticasTotalesService {
       data['capitalPrestado'] = FieldValue.increment(capitalPrestadoDelta);
     }
 
-    // 🚫 Nunca permitir restar capital recuperado automáticamente
+    // 🚫 Nunca restar capital recuperado automáticamente
     if (capitalRecuperadoDelta != null && capitalRecuperadoDelta > 0) {
       data['capitalRecuperado'] = FieldValue.increment(capitalRecuperadoDelta);
     }
@@ -135,6 +155,8 @@ class EstadisticasTotalesService {
       'totalCapitalPendiente': FieldValue.increment(capitalInicial),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    await actualizarHistorialMensual(prestamistaId);
   }
 
   /// 🔹 Pago de capital (versión segura)
@@ -143,9 +165,6 @@ class EstadisticasTotalesService {
         required String tipo,
         required int montoCapital,
       }) async {
-    // ✅ No llamar ensureStructure aquí
-    // ✅ Sumar sin borrar totales anteriores
-
     await adjustCategoria(
       prestamistaId,
       tipo,
@@ -153,12 +172,13 @@ class EstadisticasTotalesService {
       capitalPendienteDelta: -montoCapital,
     );
 
-    // ✅ Se actualizan los totales globales sin sobrescribir
     await _summaryDoc(prestamistaId).set({
       'totalCapitalRecuperado': FieldValue.increment(montoCapital),
       'totalCapitalPendiente': FieldValue.increment(-montoCapital),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    await actualizarHistorialMensual(prestamistaId);
   }
 
   /// 🔹 Botón manual para eliminar capital recuperado
@@ -166,14 +186,15 @@ class EstadisticasTotalesService {
       String prestamistaId,
       int monto,
       ) async {
-    // ✅ Solo resta, sin tocar otros campos
     await _summaryDoc(prestamistaId).set({
       'totalCapitalRecuperado': FieldValue.increment(-monto),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    await actualizarHistorialMensual(prestamistaId);
   }
 
-  /// 🔹 Cálculo directo de recuperación total (global)
+  /// 🔹 Cálculo directo de recuperación total
   static Future<double> calcularRecuperacionTotal(String prestamistaId) async {
     final data = await readSummary(prestamistaId);
     if (data == null) return 0.0;
@@ -197,9 +218,8 @@ class EstadisticasTotalesService {
     });
   }
 
-  // ================== MÉTODOS COMPATIBLES CON LAS PANTALLAS ANTIGUAS ==================
+  // ================== MÉTODOS ANTIGUOS ==================
 
-  /// Devuelve los datos básicos de una categoría (alquiler, préstamo, producto)
   static Future<Map<String, dynamic>> headCategoria(String prestamistaId, String cat) async {
     final snap = await _db
         .collection('prestamistas')
@@ -210,7 +230,6 @@ class EstadisticasTotalesService {
     return snap.data() ?? {};
   }
 
-  /// Devuelve una serie mensual (para las gráficas)
   static Future<List<Map<String, dynamic>>> readSerieMensual(
       String prestamistaId,
       String cat, {
@@ -239,29 +258,51 @@ class EstadisticasTotalesService {
 
   /// 🔹 Reinicia solo las ganancias (sin tocar capital recuperado)
   static Future<void> resetGananciasTotales(String prestamistaId) async {
-    // 1️⃣ Reinicia SOLO la ganancia, nunca el capital recuperado
     await _summaryDoc(prestamistaId).set({
       'totalGanancia': 0,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
-    // 🔹 También en el documento "totales", preserva totalCapitalRecuperado
-    await _db
-        .collection('prestamistas')
-        .doc(prestamistaId)
-        .collection('estadisticas')
-        .doc('totales')
-        .set({
+    await _totalesDoc(prestamistaId).set({
       'totalGanancia': 0,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
-    // 2️⃣ Resetear solo la ganancia por categoría, sin tocar capitalRecuperado
     for (final cat in const ['prestamo', 'producto', 'alquiler']) {
       await _catDoc(prestamistaId, cat).set({
         'gananciaNeta': 0,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+    }
+
+    await actualizarHistorialMensual(prestamistaId);
+  }
+
+  /// ================== HISTORIAL MENSUAL AUTOMÁTICO ==================
+  static Future<void> actualizarHistorialMensual(String prestamistaId) async {
+    try {
+      final docTotales = _totalesDoc(prestamistaId);
+      final snap = await docTotales.get();
+      if (!snap.exists) return;
+
+      final data = snap.data() ?? {};
+      final gananciaTotal = (data['totalGanancia'] ?? 0) as num;
+
+      // 🔹 Mes actual YYYY-MM
+      final ahora = DateTime.now();
+      final claveMes = '${ahora.year}-${ahora.month.toString().padLeft(2, '0')}';
+
+      // 🔹 Actualiza historialGanancias sin borrar los anteriores
+      await docTotales.set({
+        'historialGanancias': {
+          claveMes: {'total': gananciaTotal}
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      print('✅ Historial mensual actualizado automáticamente ($claveMes: $gananciaTotal)');
+    } catch (e) {
+      print('⚠️ Error al actualizar historial mensual: $e');
     }
   }
 }

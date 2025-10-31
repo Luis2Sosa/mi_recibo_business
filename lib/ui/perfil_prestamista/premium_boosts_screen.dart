@@ -275,34 +275,173 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
 
                 const SizedBox(height: 22),
 
-                // ======= Consejo financiero =======
-                _premiumCard(
-                  icon: Icons.account_balance_wallet_rounded,
-                  title: 'Consejo financiero',
-                  subtitle: 'Gestión de riesgo y capital',
-                  text: _finance[DateTime
-                      .now()
-                      .day % _finance.length],
-                  chip: _chip('PRO', const Color(0xFFD1C4E9)),
-                  color: const Color(0xFF8E7CC3),
-                  miniChart:
-                  _miniChart(const Color(0xFFB388EB), tipo: 'finance'),
+                // ======= Consejo financiero (desde Firestore) =======
+                FutureBuilder<QuerySnapshot>(
+                  future: FirebaseFirestore.instance
+                      .collection('config')
+                      .doc('(default)')
+                      .collection('potenciador_contenido')
+                      .where('tipo', isEqualTo: 'FIN')
+                      .get(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: Colors.white),
+                      );
+                    }
+
+                    if (snapshot.hasError) {
+                      return _premiumCard(
+                        icon: Icons.account_balance_wallet_rounded,
+                        title: 'Consejo financiero',
+                        subtitle: 'Gestión de riesgo y capital',
+                        text: '⚠️ Error al conectar con la base de datos.',
+                        chip: _chip('ERROR', Colors.redAccent),
+                        color: Colors.redAccent,
+                        miniChart: _miniChart(Colors.redAccent, tipo: 'finance'),
+                      );
+                    }
+
+                    final docs = snapshot.data?.docs ?? [];
+                    if (docs.isEmpty) {
+                      return _premiumCard(
+                        icon: Icons.account_balance_wallet_rounded,
+                        title: 'Consejo financiero',
+                        subtitle: 'Gestión de riesgo y capital',
+                        text: '📭 No hay consejos financieros activos.',
+                        chip: _chip('VACÍO', const Color(0xFFFFE082)),
+                        color: const Color(0xFF8E7CC3),
+                        miniChart: _miniChart(const Color(0xFFB388EB), tipo: 'finance'),
+                      );
+                    }
+
+                    final activos = docs.where((d) => d['activo'] == true).toList();
+                    if (activos.isEmpty) {
+                      return _premiumCard(
+                        icon: Icons.account_balance_wallet_rounded,
+                        title: 'Consejo financiero',
+                        subtitle: 'Gestión de riesgo y capital',
+                        text: '⚡ No hay consejos financieros activos.',
+                        chip: _chip('INACTIVO', const Color(0xFFFFE082)),
+                        color: const Color(0xFF8E7CC3),
+                        miniChart: _miniChart(const Color(0xFFB388EB), tipo: 'finance'),
+                      );
+                    }
+
+                    final index = DateTime.now().day % activos.length;
+                    final contenido = activos[index]['contenido'] ?? 'Sin contenido';
+                    return _premiumCard(
+                      icon: Icons.account_balance_wallet_rounded,
+                      title: 'Consejo financiero',
+                      subtitle: 'Gestión de riesgo y capital',
+                      text: contenido,
+                      chip: _chip('PRO', const Color(0xFFD1C4E9)),
+                      color: const Color(0xFF8E7CC3),
+                      miniChart: _miniChart(const Color(0xFFB388EB), tipo: 'finance'),
+                    );
+                  },
                 ),
+
 
                 const SizedBox(height: 22),
 
-                // ======= Tendencia de crecimiento =======
-                _premiumCard(
-                  icon: Icons.trending_up_rounded,
-                  title: 'Tendencia de crecimiento',
-                  subtitle: 'Evolución de ganancias',
-                  text: _growth[DateTime
-                      .now()
-                      .day % _growth.length],
-                  chip: _chip('LIVE', const Color(0xFFB2F5EA)),
-                  color: const Color(0xFF00E5FF),
-                  miniChart:
-                  _miniChart(const Color(0xFF00FF88), tipo: 'growth'),
+                // ======= Tendencia de crecimiento dinámica =======
+                StreamBuilder<DocumentSnapshot>(
+                  stream: widget.docPrest.collection('estadisticas').doc('totales').snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return _premiumCard(
+                        icon: Icons.trending_up_rounded,
+                        title: 'Tendencia de crecimiento',
+                        subtitle: 'Progreso mensual inteligente',
+                        text: 'Cargando datos de tu progreso...',
+                        chip: _chip('SYNC', const Color(0xFF80DEEA)),
+                        color: const Color(0xFF00E5FF),
+                        miniChart: const _AnimatedGrowthBackgroundVisible(0),
+                      );
+                    }
+
+                    final rawData = snapshot.data?.data();
+                    if (rawData == null || rawData is! Map) {
+                      return _premiumCard(
+                        icon: Icons.trending_up_rounded,
+                        title: 'Tendencia de crecimiento',
+                        subtitle: 'Progreso mensual inteligente',
+                        text: 'Aún no hay datos disponibles en tu cuenta.',
+                        chip: _chip('OFF', const Color(0xFFFFE082)),
+                        color: const Color(0xFF00E5FF),
+                        miniChart: const _AnimatedGrowthBackground(0),
+                      );
+                    }
+
+                    // ✅ Conversión segura del documento Firestore
+                    final Map<String, dynamic> data = Map<String, dynamic>.from(rawData);
+                    final rawHistorico = data['historialGanancias'];
+
+                    final Map<String, dynamic> historico = rawHistorico is Map
+                        ? Map<String, dynamic>.fromEntries(
+                      rawHistorico.entries.map(
+                            (e) => MapEntry(e.key.toString(), e.value),
+                      ),
+                    )
+                        : {};
+
+                    // ✅ Si no hay datos
+                    if (historico.isEmpty) {
+                      return _premiumCard(
+                        icon: Icons.trending_up_rounded,
+                        title: 'Tendencia de crecimiento',
+                        subtitle: 'Progreso mensual inteligente',
+                        text: 'Aún no hay datos suficientes para calcular tu progreso mensual.',
+                        chip: _chip('OFF', const Color(0xFFFFE082)),
+                        color: const Color(0xFF00E5FF),
+                        miniChart: const _AnimatedGrowthBackground(0),
+                      );
+                    }
+
+                    // ✅ Ordenar los meses
+                    final meses = historico.keys.toList()..sort();
+
+                    final ultimoMes = meses.last;
+                    final penultimoMes =
+                    meses.length > 1 ? meses[meses.length - 2] : null;
+
+                    final totalUltimo = (historico[ultimoMes] is Map)
+                        ? ((historico[ultimoMes] as Map)['total'] ?? 0)
+                        : 0;
+
+                    final totalAnterior =
+                    (penultimoMes != null && historico[penultimoMes] is Map)
+                        ? ((historico[penultimoMes] as Map)['total'] ?? 0)
+                        : 0;
+
+                    double cambio = 0;
+                    if (totalAnterior > 0) {
+                      cambio = ((totalUltimo - totalAnterior) / totalAnterior) * 100;
+                    }
+
+                    // 🌈 Estilo Premium Inteligente (mensajes según tendencia)
+                    final mensaje = cambio > 20
+                        ? '🚀 Crecimiento sobresaliente de ${cambio.toStringAsFixed(1)} %. ¡Estás en tu mejor momento!'
+                        : cambio > 10
+                        ? '🌟 Tus ganancias subieron un ${cambio.toStringAsFixed(1)} %. Excelente gestión este mes.'
+                        : cambio > 0
+                        ? '📈 Pequeña mejora (${cambio.toStringAsFixed(1)} %) respecto al mes pasado.'
+                        : cambio < 0
+                        ? '📉 Bajaron ${cambio.abs().toStringAsFixed(1)} %. Revisa cobros y renovaciones.'
+                        : '⚖️ Tus ganancias se mantienen estables este mes.';
+
+                    // ✅ Tarjeta Premium con animación dinámica
+                    return _premiumCard(
+                      icon: Icons.trending_up_rounded,
+                      title: 'Tendencia de crecimiento',
+                      subtitle: 'Progreso mensual inteligente',
+                      text: mensaje,
+                      chip: _chip('LIVE', const Color(0xFFB2F5EA)),
+                      color: const Color(0xFF00E5FF),
+                      miniChart: _AnimatedGrowthBackgroundVisible(cambio),
+                    );
+                  },
                 ),
               ],
             ),
@@ -319,15 +458,14 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
       future: widget.docPrest.collection('estadisticas').doc('totales').get(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26),
-              color: Colors.white.withOpacity(0.05),
-            ),
-            child: const Center(
-              child: CircularProgressIndicator(color: Colors.white),
-            ),
+          return _premiumCard(
+            icon: Icons.trending_up_rounded,
+            title: 'Tendencia de crecimiento',
+            subtitle: 'Progreso mensual inteligente',
+            text: 'Cargando datos de tu progreso...',
+            chip: _chip('SYNC', const Color(0xFF80DEEA)),
+            color: const Color(0xFF00E5FF),
+            miniChart: const _AnimatedGrowthBackground(0), // 👈 aquí va fijo 0
           );
         }
 
@@ -549,7 +687,7 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
 
               const SizedBox(height: 22),
 
-              // === PEQUEÑO GRÁFICO DECORATIVO ===
+              // === PEQUEÑO GRÁFICO DECORATIVO (ahora cambia cada día) ===
               SizedBox(
                 height: 90,
                 child: LineChart(
@@ -574,13 +712,16 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
                             end: Alignment.bottomCenter,
                           ),
                         ),
+                        // 👇 curva generada diferente cada día
                         spots: List.generate(
-                          6,
-                              (i) =>
-                              FlSpot(
-                                i.toDouble(),
-                                (sin(i * 0.9) * 1.5 + 2.5),
-                              ),
+                          7,
+                              (i) {
+                            final random = Random(DateTime.now().day + i);
+                            return FlSpot(
+                              i.toDouble(),
+                              (sin(i * 0.8) * 1.4 + 2.2 + random.nextDouble() * 0.8),
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -697,41 +838,56 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
     );
   }
 
-  // ===================== MINIGRÁFICOS PERSONALIZADOS =====================
+  /// ===================== MINIGRÁFICOS CON VARIACIÓN DIARIA =====================
   Widget _miniChart(Color color, {String tipo = 'qedu'}) {
+    // 🌙 Usamos día + mes para asegurar cambios reales cada día
+    final int seed = DateTime.now().day + DateTime.now().month * 31;
+    final random = Random(seed);
+
     List<FlSpot> spots;
 
     switch (tipo) {
-      case 'qedu': // ⚡ Curva eléctrica tipo ola
+      case 'qedu': // ⚡ Curva tipo ola eléctrica suave
         spots = List.generate(
           7,
-              (i) => FlSpot(i.toDouble(), (sin(i * 1.0) * 1.4 + 3.0)),
+              (i) => FlSpot(
+            i.toDouble(),
+            (sin(i * 0.9 + random.nextDouble() * 0.8) * 1.3 + 3.0),
+          ),
         );
         break;
 
-      case 'finance': // 💼 Curva ascendente estable
+      case 'finance': // 💼 Curva ascendente estable y elegante
         spots = List.generate(
           7,
-              (i) => FlSpot(i.toDouble(), (1.2 + i * 0.5 + sin(i * 0.4) * 0.3)),
+              (i) => FlSpot(
+            i.toDouble(),
+            (1.4 + i * 0.45 + sin(i * 0.5 + random.nextDouble() * 0.6) * 0.3),
+          ),
         );
         break;
 
-      case 'growth': // 📈 Impulso progresivo con picos altos
+      case 'growth': // 📈 Curva con picos más amplios (solo usada si se aplica)
         spots = List.generate(
           7,
-              (i) =>
-              FlSpot(i.toDouble(),
-                  (pow(i, 0.8) * 0.9 + 1.5 + Random().nextDouble() * 0.8)),
+              (i) => FlSpot(
+            i.toDouble(),
+            (pow(i, 0.9) * 0.8 + 1.6 + random.nextDouble() * 1.0),
+          ),
         );
         break;
 
-      default:
+      default: // 🌊 Curva genérica tipo onda
         spots = List.generate(
           7,
-              (i) => FlSpot(i.toDouble(), (2 + sin(i * 0.8) * 1.0)),
+              (i) => FlSpot(
+            i.toDouble(),
+            (2.0 + sin(i * 0.8 + random.nextDouble() * 0.5) * 1.0),
+          ),
         );
     }
 
+    // === Visual del gráfico ===
     return SizedBox(
       height: 90,
       child: LineChart(
@@ -748,7 +904,10 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
               belowBarData: BarAreaData(
                 show: true,
                 gradient: LinearGradient(
-                  colors: [color.withOpacity(0.35), color.withOpacity(0.0)],
+                  colors: [
+                    color.withOpacity(0.35),
+                    color.withOpacity(0.0),
+                  ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
@@ -800,4 +959,140 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
       ],
     ),
   );
+}
+// ======================================================
+// 🌊 ANIMACIÓN SUAVE DE CRECIMIENTO (FUNCIONAL Y VISIBLE)
+// ======================================================
+class _AnimatedGrowthBackground extends StatefulWidget {
+  final double cambio;
+  const _AnimatedGrowthBackground(this.cambio);
+
+  @override
+  State<_AnimatedGrowthBackground> createState() =>
+      _AnimatedGrowthBackgroundState();
+}
+
+class _AnimatedGrowthBackgroundState extends State<_AnimatedGrowthBackground>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 15), // movimiento muy suave
+    )..repeat(); // se repite infinitamente hacia adelante
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _WavePainter(
+            progress: _controller.value,
+            cambio: widget.cambio,
+          ),
+          child: Container(
+            height: 90,
+            width: double.infinity,
+            color: Colors.transparent, // mantiene fondo de la tarjeta
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ======================================================
+// 🎨 PINTOR DE ONDA (SUAVE Y SIEMPRE VISIBLE)
+// ======================================================
+class _WavePainter extends CustomPainter {
+  final double progress;
+  final double cambio;
+
+  _WavePainter({required this.progress, required this.cambio});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path();
+    final midY = size.height / 2;
+    const amplitude = 10.0;
+    const frequency = 1.3;
+
+    // Color según tendencia
+    final Color colorBase = cambio > 0
+        ? const Color(0xFF00E676) // verde
+        : cambio < 0
+        ? const Color(0xFFFF5252) // rojo
+        : const Color(0xFF64B5F6); // azul neutro
+
+    // Suave inclinación según cambio
+    final double inclinacion =
+    cambio > 0 ? -3 : cambio < 0 ? 3 : 0; // sube, baja o estable
+
+    // Trazo de onda
+    for (double x = 0; x <= size.width; x++) {
+      final y = midY +
+          sin((x / size.width * frequency * 2 * pi) + (progress * 2 * pi)) *
+              amplitude +
+          inclinacion;
+      if (x == 0) {
+        path.moveTo(0, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    // Relleno suave debajo
+    final fillPath = Path.from(path)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          colorBase.withOpacity(0.3),
+          colorBase.withOpacity(0.05),
+        ],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    final strokePaint = Paint()
+      ..color = colorBase.withOpacity(0.9)
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawPath(fillPath, fillPaint);
+    canvas.drawPath(path, strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// ======================================================
+// 💫 ENVOLTORIO SIMPLE (para mantener bordes redondeados)
+// ======================================================
+class _AnimatedGrowthBackgroundVisible extends StatelessWidget {
+  final double cambio;
+  const _AnimatedGrowthBackgroundVisible(this.cambio);
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: _AnimatedGrowthBackground(cambio),
+    );
+  }
 }
