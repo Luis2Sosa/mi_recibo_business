@@ -1459,7 +1459,8 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   // Abrir mini-dashboards desde los filtros
   void _openPrestamos() {
     if (_docPrest == null) { _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline); return; }
-    Navigator.push(context, MaterialPageRoute(builder: (_) => PrestamoEstadisticaScreen(docPrest: _docPrest!)));
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const PanelPrestamosScreen()));
+
   }
 
   void _openProductos() {

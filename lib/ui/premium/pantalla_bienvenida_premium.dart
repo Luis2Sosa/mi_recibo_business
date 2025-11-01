@@ -8,7 +8,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PantallaBienvenidaPremium extends StatefulWidget {
   final DocumentReference<Map<String, dynamic>> docPrest;
-  const PantallaBienvenidaPremium({super.key, required this.docPrest});
+  final String destino; // 👈 agregamos esto
+
+  const PantallaBienvenidaPremium({
+    super.key,
+    required this.docPrest,
+    required this.destino,
+  });
+
 
   @override
   State<PantallaBienvenidaPremium> createState() =>

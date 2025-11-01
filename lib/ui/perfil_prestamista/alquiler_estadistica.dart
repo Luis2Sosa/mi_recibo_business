@@ -6,6 +6,7 @@
 // - Tendencia: Pagos últimos 6 meses.
 
 import 'dart:math' as math;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,10 +14,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mi_recibo/ui/widgets/app_frame.dart';
 import 'package:mi_recibo/ui/theme/app_theme.dart' show AppTheme;
 import 'package:mi_recibo/ui/widgets/widgets_shared.dart' as util show monedaLocal;
-import 'package:mi_recibo/ui/perfil_prestamista/ganancias_alquiler_screen.dart';
+
 import 'package:mi_recibo/core/estadisticas_totales_service.dart';
 
 import '../widgets/bar_chart.dart';
+import 'ganancia_clientes_screen.dart';
 
 class AlquilerEstadisticaScreen extends StatefulWidget {
   final DocumentReference<Map<String, dynamic>> docPrest;
@@ -170,10 +172,16 @@ class _AlquilerEstadisticaScreenState extends State<AlquilerEstadisticaScreen>
                         leadingSize: 32,
                         gradient: const [Color(0xFFDFFCEF), Color(0xFFC5F5FF)],
                         onTap: () {
+                          final uid = FirebaseAuth.instance.currentUser!.uid;
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => GananciasAlquilerScreen(docPrest: widget.docPrest),
+                              builder: (_) => GananciaClientesScreen(
+                                docPrest: FirebaseFirestore.instance
+                                    .collection('prestamistas')
+                                    .doc(uid),
+                                tipo: GananciaTipo.prestamo,
+                              ),
                             ),
                           );
                         },

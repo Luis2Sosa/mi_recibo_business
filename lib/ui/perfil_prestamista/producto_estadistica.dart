@@ -7,6 +7,7 @@
 // - Sin panel premium ni CTA extra. Moneda: "$ 5,800" (LATAM, sin decimales).
 
 import 'dart:math' as math;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14,8 +15,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mi_recibo/ui/widgets/app_frame.dart';
 import 'package:mi_recibo/ui/theme/app_theme.dart';
 import 'package:mi_recibo/ui/widgets/bar_chart.dart';
-import 'package:mi_recibo/ui/perfil_prestamista/ganancias_productos_screen.dart';
 import 'package:mi_recibo/core/estadisticas_totales_service.dart';
+
+import 'ganancia_clientes_screen.dart';
 
 
 class ProductoEstadisticaScreen extends StatefulWidget {
@@ -216,8 +218,11 @@ class _ProductoEstadisticaScreenState extends State<ProductoEstadisticaScreen>
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => GananciasProductoScreen(
-                                docPrest: widget.docPrest,
+                              builder: (_) => GananciaClientesScreen(
+                                docPrest: FirebaseFirestore.instance
+                                    .collection('prestamistas')
+                                    .doc(FirebaseAuth.instance.currentUser!.uid),
+                                tipo: GananciaTipo.prestamo, // Filtra automáticamente solo préstamos
                               ),
                             ),
                           );

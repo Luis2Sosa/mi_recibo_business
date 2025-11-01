@@ -81,7 +81,8 @@ class EstadisticasHistoricoView extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const PantallaBloqueoPremium(),
+                    builder: (_) => const PantallaBloqueoPremium(destino: 'totales'),
+
                   ),
                 );
               },

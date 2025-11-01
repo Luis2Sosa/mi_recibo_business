@@ -6,10 +6,22 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mi_recibo/ui/perfil_prestamista/ganancias_screen.dart';
 import 'package:mi_recibo/ui/premium/pantalla_bienvenida_premium.dart';
+import 'package:mi_recibo/ui/perfil_prestamista/ganancia_clientes_screen.dart';
+import 'package:mi_recibo/ui/perfil_prestamista/ganancias_screen.dart';
+
+
+import '../perfil_prestamista/ganancia_clientes_screen.dart';
 
 
 class PantallaBloqueoPremium extends StatelessWidget {
-  const PantallaBloqueoPremium({super.key});
+  final String destino;
+
+  const PantallaBloqueoPremium({
+    super.key,
+    required this.destino,
+  });
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -138,15 +150,19 @@ class PantallaBloqueoPremium extends StatelessWidget {
                 // 🔘 Botón Premium serio y profesional
                 GestureDetector(
                   onTap: () async {
-                    // 🔹 Simula el pago y muestra la pantalla de bienvenida premium
                     await Future.delayed(const Duration(milliseconds: 800));
+
+                    final docRef = FirebaseFirestore.instance
+                        .collection('prestamistas')
+                        .doc(FirebaseAuth.instance.currentUser!.uid);
+
+                    // 🔹 Redirige primero a la pantalla de bienvenida premium
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
                         builder: (_) => PantallaBienvenidaPremium(
-                          docPrest: FirebaseFirestore.instance
-                              .collection('prestamistas')
-                              .doc(FirebaseAuth.instance.currentUser?.uid),
+                          docPrest: docRef,
+                          destino: destino, // 👈 aquí mandamos si viene de préstamo, totales, etc.
                         ),
                       ),
                     );
@@ -182,6 +198,7 @@ class PantallaBloqueoPremium extends StatelessWidget {
                     ),
                   ),
                 ),
+
 
                 const SizedBox(height: 26),
 
