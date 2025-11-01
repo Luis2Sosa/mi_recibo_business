@@ -728,6 +728,18 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
                   ),
                 ),
               ),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'Actualizado diariamente',
+                  style: GoogleFonts.inter(
+                    color: Colors.white.withOpacity(.6),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
             ],
           ),
         );
@@ -809,11 +821,16 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
           const SizedBox(height: 10),
           Align(
             alignment: Alignment.centerRight,
-            child: Text('Actualizado diariamente',
-                style: GoogleFonts.inter(
-                    color: Colors.white.withOpacity(.6),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12.5)),
+            child: Text(
+              title == 'Tendencia de crecimiento'
+                  ? 'Actualizado mensualmente'
+                  : 'Actualizado diariamente',
+              style: GoogleFonts.inter(
+                color: Colors.white.withOpacity(.6),
+                fontWeight: FontWeight.w600,
+                fontSize: 12.5,
+              ),
+            ),
           ),
         ],
       ),

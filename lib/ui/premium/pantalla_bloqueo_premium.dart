@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mi_recibo/ui/perfil_prestamista/ganancias_screen.dart';
+import 'package:mi_recibo/ui/premium/pantalla_bienvenida_premium.dart';
+
 
 class PantallaBloqueoPremium extends StatelessWidget {
   const PantallaBloqueoPremium({super.key});
@@ -135,11 +137,13 @@ class PantallaBloqueoPremium extends StatelessWidget {
 
                 // 🔘 Botón Premium serio y profesional
                 GestureDetector(
-                  onTap: () {
-                    Navigator.push(
+                  onTap: () async {
+                    // 🔹 Simula el pago y muestra la pantalla de bienvenida premium
+                    await Future.delayed(const Duration(milliseconds: 800));
+                    Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => GananciasScreen(
+                        builder: (_) => PantallaBienvenidaPremium(
                           docPrest: FirebaseFirestore.instance
                               .collection('prestamistas')
                               .doc(FirebaseAuth.instance.currentUser?.uid),
@@ -147,6 +151,7 @@ class PantallaBloqueoPremium extends StatelessWidget {
                       ),
                     );
                   },
+
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 18),
@@ -233,7 +238,7 @@ class PantallaBloqueoPremium extends StatelessWidget {
               ],
             ),
             padding: const EdgeInsets.all(8),
-            child: Icon(icon, color: color, size: 20),
+            child: Icon(icon, color: color, size: 20)
           ),
           const SizedBox(width: 14),
           Expanded(

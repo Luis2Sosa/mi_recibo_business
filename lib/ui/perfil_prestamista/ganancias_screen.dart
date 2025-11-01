@@ -7,7 +7,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:mi_recibo/ui/perfil_prestamista/premium_boosts_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'dart:ui'; // 👈 importante para el desenfoque
+import 'dart:ui';
+
+import 'analisis_financiero_screen.dart'; // 👈 importante para el desenfoque
 
 
 class GananciasScreen extends StatefulWidget {
@@ -562,10 +564,11 @@ class _GananciasScreenState extends State<GananciasScreen>
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => PremiumBoostsScreen(docPrest: widget.docPrest),
+            builder: (_) => AnalisisFinancieroScreen(docPrest: widget.docPrest),
           ),
         );
       },
+
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
