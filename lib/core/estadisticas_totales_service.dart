@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// Servicio global de estadísticas (solo capital)
-/// Versión estable + historial mensual automático.
+/// Servicio global de estadísticas (capital + sincronización real)
+/// Versión completa y estable con historial mensual automático.
 class EstadisticasTotalesService {
   static final _db = FirebaseFirestore.instance;
 
@@ -181,11 +181,9 @@ class EstadisticasTotalesService {
     await actualizarHistorialMensual(prestamistaId);
   }
 
-  /// 🔹 Botón manual para eliminar capital recuperado
+  /// 🔹 Eliminar capital recuperado manualmente
   static Future<void> eliminarCapitalRecuperadoManual(
-      String prestamistaId,
-      int monto,
-      ) async {
+      String prestamistaId, int monto) async {
     await _summaryDoc(prestamistaId).set({
       'totalCapitalRecuperado': FieldValue.increment(-monto),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -194,13 +192,58 @@ class EstadisticasTotalesService {
     await actualizarHistorialMensual(prestamistaId);
   }
 
+  /// 🔹 Sincronizar resumen según clientes reales
+  static Future<void> sincronizarResumen(String prestamistaId) async {
+    try {
+      final clientesSnap = await _db
+          .collection('prestamistas')
+          .doc(prestamistaId)
+          .collection('clientes')
+          .get();
+
+      num totalPrestado = 0;
+      num totalPendiente = 0;
+      num totalRecuperado = 0;
+
+      for (final c in clientesSnap.docs) {
+        final d = c.data();
+        final tipo = (d['tipo'] ?? '').toString().toLowerCase();
+        final estado = (d['estado'] ?? '').toString().toLowerCase();
+
+        final esPrestamo = tipo.contains('prest') ||
+            tipo.contains('cred') ||
+            tipo.contains('fiado') ||
+            tipo.isEmpty;
+        if (!esPrestamo) continue;
+
+        final capitalInicial = (d['capitalInicial'] ?? d['capital'] ?? 0) as num;
+        final saldoActual = (d['saldoActual'] ?? 0) as num;
+
+        totalPrestado += capitalInicial;
+        totalPendiente += saldoActual;
+        totalRecuperado += (capitalInicial - saldoActual);
+      }
+
+      await _summaryDoc(prestamistaId).set({
+        'totalCapitalPrestado': totalPrestado,
+        'totalCapitalPendiente': totalPendiente,
+        'totalCapitalRecuperado': totalRecuperado,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      print('✅ Resumen sincronizado correctamente');
+    } catch (e) {
+      print('⚠️ Error sincronizando resumen: $e');
+    }
+  }
+
   /// 🔹 Cálculo directo de recuperación total
   static Future<double> calcularRecuperacionTotal(String prestamistaId) async {
     final data = await readSummary(prestamistaId);
     if (data == null) return 0.0;
 
-    final totalPrestado = (data['totalCapitalPrestado'] ?? 0) as int;
-    final totalRecuperado = (data['totalCapitalRecuperado'] ?? 0) as int;
+    final totalPrestado = (data['totalCapitalPrestado'] ?? 0) as num;
+    final totalRecuperado = (data['totalCapitalRecuperado'] ?? 0) as num;
 
     if (totalPrestado <= 0) return 0.0;
     return (totalRecuperado * 100.0) / totalPrestado;
@@ -211,74 +254,14 @@ class EstadisticasTotalesService {
     return _summaryDoc(prestamistaId).snapshots().map((s) {
       final d = s.data();
       if (d == null) return 0.0;
-      final totalPrestado = (d['totalCapitalPrestado'] ?? 0) as int;
-      final totalRecuperado = (d['totalCapitalRecuperado'] ?? 0) as int;
+      final totalPrestado = (d['totalCapitalPrestado'] ?? 0) as num;
+      final totalRecuperado = (d['totalCapitalRecuperado'] ?? 0) as num;
       if (totalPrestado <= 0) return 0.0;
       return (totalRecuperado * 100.0) / totalPrestado;
     });
   }
 
-  // ================== MÉTODOS ANTIGUOS ==================
-
-  static Future<Map<String, dynamic>> headCategoria(String prestamistaId, String cat) async {
-    final snap = await _db
-        .collection('prestamistas')
-        .doc(prestamistaId)
-        .collection('estadisticas')
-        .doc(cat)
-        .get();
-    return snap.data() ?? {};
-  }
-
-  static Future<List<Map<String, dynamic>>> readSerieMensual(
-      String prestamistaId,
-      String cat, {
-        int meses = 6,
-      }) async {
-    final now = DateTime.now();
-    final yms = List.generate(meses, (i) {
-      final d = DateTime(now.year, now.month - (meses - 1 - i), 1);
-      return '${d.year}-${d.month.toString().padLeft(2, '0')}';
-    });
-
-    final out = <Map<String, dynamic>>[];
-    for (final ym in yms) {
-      final snap = await _db
-          .collection('prestamistas')
-          .doc(prestamistaId)
-          .collection('estadisticas')
-          .doc(cat)
-          .collection('mensual')
-          .doc(ym)
-          .get();
-      out.add({'ym': ym, 'sum': (snap.data() ?? const {})['sum'] ?? 0});
-    }
-    return out;
-  }
-
-  /// 🔹 Reinicia solo las ganancias (sin tocar capital recuperado)
-  static Future<void> resetGananciasTotales(String prestamistaId) async {
-    await _summaryDoc(prestamistaId).set({
-      'totalGanancia': 0,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    await _totalesDoc(prestamistaId).set({
-      'totalGanancia': 0,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    for (final cat in const ['prestamo', 'producto', 'alquiler']) {
-      await _catDoc(prestamistaId, cat).set({
-        'gananciaNeta': 0,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    }
-
-    await actualizarHistorialMensual(prestamistaId);
-  }
-
-  /// ================== HISTORIAL MENSUAL AUTOMÁTICO ==================
+  // ================== HISTORIAL MENSUAL ==================
   static Future<void> actualizarHistorialMensual(String prestamistaId) async {
     try {
       final docTotales = _totalesDoc(prestamistaId);
@@ -288,11 +271,9 @@ class EstadisticasTotalesService {
       final data = snap.data() ?? {};
       final gananciaTotal = (data['totalGanancia'] ?? 0) as num;
 
-      // 🔹 Mes actual YYYY-MM
       final ahora = DateTime.now();
       final claveMes = '${ahora.year}-${ahora.month.toString().padLeft(2, '0')}';
 
-      // 🔹 Actualiza historialGanancias sin borrar los anteriores
       await docTotales.set({
         'historialGanancias': {
           claveMes: {'total': gananciaTotal}
@@ -300,7 +281,7 @@ class EstadisticasTotalesService {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      print('✅ Historial mensual actualizado automáticamente ($claveMes: $gananciaTotal)');
+      print('✅ Historial mensual actualizado ($claveMes: $gananciaTotal)');
     } catch (e) {
       print('⚠️ Error al actualizar historial mensual: $e');
     }

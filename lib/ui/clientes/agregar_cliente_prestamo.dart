@@ -546,15 +546,47 @@ class _AgregarClientePrestamoScreenState
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
       'estado': capital == 0 ? 'saldado' : 'al_dia',
+      'tipo': 'prestamo',
+
     };
 
     try {
+      final metricRef = FirebaseFirestore.instance
+          .collection('prestamistas')
+          .doc(uid)
+          .collection('metrics')
+          .doc('summary');
+
       if (_isEdit && widget.id != null) {
-        // 🔹 Si el cliente ya existe, se actualiza
+        // 🔹 Obtener datos anteriores del cliente
+        final docAnterior = await clientesRef.doc(widget.id).get();
+        final estadoAnterior = (docAnterior.data()?['estado'] ?? '').toString().toLowerCase();
+        final capitalAnterior = (docAnterior.data()?['capitalInicial'] ?? 0).toDouble();
+
+        // 🔹 Actualizar cliente
         await clientesRef.doc(widget.id).update(data);
+
+        final capitalNuevo = capital.toDouble();
+
+        // ✅ Si estaba saldado y ahora tiene nuevo préstamo, se suma
+        if (estadoAnterior.contains('saldado') && capitalNuevo > 0) {
+          await metricRef.set({
+            'totalCapitalPrestado': FieldValue.increment(capitalNuevo),
+            'ultimaActualizacion': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+          debugPrint("✅ Cliente reactivado: +$capitalNuevo");
+        }
       } else {
-        // 🔹 Si es nuevo, se agrega normalmente
+        // 🔹 Nuevo cliente: suma al total prestado
         await clientesRef.add(data);
+
+        await metricRef.set({
+          'totalCapitalPrestado': FieldValue.increment(capital.toDouble()),
+          'ultimaActualizacion': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        debugPrint("✅ Nuevo cliente agregado: +$capital");
       }
 
       if (!mounted) return;
@@ -571,6 +603,7 @@ class _AgregarClientePrestamoScreenState
     }
 
     if (mounted) setState(() => _guardando = false);
+
 
 
   }

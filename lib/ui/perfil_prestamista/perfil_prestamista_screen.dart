@@ -1464,13 +1464,14 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   }
 
   void _openProductos() {
-    if (_docPrest == null) { _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline); return; }
-    Navigator.push(context, MaterialPageRoute(builder: (_) => ProductoEstadisticaScreen(docPrest: _docPrest!)));
+    if (_docPrest == null) { _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline); return; }Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductoEstadisticaScreen()));
+
   }
 
   void _openAlquiler() {
     if (_docPrest == null) { _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline); return; }
-    Navigator.push(context, MaterialPageRoute(builder: (_) => AlquilerEstadisticaScreen(docPrest: _docPrest!)));
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const AlquilerEstadisticaScreen()));
+
   }
 
   // ===== Helpers de UI

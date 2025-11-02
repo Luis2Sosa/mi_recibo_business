@@ -1,9 +1,11 @@
+import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../../core/estadisticas_totales_service.dart';
 import 'ganancia_clientes_screen.dart';
 
 class PanelPrestamosScreen extends StatefulWidget {
@@ -14,236 +16,297 @@ class PanelPrestamosScreen extends StatefulWidget {
 }
 
 class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
-  double totalPrestado = 0;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  List<Map<String, dynamic>> ultimosMovimientos = [];
   int clientesActivos = 0;
   double promedioPorCliente = 0;
-  List<Map<String, dynamic>> ultimosMovimientos = [];
+  double totalPrestado = 0;
+  List<FlSpot> graficoData = [];
+
   bool cargando = true;
 
   @override
   void initState() {
     super.initState();
-    _cargarDatos();
+    _cargarDatosSecundarios();
   }
 
-  // ===================== 🔹 CARGAR DATOS REALES 🔹 =====================
-  Future<void> _cargarDatos() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+  // ===================== 🔹 CARGAR CLIENTES Y PAGOS REALES 🔹 =====================
+  Future<void> _cargarDatosSecundarios() async {
+    final uid = _auth.currentUser?.uid;
     if (uid == null) return;
 
     try {
-      double total = 0;
-      int activos = 0;
-      List<Map<String, dynamic>> movimientos = [];
+      // ✅ PRIMERO: leer total prestado directamente desde metrics/summary
+      final summaryRef = FirebaseFirestore.instance
+          .collection('prestamistas')
+          .doc(uid)
+          .collection('metrics')
+          .doc('summary');
 
-      final clientesSnap = await FirebaseFirestore.instance
+      final summaryDoc = await summaryRef.get();
+      final totalPrestadoFirestore =
+      (summaryDoc.data()?['totalCapitalPrestado'] ?? 0).toDouble();
+
+      final db = FirebaseFirestore.instance;
+      final clientesSnap = await db
           .collection('prestamistas')
           .doc(uid)
           .collection('clientes')
-          .where('tipo', isEqualTo: 'prestamo') // 🔹 solo prestamos
-          .where('estado', whereIn: ['activo', 'al_dia']) // 🔹 activos
           .get();
 
-      for (final cliente in clientesSnap.docs) {
-        final data = cliente.data();
-        final saldo = (data['saldoActual'] ?? 0).toDouble();
+      double sumaPrestado = 0;
+      int activos = 0;
+      final List<Map<String, dynamic>> pagos = [];
 
-        if (saldo > 0) {
-          total += saldo;
-          activos++;
+      for (final c in clientesSnap.docs) {
+        final data = c.data();
+        final tipo = (data['tipo'] ?? '').toString().toLowerCase();
+        final estado = (data['estado'] ?? '').toString().toLowerCase();
 
-          // 🔹 Últimos pagos (solo si existen)
-          final pagosSnap = await cliente.reference
-              .collection('pagos')
-              .orderBy('fecha', descending: true)
-              .limit(3)
-              .get();
+        // ✅ Solo prestamos (ignorar productos o alquileres)
+        if (tipo != 'prestamo') continue;
 
-          for (final p in pagosSnap.docs) {
-            final pData = p.data();
-            if (pData.containsKey('totalPagado')) {
-              movimientos.add({
-                'tipo': 'Pago',
-                'monto': (pData['totalPagado'] ?? 0).toDouble(),
-                'fecha': (pData['fecha'] as Timestamp?)?.toDate() ?? DateTime.now(),
-              });
-            }
-          }
+        // ✅ Solo clientes activos o al día
+        final esValido = estado.contains('activo') ||
+            estado.contains('al_dia') ||
+            estado.contains('al día') ||
+            estado.isEmpty;
+
+        if (!esValido) continue;
+
+        activos++;
+
+        // 🔹 Capital original o saldo actual
+        final capitalInicial = (data['capitalInicial'] ?? 0).toDouble();
+        final saldoActual = (data['saldoActual'] ?? 0).toDouble();
+        final capital = capitalInicial > 0 ? capitalInicial : saldoActual;
+        sumaPrestado += capital;
+
+        // 🔹 Pagos recientes para el gráfico
+        final pagosSnap = await c.reference
+            .collection('pagos')
+            .orderBy('fecha', descending: true)
+            .limit(6)
+            .get();
+
+        for (final p in pagosSnap.docs) {
+          final d = p.data();
+          pagos.add({
+            'monto': ((d['totalPagado'] ?? d['pago'] ?? 0) as num).toDouble(),
+            'fecha': (d['fecha'] is Timestamp)
+                ? (d['fecha'] as Timestamp).toDate()
+                : DateTime.now(),
+          });
         }
       }
 
-      movimientos.sort((a, b) => b['fecha'].compareTo(a['fecha']));
-      final ultimos3 = movimientos.take(3).toList();
 
+      // 🔹 Ordenar pagos recientes
+      pagos.sort((a, b) => b['fecha'].compareTo(a['fecha']));
+      ultimosMovimientos = pagos.take(3).toList();
+
+      // 🔹 Datos para gráfico
+      final serie = pagos.take(6).toList(); // sin reversed
+      final puntos = <FlSpot>[];
+      double x = 0;
+      for (final e in serie) {
+        x += 1;
+        puntos.add(FlSpot(x, (e['monto'] as double)));
+      }
+
+      if (puntos.isEmpty) {
+        puntos.add(const FlSpot(1, 0));
+        puntos.add(FlSpot(2, sumaPrestado));
+      }
+
+      // 🔹 Actualizar estado visual
       setState(() {
-        totalPrestado = total;
         clientesActivos = activos;
-        promedioPorCliente = activos > 0 ? total / activos : 0;
-        ultimosMovimientos = ultimos3;
+        totalPrestado = totalPrestadoFirestore; // ✅ actualizado desde Firestore
+        promedioPorCliente = activos > 0 ? (sumaPrestado / activos) : 0;
+        graficoData = puntos;
         cargando = false;
       });
+
+
+      // ✅ DEBUG OPCIONAL (puedes borrar luego)
+      debugPrint("✅ Total préstamos: $totalPrestado");
+      debugPrint("✅ Clientes activos: $clientesActivos");
+      debugPrint("✅ Promedio: $promedioPorCliente");
     } catch (e) {
-      debugPrint("❌ Error cargando datos reales: $e");
+      debugPrint("❌ Error cargando préstamos reales: $e");
       setState(() => cargando = false);
     }
   }
 
+
+
+
+
   // ===================== 🔹 FORMATO MONEDA 🔹 =====================
   String _fmt(num valor) {
-    final f = NumberFormat.currency(
-      locale: 'es_DO',
-      symbol: '\$',
-      decimalDigits: 0,
-    );
+    final f = NumberFormat.currency(locale: 'es_DO', symbol: '\$', decimalDigits: 0);
     return f.format(valor);
   }
 
   @override
   Widget build(BuildContext context) {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF081633),
+        body: Center(
+          child: Text("Inicia sesión para ver tus estadísticas",
+              style: TextStyle(color: Colors.white)),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF081633),
       body: SafeArea(
         child: cargando
-            ? const Center(
-            child: CircularProgressIndicator(color: Colors.white))
+            ? const Center(child: CircularProgressIndicator(color: Colors.white))
             : Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const SizedBox(height: 10),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 10),
 
-              // ======== ENCABEZADO ========
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    "📊 Rendimiento préstamo",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 22,
-                    ),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF00FFFF), Color(0xFF007CF0)],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
-                    child: const Text(
-                      "LIVE",
+                // ======== ENCABEZADO ========
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "📊 Rendimiento préstamo",
                       style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 22,
                       ),
                     ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 10),
-
-              // ======== TARJETAS KPI ========
-              _tile("Total prestado", _fmt(totalPrestado),
-                  const Color(0xFF00E5FF)),
-              const SizedBox(height: 10),
-              _tile("Clientes activos", "$clientesActivos",
-                  const Color(0xFFFFD700)),
-              const SizedBox(height: 10),
-              _tile("Promedio por cliente", _fmt(promedioPorCliente),
-                  const Color(0xFFFF8C00)),
-
-              const SizedBox(height: 15),
-
-              // ======== GRAFICO PREMIUM ========
-              _alertaConGrafico(),
-
-              const SizedBox(height: 10),
-
-              // ======== ÚLTIMOS MOVIMIENTOS ========
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "🔄 Últimos movimientos",
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.95),
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              _movimientosCard(),
-
-              const SizedBox(height: 15),
-
-              // ======== BOTÓN FINAL ========
-              GestureDetector(
-                onTap: () {
-                  final uid = FirebaseAuth.instance.currentUser?.uid;
-                  if (uid == null) return;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => GananciaClientesScreen(
-                        docPrest: FirebaseFirestore.instance
-                            .collection('prestamistas')
-                            .doc(uid),
-                        tipo: GananciaTipo.prestamo,
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF00FFFF), Color(0xFF007CF0)],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 14, horizontal: 24),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF00E5FF),
-                        Color(0xFF007CF0),
-                        Color(0xFF4318FF)
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(30),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.blueAccent.withOpacity(0.4),
-                        blurRadius: 15,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.auto_graph_rounded,
-                          color: Colors.white, size: 22),
-                      SizedBox(width: 8),
-                      Text(
-                        "Ver ganancias por cliente",
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      child: const Text(
+                        "LIVE",
                         style: TextStyle(
-                          color: Colors.white,
+                          color: Colors.black,
                           fontWeight: FontWeight.bold,
-                          fontSize: 15,
                         ),
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 10),
+
+                _tile("Total prestado", _fmt(totalPrestado),
+                    const Color(0xFF00E5FF)),
+                const SizedBox(height: 10),
+                _tile("Clientes activos", "$clientesActivos",
+                    const Color(0xFFFFD700)),
+                const SizedBox(height: 10),
+                _tile("Promedio por cliente", _fmt(promedioPorCliente),
+                    const Color(0xFFFF8C00)),
+
+                const SizedBox(height: 20),
+                _graficoCard(),
+                const SizedBox(height: 20),
+
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "🔄 Últimos movimientos",
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.95),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 10),
-            ],
+                const SizedBox(height: 10),
+                _movimientosCard(),
+                const SizedBox(height: 20),
+
+                GestureDetector(
+                  onTap: () {
+                    final uid = _auth.currentUser!.uid;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => GananciaClientesScreen(
+                          docPrest: FirebaseFirestore.instance
+                              .collection('prestamistas')
+                              .doc(uid),
+                          tipo: GananciaTipo.prestamo,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                        horizontal: 24,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFF00E5FF),
+                            Color(0xFF007CF0),
+                            Color(0xFF4318FF),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blueAccent.withOpacity(0.4),
+                            blurRadius: 15,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.auto_graph_rounded, color: Colors.white, size: 22),
+                          SizedBox(width: 8),
+                          Text(
+                            "Ver ganancias por cliente",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                ),
+                const SizedBox(height: 30),
+              ],
+            ),
           ),
         ),
       ),
+
+
     );
   }
 
@@ -289,34 +352,12 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
   }
 
   // ================= GRÁFICO Y MENSAJE =================
-  Widget _alertaConGrafico() {
-    String mensaje;
-    IconData icono;
-    Color color;
-
-    if (clientesActivos == 0) {
-      mensaje =
-      "Todavía no tienes préstamos activos.\nAgrega uno nuevo y empieza a generar ganancias.";
-      icono = Icons.lightbulb_outline_rounded;
-      color = Colors.amberAccent;
-    } else if (totalPrestado == 0) {
-      mensaje = "Sin préstamos activos actualmente. 💤";
-      icono = Icons.pause_circle_outline_rounded;
-      color = Colors.grey;
-    } else {
-      mensaje = "Tu flujo de préstamos es estable. 💰 ¡Sigue así!";
-      icono = Icons.trending_up_rounded;
-      color = Colors.lightGreenAccent;
-    }
-
-    final puntos = ultimosMovimientos.isNotEmpty
-        ? ultimosMovimientos.asMap().entries.map((e) {
-      return FlSpot(
-        e.key.toDouble(),
-        (e.value['monto'] as num).toDouble(),
-      );
-    }).toList()
-        : [const FlSpot(0, 0)];
+  Widget _graficoCard() {
+    final tienePrestamos = totalPrestado > 0 && clientesActivos > 0;
+    final Color color = tienePrestamos ? Colors.lightBlueAccent : Colors.amberAccent;
+    final String mensaje = tienePrestamos
+        ? "Flujo de pagos reciente. 💸"
+        : "Todavía no tienes préstamos activos.\nAgrega uno y empieza a generar ganancias.";
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
@@ -337,7 +378,13 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
                     color: color.withOpacity(0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icono, color: color, size: 26),
+                  child: Icon(
+                    tienePrestamos
+                        ? Icons.trending_up_rounded
+                        : Icons.lightbulb_outline_rounded,
+                    color: color,
+                    size: 26,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -354,109 +401,241 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
               ],
             ),
             const SizedBox(height: 14),
+            // 🌊 Nuevo gráfico animado de onda
             SizedBox(
-              height: 120,
-              child: LineChart(
-                LineChartData(
-                  gridData: FlGridData(show: false),
-                  titlesData: FlTitlesData(show: false),
-                  borderData: FlBorderData(show: false),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: puntos,
-                      isCurved: true,
-                      color: color,
-                      barWidth: 3,
-                      belowBarData: BarAreaData(
-                        show: true,
-                        gradient: LinearGradient(
-                          colors: [
-                            color.withOpacity(0.4),
-                            color.withOpacity(0.0)
-                          ],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                      ),
-                      dotData: FlDotData(show: false),
-                    ),
-                  ],
-                ),
-              ),
+              height: 160,
+              width: double.infinity,
+              child: _AnimatedGrowthBackgroundVisible(totalPrestado),
             ),
+
           ],
         ),
       ),
     );
   }
 
+
   // ================= MOVIMIENTOS =================
   Widget _movimientosCard() {
-    if (ultimosMovimientos.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.12),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withOpacity(.25)),
-        ),
-        child: const Text(
-          "No hay movimientos recientes.",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-        ),
-      );
-    }
-
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: ultimosMovimientos.map((m) {
-        final fecha = DateFormat('dd/MM/yyyy').format(m['fecha']);
-        final tipo = m['tipo'];
-        final monto = _fmt(m['monto']);
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            color: Colors.white.withOpacity(0.1),
-            border: Border.all(color: Colors.white.withOpacity(.2)),
+      children: [
+        if (ultimosMovimientos.isEmpty)
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(.12),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withOpacity(.25)),
+              ),
+              child: const Text(
+                "No hay movimientos recientes.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+          )
+        else
+          ...ultimosMovimientos.map((m) {
+            final fecha = DateFormat('dd/MM/yyyy').format(m['fecha']);
+            final monto = _fmt(m['monto']);
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding:
+              const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: Colors.white.withOpacity(0.1),
+                border: Border.all(color: Colors.white.withOpacity(.2)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(children: const [
+                    Icon(Icons.arrow_downward,
+                        color: Colors.lightGreenAccent, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      "Pago",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14.5,
+                      ),
+                    ),
+                  ]),
+                  Row(children: [
+                    Text(
+                      monto,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14.5,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      fecha,
+                      style: const TextStyle(
+                          color: Colors.white70, fontSize: 12.5),
+                    ),
+                  ]),
+                ],
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+
+}
+
+// ======================================================
+// 🌊 ANIMACIÓN SUAVE DE CRECIMIENTO (SERPIENTE REAL)
+// ======================================================
+class _AnimatedGrowthBackground extends StatefulWidget {
+  final double cambio;
+  const _AnimatedGrowthBackground(this.cambio);
+
+  @override
+  State<_AnimatedGrowthBackground> createState() =>
+      _AnimatedGrowthBackgroundState();
+}
+
+class _AnimatedGrowthBackgroundState extends State<_AnimatedGrowthBackground>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    // 🐍 control continuo de la "serpiente"
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 6), // más natural
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        // 🐍 elevación suave (sube y baja tipo respiración)
+        final double elevacion = sin(_controller.value * pi) * 8;
+
+        return CustomPaint(
+          painter: _WavePainter(
+            progress: _controller.value,
+            cambio: widget.cambio,
+            elevacion: elevacion, // 👈 aquí pasa la elevación
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(children: [
-                Icon(Icons.arrow_downward,
-                    color: Colors.lightGreenAccent, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  tipo,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14.5,
-                  ),
-                ),
-              ]),
-              Row(children: [
-                Text(
-                  monto,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 14.5,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  fecha,
-                  style:
-                  const TextStyle(color: Colors.white70, fontSize: 12.5),
-                ),
-              ]),
-            ],
+          child: Container(
+            height: 160,
+            width: double.infinity,
+            color: Colors.transparent,
           ),
         );
-      }).toList(),
+      },
     );
   }
 }
+
+// ======================================================
+// 🎨 PINTOR DE ONDA (SERPIENTE VIVA)
+// ======================================================
+class _WavePainter extends CustomPainter {
+  final double progress;
+  final double cambio;
+  final double elevacion; // 🆕 controla la subida
+
+  _WavePainter({
+    required this.progress,
+    required this.cambio,
+    this.elevacion = 0.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path();
+    final midY = size.height / 2;
+    const amplitude = 10.0;
+    const frequency = 1.3;
+
+    final Color colorBase = cambio > 0
+        ? const Color(0xFF00E676)
+        : cambio < 0
+        ? const Color(0xFFFF5252)
+        : const Color(0xFF64B5F6);
+
+    // 🐍 la serpiente sube y baja desde la izquierda
+    for (double x = 0; x <= size.width; x++) {
+      final y = midY -
+          (sin(x / size.width * pi) * elevacion) + // movimiento serpiente
+          sin((x / size.width * frequency * 2 * pi) + (progress * 2 * pi)) *
+              amplitude;
+
+      if (x == 0) {
+        path.moveTo(0, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    final fillPath = Path.from(path)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          colorBase.withOpacity(0.3),
+          colorBase.withOpacity(0.05),
+        ],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    final strokePaint = Paint()
+      ..color = colorBase.withOpacity(0.9)
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawPath(fillPath, fillPaint);
+    canvas.drawPath(path, strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// ======================================================
+// 💫 ENVOLTORIO SIMPLE PARA BORDES REDONDEADOS
+// ======================================================
+class _AnimatedGrowthBackgroundVisible extends StatelessWidget {
+  final double cambio;
+  const _AnimatedGrowthBackgroundVisible(this.cambio);
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: _AnimatedGrowthBackground(cambio),
+    );
+  }
+}
+
+
