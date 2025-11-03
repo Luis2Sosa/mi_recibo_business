@@ -37,7 +37,7 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
     if (uid == null) return;
 
     try {
-      // ✅ PRIMERO: leer total prestado directamente desde metrics/summary
+      // ✅ Leer total prestado de metrics/summary (seguro contra int/double)
       final summaryRef = FirebaseFirestore.instance
           .collection('prestamistas')
           .doc(uid)
@@ -45,8 +45,10 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
           .doc('summary');
 
       final summaryDoc = await summaryRef.get();
-      final totalPrestadoFirestore =
-      (summaryDoc.data()?['totalCapitalPrestado'] ?? 0).toDouble();
+      final totalPrestadoFirestore = double.tryParse(
+        (summaryDoc.data()?['totalCapitalPrestado'] ?? 0).toString(),
+      ) ??
+          0.0;
 
       final db = FirebaseFirestore.instance;
       final clientesSnap = await db
@@ -64,7 +66,7 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
         final tipo = (data['tipo'] ?? '').toString().toLowerCase();
         final estado = (data['estado'] ?? '').toString().toLowerCase();
 
-        // ✅ Solo prestamos (ignorar productos o alquileres)
+        // ✅ Solo prestamos
         if (tipo != 'prestamo') continue;
 
         // ✅ Solo clientes activos o al día
@@ -77,13 +79,16 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
 
         activos++;
 
-        // 🔹 Capital original o saldo actual
-        final capitalInicial = (data['capitalInicial'] ?? 0).toDouble();
-        final saldoActual = (data['saldoActual'] ?? 0).toDouble();
+        // ✅ Conversión segura
+        final capitalInicial =
+            double.tryParse((data['capitalInicial'] ?? 0).toString()) ?? 0.0;
+        final saldoActual =
+            double.tryParse((data['saldoActual'] ?? 0).toString()) ?? 0.0;
         final capital = capitalInicial > 0 ? capitalInicial : saldoActual;
+
         sumaPrestado += capital;
 
-        // 🔹 Pagos recientes para el gráfico
+        // 🔹 Pagos recientes
         final pagosSnap = await c.reference
             .collection('pagos')
             .orderBy('fecha', descending: true)
@@ -92,27 +97,46 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
 
         for (final p in pagosSnap.docs) {
           final d = p.data();
+          final nombre = (data['nombre'] ?? '').toString();
+          final primerNombre =
+          nombre.split(' ').isNotEmpty ? nombre.split(' ')[0] : nombre;
+
           pagos.add({
             'monto': ((d['totalPagado'] ?? d['pago'] ?? 0) as num).toDouble(),
             'fecha': (d['fecha'] is Timestamp)
                 ? (d['fecha'] as Timestamp).toDate()
                 : DateTime.now(),
+            'descripcion': 'Pago de $primerNombre',
+          });
+        }
+
+
+        // 🔸 Si no hay pagos, mostrar registro de creación (igual que en productos)
+        if (pagosSnap.docs.isEmpty && data['createdAt'] != null) {
+          final nombre = (data['nombre'] ?? '').toString();
+          final primerNombre = nombre.split(' ').isNotEmpty
+              ? nombre.split(' ')[0]
+              : nombre;
+          pagos.add({
+            'monto': 0,
+            'fecha': (data['createdAt'] as Timestamp).toDate(),
+            'descripcion': 'Cliente $primerNombre agregado',
+            'esNuevo': true,
           });
         }
       }
 
-
-      // 🔹 Ordenar pagos recientes
+      // 🔹 Ordenar y limitar
       pagos.sort((a, b) => b['fecha'].compareTo(a['fecha']));
       ultimosMovimientos = pagos.take(3).toList();
 
       // 🔹 Datos para gráfico
-      final serie = pagos.take(6).toList(); // sin reversed
+      final serie = pagos.take(6).toList();
       final puntos = <FlSpot>[];
       double x = 0;
       for (final e in serie) {
         x += 1;
-        puntos.add(FlSpot(x, (e['monto'] as double)));
+        puntos.add(FlSpot(x, ((e['monto'] ?? 0) as num).toDouble()));
       }
 
       if (puntos.isEmpty) {
@@ -120,17 +144,14 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
         puntos.add(FlSpot(2, sumaPrestado));
       }
 
-      // 🔹 Actualizar estado visual
       setState(() {
         clientesActivos = activos;
-        totalPrestado = totalPrestadoFirestore; // ✅ actualizado desde Firestore
+        totalPrestado = totalPrestadoFirestore;
         promedioPorCliente = activos > 0 ? (sumaPrestado / activos) : 0;
         graficoData = puntos;
         cargando = false;
       });
 
-
-      // ✅ DEBUG OPCIONAL (puedes borrar luego)
       debugPrint("✅ Total préstamos: $totalPrestado");
       debugPrint("✅ Clientes activos: $clientesActivos");
       debugPrint("✅ Promedio: $promedioPorCliente");
@@ -139,6 +160,7 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
       setState(() => cargando = false);
     }
   }
+
 
 
 
@@ -421,6 +443,7 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (ultimosMovimientos.isEmpty)
+        // 🔸 Si no hay movimientos
           Center(
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
@@ -441,50 +464,80 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
             ),
           )
         else
-          ...ultimosMovimientos.map((m) {
+        // 🔸 Mostrar las 3 tarjetas dinámicas
+          ...ultimosMovimientos.take(3).map((m) {
             final fecha = DateFormat('dd/MM/yyyy').format(m['fecha']);
             final monto = _fmt(m['monto']);
-            return Container(
+            final esNuevo = m['esNuevo'] == true;
+
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOut,
               margin: const EdgeInsets.only(bottom: 8),
-              padding:
-              const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 color: Colors.white.withOpacity(0.1),
                 border: Border.all(color: Colors.white.withOpacity(.2)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blueAccent.withOpacity(0.15),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(children: const [
-                    Icon(Icons.arrow_downward,
-                        color: Colors.lightGreenAccent, size: 18),
-                    SizedBox(width: 8),
-                    Text(
-                      "Pago",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14.5,
+                  // 🔹 Lado izquierdo: icono y descripción
+                  Row(
+                    children: [
+                      Icon(
+                        esNuevo
+                            ? Icons.person_add_alt_1_rounded
+                            : Icons.arrow_downward_rounded,
+                        color: esNuevo
+                            ? Colors.amberAccent
+                            : Colors.lightGreenAccent,
+                        size: 18,
                       ),
-                    ),
-                  ]),
-                  Row(children: [
-                    Text(
-                      monto,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14.5,
+                      const SizedBox(width: 8),
+                      Text(
+                        m['descripcion'] ??
+                            (esNuevo ? "Cliente agregado" : "Pago"),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14.5,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      fecha,
-                      style: const TextStyle(
-                          color: Colors.white70, fontSize: 12.5),
-                    ),
-                  ]),
+                    ],
+                  ),
+
+                  // 🔹 Lado derecho: monto (solo si no es cliente nuevo) y fecha
+                  Row(
+                    children: [
+                      if (!esNuevo) ...[
+                        Text(
+                          monto,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14.5,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                      Text(
+                        fecha,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             );
@@ -492,6 +545,7 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
       ],
     );
   }
+
 
 
 }

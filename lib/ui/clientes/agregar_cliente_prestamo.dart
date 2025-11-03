@@ -560,15 +560,27 @@ class _AgregarClientePrestamoScreenState
       if (_isEdit && widget.id != null) {
         // 🔹 Obtener datos anteriores del cliente
         final docAnterior = await clientesRef.doc(widget.id).get();
-        final estadoAnterior = (docAnterior.data()?['estado'] ?? '').toString().toLowerCase();
-        final capitalAnterior = (docAnterior.data()?['capitalInicial'] ?? 0).toDouble();
+        final dataAnterior = docAnterior.data() ?? {};
+        final estadoAnterior = (dataAnterior['estado'] ?? '').toString().toLowerCase();
+        final capitalAnterior = (dataAnterior['capitalInicial'] ?? 0).toDouble();
 
         // 🔹 Actualizar cliente
         await clientesRef.doc(widget.id).update(data);
 
         final capitalNuevo = capital.toDouble();
+        final diferencia = capitalNuevo - capitalAnterior;
 
-        // ✅ Si estaba saldado y ahora tiene nuevo préstamo, se suma
+        // ✅ Actualizar resumen de métricas según la diferencia
+        if (diferencia != 0) {
+          await metricRef.set({
+            'totalCapitalPrestado': FieldValue.increment(diferencia),
+            'ultimaActualizacion': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+          debugPrint("✅ Capital actualizado. Diferencia aplicada: $diferencia");
+        }
+
+        // ✅ Si estaba saldado y ahora tiene nuevo préstamo
         if (estadoAnterior.contains('saldado') && capitalNuevo > 0) {
           await metricRef.set({
             'totalCapitalPrestado': FieldValue.increment(capitalNuevo),
@@ -577,7 +589,8 @@ class _AgregarClientePrestamoScreenState
 
           debugPrint("✅ Cliente reactivado: +$capitalNuevo");
         }
-      } else {
+      }
+      else {
         // 🔹 Nuevo cliente: suma al total prestado
         await clientesRef.add(data);
 

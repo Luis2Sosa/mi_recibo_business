@@ -13,10 +13,12 @@ class ProductoEstadisticaScreen extends StatefulWidget {
   const ProductoEstadisticaScreen({super.key});
 
   @override
-  State<ProductoEstadisticaScreen> createState() => _ProductoEstadisticaScreenState();
+  State<ProductoEstadisticaScreen> createState() =>
+      _ProductoEstadisticaScreenState();
 }
 
-class _ProductoEstadisticaScreenState extends State<ProductoEstadisticaScreen> {
+class _ProductoEstadisticaScreenState
+    extends State<ProductoEstadisticaScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   List<Map<String, dynamic>> ultimosMovimientos = [];
   int clientesActivos = 0;
@@ -45,8 +47,11 @@ class _ProductoEstadisticaScreenState extends State<ProductoEstadisticaScreen> {
           .doc('summary');
 
       final summaryDoc = await summaryRef.get();
-      final totalInvertidoFirestore =
-      (summaryDoc.data()?['totalCapitalPrestado'] ?? 0).toDouble();
+
+      final totalInvertidoFirestore = double.tryParse(
+        (summaryDoc.data()?['totalCapitalInvertido'] ?? 0).toString(),
+      ) ?? 0.0;
+
 
       final db = FirebaseFirestore.instance;
       final clientesSnap = await db
@@ -70,15 +75,20 @@ class _ProductoEstadisticaScreenState extends State<ProductoEstadisticaScreen> {
         final esValido = estado.contains('activo') ||
             estado.contains('al_dia') ||
             estado.contains('al día') ||
+            estado.contains('saldado') ||
             estado.isEmpty;
+
 
         if (!esValido) continue;
 
         activos++;
 
-        final capitalInicial = (data['capitalInicial'] ?? 0).toDouble();
-        final saldoActual = (data['saldoActual'] ?? 0).toDouble();
-        final capital = capitalInicial > 0 ? capitalInicial : saldoActual;
+        final capitalInicial = ((data['capitalInicial'] ?? 0) as num)
+            .toDouble();
+        final saldoActual = ((data['saldoActual'] ?? 0) as num).toDouble();
+        final capital = ((data['capitalInicial'] ?? 0) as num).toDouble();
+
+
         sumaInvertido += capital;
 
         // 🔹 Pagos recientes
@@ -90,17 +100,48 @@ class _ProductoEstadisticaScreenState extends State<ProductoEstadisticaScreen> {
 
         for (final p in pagosSnap.docs) {
           final d = p.data();
+          final nombre = (data['nombre'] ?? '').toString();
+          final primerNombre =
+          nombre
+              .split(' ')
+              .isNotEmpty ? nombre.split(' ')[0] : nombre;
+
           pagos.add({
             'monto': ((d['totalPagado'] ?? d['pago'] ?? 0) as num).toDouble(),
             'fecha': (d['fecha'] is Timestamp)
                 ? (d['fecha'] as Timestamp).toDate()
                 : DateTime.now(),
+            'descripcion': 'Pago de $primerNombre',
+          });
+        }
+
+
+        // 🔸 Si no hay pagos, mostrar registro de creación
+        if (pagosSnap.docs.isEmpty && data['createdAt'] != null) {
+          final nombre = (data['nombre'] ?? '').toString();
+          final primerNombre = nombre
+              .split(' ')
+              .isNotEmpty ? nombre.split(' ')[0] : nombre;
+          pagos.add({
+            'monto': 0,
+            'fecha': (data['createdAt'] as Timestamp).toDate(),
+            'descripcion': 'Cliente $primerNombre agregado',
+            'esNuevo': true,
           });
         }
       }
 
+
       pagos.sort((a, b) => b['fecha'].compareTo(a['fecha']));
+      // 🔹 Mantener solo los 3 más recientes en orden descendente
       ultimosMovimientos = pagos.take(3).toList();
+      debugPrint("🧾 Últimos movimientos (${ultimosMovimientos.length}):");
+      for (var mov in ultimosMovimientos) {
+        debugPrint(" - ${mov['descripcion'] ?? (mov['esNuevo'] == true
+            ? 'Cliente agregado'
+            : 'Pago')} ${mov['monto']} ${mov['fecha']}");
+      }
+
 
       // 🔹 Datos para gráfico
       final serie = pagos.take(6).toList();
@@ -108,7 +149,7 @@ class _ProductoEstadisticaScreenState extends State<ProductoEstadisticaScreen> {
       double x = 0;
       for (final e in serie) {
         x += 1;
-        puntos.add(FlSpot(x, (e['monto'] as double)));
+        puntos.add(FlSpot(x, ((e['monto'] ?? 0) as num).toDouble()));
       }
 
       if (puntos.isEmpty) {
@@ -118,11 +159,17 @@ class _ProductoEstadisticaScreenState extends State<ProductoEstadisticaScreen> {
 
       setState(() {
         clientesActivos = activos;
+
+        // 🔹 El total invertido viene del resumen
         totalInvertido = totalInvertidoFirestore;
+
+        // 🔹 El promedio se calcula SOLO con capital invertido (sin ganancias)
         promedioPorCliente = activos > 0 ? (sumaInvertido / activos) : 0;
+
         graficoData = puntos;
         cargando = false;
       });
+
 
       debugPrint("✅ Total invertido: $totalInvertido");
       debugPrint("✅ Clientes activos: $clientesActivos");
@@ -135,7 +182,8 @@ class _ProductoEstadisticaScreenState extends State<ProductoEstadisticaScreen> {
 
   // ===================== 🔹 FORMATO MONEDA 🔹 =====================
   String _fmt(num valor) {
-    final f = NumberFormat.currency(locale: 'es_DO', symbol: '\$', decimalDigits: 0);
+    final f =
+    NumberFormat.currency(locale: 'es_DO', symbol: '\$', decimalDigits: 0);
     return f.format(valor);
   }
 
@@ -182,7 +230,10 @@ class _ProductoEstadisticaScreenState extends State<ProductoEstadisticaScreen> {
                     Container(
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
+                          colors: [
+                            Color(0xFF22C55E),
+                            Color(0xFF16A34A)
+                          ],
                         ),
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -237,12 +288,13 @@ class _ProductoEstadisticaScreenState extends State<ProductoEstadisticaScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => GananciaClientesScreen(
-                          docPrest: FirebaseFirestore.instance
-                              .collection('prestamistas')
-                              .doc(uid),
-                          tipo: GananciaTipo.producto,
-                        ),
+                        builder: (_) =>
+                            GananciaClientesScreen(
+                              docPrest: FirebaseFirestore.instance
+                                  .collection('prestamistas')
+                                  .doc(uid),
+                              tipo: GananciaTipo.producto,
+                            ),
                       ),
                     );
                   },
@@ -344,7 +396,8 @@ class _ProductoEstadisticaScreenState extends State<ProductoEstadisticaScreen> {
   // ================= GRÁFICO =================
   Widget _graficoCard() {
     final tieneProductos = totalInvertido > 0 && clientesActivos > 0;
-    final Color color = tieneProductos ? Colors.greenAccent : Colors.amberAccent;
+    final Color color =
+    tieneProductos ? Colors.greenAccent : Colors.amberAccent;
     final String mensaje = tieneProductos
         ? "Flujo de pagos reciente. 💸"
         : "Todavía no tienes productos activos.\nAgrega uno y empieza a generar ganancias.";
@@ -428,49 +481,79 @@ class _ProductoEstadisticaScreenState extends State<ProductoEstadisticaScreen> {
             ),
           )
         else
-          ...ultimosMovimientos.map((m) {
+          ...ultimosMovimientos.take(3).map((m) {
             final fecha = DateFormat('dd/MM/yyyy').format(m['fecha']);
             final monto = _fmt(m['monto']);
-            return Container(
+            final esNuevo = m['esNuevo'] == true;
+
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOut,
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 color: Colors.white.withOpacity(0.1),
                 border: Border.all(color: Colors.white.withOpacity(.2)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.greenAccent.withOpacity(0.15),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(children: const [
-                    Icon(Icons.arrow_downward,
-                        color: Colors.lightGreenAccent, size: 18),
-                    SizedBox(width: 8),
-                    Text(
-                      "Pago",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14.5,
+                  // 🔹 Lado izquierdo: icono y descripción
+                  Row(
+                    children: [
+                      Icon(
+                        esNuevo
+                            ? Icons.person_add_alt_1_rounded
+                            : Icons.arrow_downward_rounded,
+                        color: esNuevo
+                            ? Colors.amberAccent
+                            : Colors.lightGreenAccent,
+                        size: 18,
                       ),
-                    ),
-                  ]),
-                  Row(children: [
-                    Text(
-                      monto,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14.5,
+                      const SizedBox(width: 8),
+                      Text(
+                        m['descripcion'] ??
+                            (esNuevo ? "Cliente agregado" : "Pago"),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14.5,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      fecha,
-                      style:
-                      const TextStyle(color: Colors.white70, fontSize: 12.5),
-                    ),
-                  ]),
+                    ],
+                  ),
+
+                  // 🔹 Lado derecho: monto (solo si no es cliente nuevo) y fecha
+                  Row(
+                    children: [
+                      if (!esNuevo) ...[
+                        Text(
+                          monto,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14.5,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                      Text(
+                        fecha,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             );

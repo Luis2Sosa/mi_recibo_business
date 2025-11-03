@@ -554,6 +554,7 @@ class _AgregarClienteAlquilerScreenState
       'producto': inmueble,
       'capitalInicial': monto,
       'saldoActual': monto,
+      'tipo': 'alquiler',
       'esArriendo': true,
       'periodo': 'Mensual',
       'proximaFecha': Timestamp.fromDate(_proximaFecha!),

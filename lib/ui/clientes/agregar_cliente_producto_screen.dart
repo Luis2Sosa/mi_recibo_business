@@ -515,6 +515,7 @@ class _AgregarClienteProductoScreenState
     final saldoActual = (_montoTotal - pagoInicial).clamp(0, 999999999);
 
     final data = {
+      'tipo': 'producto',
       'nombre': _nombreCtrl.text.trim(),
       'apellido': _apellidoCtrl.text.trim(),
       'telefono': _telefonoCtrl.text.trim(),
@@ -557,12 +558,19 @@ class _AgregarClienteProductoScreenState
 
       // 🔹 Calcula los valores para las estadísticas
       final ganancia = _gananciaTotal.toInt();
-      final capital = _montoTotal.toInt();
 
-      // ✅ Asegurar estructura base (para que exista /estadisticas/producto)
+// 🔹 Calcular capital invertido real (solo el precio base de cada producto)
+      double capitalInvertido = 0;
+      for (final p in _productos) {
+        final base = double.tryParse(p['precioBase']!.text) ?? 0;
+        capitalInvertido += base;
+      }
+      final capital = capitalInvertido.toInt();
+
+// ✅ Asegurar estructura base
       await EstadisticasTotalesService.ensureStructure(uid);
 
-      // ✅ Actualizar métricas globales (summary)
+// ✅ Actualizar métricas globales (solo inversión)
       final summaryRef = db
           .collection('prestamistas')
           .doc(uid)
@@ -570,15 +578,17 @@ class _AgregarClienteProductoScreenState
           .doc('summary');
 
       await summaryRef.set({
-        'totalGanancia': FieldValue.increment(ganancia),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'totalCapitalInvertido': FieldValue.increment(capital),
+        'ultimaActualizacion': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
+// ✅ Registrar solo una vez la ganancia neta del producto
       await EstadisticasTotalesService.adjustCategoria(
         uid,
         'producto',
         gananciaNetaDelta: ganancia,
       );
+
 
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
