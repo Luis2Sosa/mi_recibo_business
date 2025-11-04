@@ -134,24 +134,15 @@ class _ProductoEstadisticaScreenState
       // 🔹 Ordenar cronológicamente (más recientes arriba)
       movimientos.sort((a, b) => b['fecha'].compareTo(a['fecha']));
 
-      // 🔹 Tomar solo los 3 más recientes
-      ultimosMovimientos = movimientos.take(3).toList();
+// 🔹 Tomar los 3 más recientes, pero permitir rotación del cliente agregado
+      ultimosMovimientos = [];
 
-      // ✅ Asegurar que siempre haya un cliente agregado visible
-      final tieneClienteAgregado =
-      ultimosMovimientos.any((m) => m['esNuevo'] == true);
-      if (!tieneClienteAgregado) {
-        final clienteAgregado = movimientos.firstWhere(
-              (m) => m['esNuevo'] == true,
-          orElse: () => {},
-        );
-        if (clienteAgregado.isNotEmpty) {
-          ultimosMovimientos.add(clienteAgregado);
-          if (ultimosMovimientos.length > 3) {
-            ultimosMovimientos.removeAt(0);
-          }
-        }
+      for (final mov in movimientos) {
+        ultimosMovimientos.add(mov);
+        if (ultimosMovimientos.length >= 3) break;
       }
+
+
 
       // 🔹 Datos para gráfico
       final serie = movimientos.take(6).toList();

@@ -135,21 +135,15 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
       // 🔹 Tomar solo los 3 más recientes
       ultimosMovimientos = movimientos.take(3).toList();
 
-      // ✅ Asegurar que siempre haya al menos un cliente agregado visible
-      final tieneClienteAgregado =
-      ultimosMovimientos.any((m) => m['esNuevo'] == true);
-      if (!tieneClienteAgregado) {
-        final clienteAgregado = movimientos.firstWhere(
-              (m) => m['esNuevo'] == true,
-          orElse: () => {},
-        );
-        if (clienteAgregado.isNotEmpty) {
-          ultimosMovimientos.add(clienteAgregado);
-          if (ultimosMovimientos.length > 3) {
-            ultimosMovimientos.removeAt(0); // elimina el más antiguo si hay 4
-          }
-        }
+      // 🔹 Tomar los 3 más recientes, pero permitir rotación del cliente agregado
+      ultimosMovimientos = [];
+
+      for (final mov in movimientos) {
+        // agregamos en orden descendente (ya están ordenados)
+        ultimosMovimientos.add(mov);
+        if (ultimosMovimientos.length >= 3) break;
       }
+
 
       // 🔹 Datos para gráfico
       final serie = movimientos.take(6).toList();

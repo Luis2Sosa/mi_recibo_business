@@ -136,24 +136,18 @@ class _AlquilerEstadisticaScreenState
         }
       }
 
-      // 🔹 Ordenar y rotar dinámicamente (3 más recientes)
+      // 🔹 Ordenar cronológicamente (más recientes arriba)
       movimientos.sort((a, b) => b['fecha'].compareTo(a['fecha']));
-      ultimosMovimientos = movimientos.take(3).toList();
 
-// ✅ Asegurar que siempre haya al menos un cliente agregado visible
-      final tieneClienteAgregado = ultimosMovimientos.any((m) => m['esNuevo'] == true);
-      if (!tieneClienteAgregado) {
-        final clienteAgregado = movimientos.firstWhere(
-              (m) => m['esNuevo'] == true,
-          orElse: () => {},
-        );
-        if (clienteAgregado.isNotEmpty) {
-          ultimosMovimientos.add(clienteAgregado);
-          if (ultimosMovimientos.length > 3) {
-            ultimosMovimientos.removeAt(0); // elimina el más antiguo si hay 4
-          }
-        }
+// 🔹 Tomar los 3 más recientes, pero permitir rotación del cliente agregado
+      ultimosMovimientos = [];
+
+      for (final mov in movimientos) {
+        ultimosMovimientos.add(mov);
+        if (ultimosMovimientos.length >= 3) break;
       }
+
+
 
 
       // 🔹 Datos para gráfico
