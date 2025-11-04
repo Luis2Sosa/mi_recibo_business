@@ -39,7 +39,7 @@ class _ProductoEstadisticaScreenState
     if (uid == null) return;
 
     try {
-      // ✅ Leer total invertido directamente desde metrics/summary
+      // ✅ Leer total invertido desde metrics/summary
       final summaryRef = FirebaseFirestore.instance
           .collection('prestamistas')
           .doc(uid)
@@ -47,11 +47,9 @@ class _ProductoEstadisticaScreenState
           .doc('summary');
 
       final summaryDoc = await summaryRef.get();
-
       final totalInvertidoFirestore = double.tryParse(
         (summaryDoc.data()?['totalCapitalInvertido'] ?? 0).toString(),
       ) ?? 0.0;
-
 
       final db = FirebaseFirestore.instance;
       final clientesSnap = await db
@@ -62,7 +60,9 @@ class _ProductoEstadisticaScreenState
 
       double sumaInvertido = 0;
       int activos = 0;
-      final List<Map<String, dynamic>> pagos = [];
+
+      // 🔹 Lista temporal para todos los movimientos
+      final List<Map<String, dynamic>> movimientos = [];
 
       for (final c in clientesSnap.docs) {
         final data = c.data();
@@ -72,79 +72,89 @@ class _ProductoEstadisticaScreenState
         // ✅ Solo productos o fiados
         if (tipo != 'producto' && tipo != 'fiado') continue;
 
+        // ✅ Solo clientes activos o al día
         final esValido = estado.contains('activo') ||
             estado.contains('al_dia') ||
             estado.contains('al día') ||
             estado.contains('saldado') ||
             estado.isEmpty;
-
-
         if (!esValido) continue;
 
         activos++;
 
-        final capitalInicial = ((data['capitalInicial'] ?? 0) as num)
-            .toDouble();
-        final saldoActual = ((data['saldoActual'] ?? 0) as num).toDouble();
-        final capital = ((data['capitalInicial'] ?? 0) as num).toDouble();
-
+        // ✅ Cálculo de capital invertido
+        final capitalInicial =
+            double.tryParse((data['capitalInicial'] ?? 0).toString()) ?? 0.0;
+        final saldoActual =
+            double.tryParse((data['saldoActual'] ?? 0).toString()) ?? 0.0;
+        final capital = capitalInicial > 0 ? capitalInicial : saldoActual;
 
         sumaInvertido += capital;
 
-        // 🔹 Pagos recientes
+        // 🔹 Pagos recientes (máximo 6)
         final pagosSnap = await c.reference
             .collection('pagos')
             .orderBy('fecha', descending: true)
             .limit(6)
             .get();
 
-        for (final p in pagosSnap.docs) {
-          final d = p.data();
+        // 🔹 Siempre agregar el registro del cliente agregado
+        if (data['createdAt'] != null) {
           final nombre = (data['nombre'] ?? '').toString();
           final primerNombre =
-          nombre
-              .split(' ')
-              .isNotEmpty ? nombre.split(' ')[0] : nombre;
-
-          pagos.add({
-            'monto': ((d['totalPagado'] ?? d['pago'] ?? 0) as num).toDouble(),
-            'fecha': (d['fecha'] is Timestamp)
-                ? (d['fecha'] as Timestamp).toDate()
-                : DateTime.now(),
-            'descripcion': 'Pago de $primerNombre',
-          });
-        }
-
-
-        // 🔸 Si no hay pagos, mostrar registro de creación
-        if (pagosSnap.docs.isEmpty && data['createdAt'] != null) {
-          final nombre = (data['nombre'] ?? '').toString();
-          final primerNombre = nombre
-              .split(' ')
-              .isNotEmpty ? nombre.split(' ')[0] : nombre;
-          pagos.add({
+          nombre.split(' ').isNotEmpty ? nombre.split(' ')[0] : nombre;
+          movimientos.add({
             'monto': 0,
             'fecha': (data['createdAt'] as Timestamp).toDate(),
             'descripcion': 'Cliente $primerNombre agregado',
             'esNuevo': true,
           });
         }
+
+        // 🔹 Luego agregar los pagos (si existen)
+        if (pagosSnap.docs.isNotEmpty) {
+          for (final p in pagosSnap.docs) {
+            final d = p.data();
+            final nombre = (data['nombre'] ?? '').toString();
+            final primerNombre =
+            nombre.split(' ').isNotEmpty ? nombre.split(' ')[0] : nombre;
+
+            movimientos.add({
+              'monto': ((d['totalPagado'] ?? d['pago'] ?? 0) as num).toDouble(),
+              'fecha': (d['fecha'] is Timestamp)
+                  ? (d['fecha'] as Timestamp).toDate()
+                  : DateTime.now(),
+              'descripcion': 'Pago de $primerNombre',
+              'esNuevo': false,
+            });
+          }
+        }
       }
 
+      // 🔹 Ordenar cronológicamente (más recientes arriba)
+      movimientos.sort((a, b) => b['fecha'].compareTo(a['fecha']));
 
-      pagos.sort((a, b) => b['fecha'].compareTo(a['fecha']));
-      // 🔹 Mantener solo los 3 más recientes en orden descendente
-      ultimosMovimientos = pagos.take(3).toList();
-      debugPrint("🧾 Últimos movimientos (${ultimosMovimientos.length}):");
-      for (var mov in ultimosMovimientos) {
-        debugPrint(" - ${mov['descripcion'] ?? (mov['esNuevo'] == true
-            ? 'Cliente agregado'
-            : 'Pago')} ${mov['monto']} ${mov['fecha']}");
+      // 🔹 Tomar solo los 3 más recientes
+      ultimosMovimientos = movimientos.take(3).toList();
+
+      // ✅ Asegurar que siempre haya un cliente agregado visible
+      final tieneClienteAgregado =
+      ultimosMovimientos.any((m) => m['esNuevo'] == true);
+      if (!tieneClienteAgregado) {
+        final clienteAgregado = movimientos.firstWhere(
+              (m) => m['esNuevo'] == true,
+          orElse: () => {},
+        );
+        if (clienteAgregado.isNotEmpty) {
+          ultimosMovimientos.add(clienteAgregado);
+          if (ultimosMovimientos.length > 3) {
+            ultimosMovimientos.removeAt(0);
+          }
+        }
       }
-
 
       // 🔹 Datos para gráfico
-      final serie = pagos.take(6).toList();
+      final serie = movimientos.take(6).toList();
       final puntos = <FlSpot>[];
       double x = 0;
       for (final e in serie) {
@@ -157,19 +167,14 @@ class _ProductoEstadisticaScreenState
         puntos.add(FlSpot(2, sumaInvertido));
       }
 
+      // ✅ Actualizar estado
       setState(() {
         clientesActivos = activos;
-
-        // 🔹 El total invertido viene del resumen
         totalInvertido = totalInvertidoFirestore;
-
-        // 🔹 El promedio se calcula SOLO con capital invertido (sin ganancias)
         promedioPorCliente = activos > 0 ? (sumaInvertido / activos) : 0;
-
         graficoData = puntos;
         cargando = false;
       });
-
 
       debugPrint("✅ Total invertido: $totalInvertido");
       debugPrint("✅ Clientes activos: $clientesActivos");
@@ -179,6 +184,7 @@ class _ProductoEstadisticaScreenState
       setState(() => cargando = false);
     }
   }
+
 
   // ===================== 🔹 FORMATO MONEDA 🔹 =====================
   String _fmt(num valor) {

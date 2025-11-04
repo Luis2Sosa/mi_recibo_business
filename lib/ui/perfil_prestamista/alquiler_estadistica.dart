@@ -39,7 +39,7 @@ class _AlquilerEstadisticaScreenState
     if (uid == null) return;
 
     try {
-      // ✅ Leer total alquilado directamente desde metrics/summary
+      // ✅ Leer total alquilado desde metrics/summary (seguro contra int/double)
       final summaryRef = FirebaseFirestore.instance
           .collection('prestamistas')
           .doc(uid)
@@ -47,7 +47,6 @@ class _AlquilerEstadisticaScreenState
           .doc('summary');
 
       final summaryDoc = await summaryRef.get();
-
       final totalAlquiladoFirestore = double.tryParse(
         (summaryDoc.data()?['totalCapitalAlquilado'] ?? 0).toString(),
       ) ?? 0.0;
@@ -61,7 +60,9 @@ class _AlquilerEstadisticaScreenState
 
       double sumaAlquilado = 0;
       int activos = 0;
-      final List<Map<String, dynamic>> pagos = [];
+
+      // ✅ Lista temporal donde juntaremos todo
+      final List<Map<String, dynamic>> movimientos = [];
 
       for (final c in clientesSnap.docs) {
         final data = c.data();
@@ -71,6 +72,7 @@ class _AlquilerEstadisticaScreenState
         // ✅ Solo tipo alquiler
         if (tipo != 'alquiler') continue;
 
+        // ✅ Solo clientes activos o al día
         final esValido = estado.contains('activo') ||
             estado.contains('al_dia') ||
             estado.contains('al día') ||
@@ -81,50 +83,81 @@ class _AlquilerEstadisticaScreenState
 
         activos++;
 
-        final capital = ((data['capitalInicial'] ?? 0) as num).toDouble();
+        // ✅ Conversión segura
+        final capitalInicial =
+            double.tryParse((data['capitalInicial'] ?? 0).toString()) ?? 0.0;
+        final saldoActual =
+            double.tryParse((data['saldoActual'] ?? 0).toString()) ?? 0.0;
+        final capital = capitalInicial > 0 ? capitalInicial : saldoActual;
+
         sumaAlquilado += capital;
 
-        // 🔹 Pagos recientes
+        // 🔹 Pagos recientes (máximo 6)
         final pagosSnap = await c.reference
             .collection('pagos')
             .orderBy('fecha', descending: true)
             .limit(6)
             .get();
 
-        for (final p in pagosSnap.docs) {
-          final d = p.data();
+        // 🔹 Siempre agregar el registro de cliente agregado (aunque tenga pagos)
+        if (data['createdAt'] != null) {
           final nombre = (data['nombre'] ?? '').toString();
           final primerNombre =
-          nombre.split(' ').isNotEmpty ? nombre.split(' ')[0] : nombre;
-
-          pagos.add({
-            'monto': ((d['totalPagado'] ?? d['pago'] ?? 0) as num).toDouble(),
-            'fecha': (d['fecha'] is Timestamp)
-                ? (d['fecha'] as Timestamp).toDate()
-                : DateTime.now(),
-            'descripcion': 'Pago de $primerNombre',
-          });
-        }
-
-        // 🔸 Si no hay pagos, mostrar registro de creación
-        if (pagosSnap.docs.isEmpty && data['createdAt'] != null) {
-          final nombre = (data['nombre'] ?? '').toString();
-          final primerNombre =
-          nombre.split(' ').isNotEmpty ? nombre.split(' ')[0] : nombre;
-          pagos.add({
+          nombre
+              .split(' ')
+              .isNotEmpty ? nombre.split(' ')[0] : nombre;
+          movimientos.add({
             'monto': 0,
             'fecha': (data['createdAt'] as Timestamp).toDate(),
             'descripcion': 'Cliente $primerNombre agregado',
             'esNuevo': true,
           });
         }
+
+// 🔹 Luego agregar los pagos (si existen)
+        if (pagosSnap.docs.isNotEmpty) {
+          for (final p in pagosSnap.docs) {
+            final d = p.data();
+            final nombre = (data['nombre'] ?? '').toString();
+            final primerNombre =
+            nombre
+                .split(' ')
+                .isNotEmpty ? nombre.split(' ')[0] : nombre;
+
+            movimientos.add({
+              'monto': ((d['totalPagado'] ?? d['pago'] ?? 0) as num).toDouble(),
+              'fecha': (d['fecha'] is Timestamp)
+                  ? (d['fecha'] as Timestamp).toDate()
+                  : DateTime.now(),
+              'descripcion': 'Pago de $primerNombre',
+              'esNuevo': false,
+            });
+          }
+        }
       }
 
-      pagos.sort((a, b) => b['fecha'].compareTo(a['fecha']));
-      ultimosMovimientos = pagos.take(3).toList();
+      // 🔹 Ordenar y rotar dinámicamente (3 más recientes)
+      movimientos.sort((a, b) => b['fecha'].compareTo(a['fecha']));
+      ultimosMovimientos = movimientos.take(3).toList();
+
+// ✅ Asegurar que siempre haya al menos un cliente agregado visible
+      final tieneClienteAgregado = ultimosMovimientos.any((m) => m['esNuevo'] == true);
+      if (!tieneClienteAgregado) {
+        final clienteAgregado = movimientos.firstWhere(
+              (m) => m['esNuevo'] == true,
+          orElse: () => {},
+        );
+        if (clienteAgregado.isNotEmpty) {
+          ultimosMovimientos.add(clienteAgregado);
+          if (ultimosMovimientos.length > 3) {
+            ultimosMovimientos.removeAt(0); // elimina el más antiguo si hay 4
+          }
+        }
+      }
+
 
       // 🔹 Datos para gráfico
-      final serie = pagos.take(6).toList();
+      final serie = movimientos.take(6).toList();
       final puntos = <FlSpot>[];
       double x = 0;
       for (final e in serie) {
@@ -137,27 +170,25 @@ class _AlquilerEstadisticaScreenState
         puntos.add(FlSpot(2, sumaAlquilado));
       }
 
+      // ✅ Actualizar estado
       setState(() {
         clientesActivos = activos;
-
-        // 🔹 El total alquilado viene del resumen (igual que productos)
         totalAlquilado = totalAlquiladoFirestore;
-
-        // 🔹 Promedio por cliente
         promedioPorCliente = activos > 0 ? (sumaAlquilado / activos) : 0;
-
         graficoData = puntos;
         cargando = false;
       });
 
-      debugPrint("✅ Total alquilado: $totalAlquilado");
+      debugPrint("✅ Total alquileres: $totalAlquilado");
       debugPrint("✅ Clientes activos: $clientesActivos");
       debugPrint("✅ Promedio: $promedioPorCliente");
     } catch (e) {
-      debugPrint("❌ Error cargando alquileres: $e");
+      debugPrint("❌ Error cargando alquileres reales: $e");
       setState(() => cargando = false);
     }
   }
+
+
 
 
 

@@ -130,6 +130,23 @@ Future<void> guardarPagoYActualizarKPIs({
     );
 
     // ==============================
+// 🔹 SUMAR AUTOMÁTICAMENTE TOTAL ALQUILADO (cada pago cuenta)
+// ==============================
+    if (categoria == 'alquiler') {
+      try {
+        await summaryRef.set({
+          'totalCapitalAlquilado': FieldValue.increment(totalPagado * 1.0),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        print('💰 Total alquilado incrementado +$totalPagado correctamente');
+      } catch (e) {
+        print('⚠️ Error al actualizar totalCapitalAlquilado: $e');
+      }
+    }
+
+
+    // ==============================
     // 🔹 SI EL PRODUCTO SE SALDÓ → REGISTRAR GANANCIA TOTAL HISTÓRICA
     // ==============================
     if (categoria == 'producto' && saldoNuevo <= 0) {
