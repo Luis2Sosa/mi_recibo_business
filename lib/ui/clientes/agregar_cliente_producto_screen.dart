@@ -535,6 +535,7 @@ class _AgregarClienteProductoScreenState
         };
       }).toList(),
       'gananciaTotal': _gananciaTotal.toInt(),
+      'ganancia': _gananciaTotal.toInt(),
       'montoTotal': _montoTotal.toInt(),
       'pagoInicial': pagoInicial.toInt(),
       'saldoActual': saldoActual.toInt(),
@@ -553,6 +554,23 @@ class _AgregarClienteProductoScreenState
       } else {
         // ✅ Si es nuevo, crea un registro nuevo
         await clientesRef.add(data);
+        // ✅ Registrar ganancia de este cliente individual para "Ganancia por producto"
+        final estadisticasProductoRef = db
+            .collection('prestamistas')
+            .doc(uid)
+            .collection('estadisticas')
+            .doc('producto')
+            .collection('clientes_producto')
+            .doc(); // se crea un doc nuevo
+
+        await estadisticasProductoRef.set({
+          'nombre': _nombreCtrl.text.trim(),
+          'apellido': _apellidoCtrl.text.trim(),
+          'ganancia': _gananciaTotal.toInt(),
+          'montoTotal': _montoTotal.toInt(),
+          'fechaRegistro': FieldValue.serverTimestamp(),
+        });
+
       }
 
 

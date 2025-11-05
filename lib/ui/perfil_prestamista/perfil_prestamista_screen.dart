@@ -14,12 +14,13 @@ import '../widgets/charts_common.dart';
 import '../theme/app_theme.dart';
 import './ganancias_screen.dart';
 import './estadisticas_views.dart';
-import './ganancia_clientes_screen.dart';
+
 
 // 👇 Conexión a mini-dashboards (sin tocar lógica)
 import './prestamo_estadistica.dart';
 import './producto_estadistica.dart';
 import './alquiler_estadistica.dart';
+import 'ganancia_prestamo_screen.dart';
 
 // === Categorías de los filtros
 enum PerfilCategoria { prestamos, productos, alquiler }
@@ -1445,7 +1446,13 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
       return;
     }
-    Navigator.push(context, MaterialPageRoute(builder: (_) => GananciaClientesScreen(docPrest: _docPrest!)));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GananciaPrestamoScreen(docPrest: _docPrest!),
+      ),
+    );
+
   }
 
   void _openGanancias() {

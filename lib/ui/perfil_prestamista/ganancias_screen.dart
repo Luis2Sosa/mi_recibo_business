@@ -378,141 +378,163 @@ class _GananciasScreenState extends State<GananciasScreen>
 
               return FadeTransition(
                 opacity: _fadeAnim,
-                child: ListView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                  children: [
-                    // PANEL SUPERIOR
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(22),
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Color(0xFF0F172A),
-                            Color(0xFF1E3A8A),
-                            Color(0xFF312E81),
-                          ],
-                        ),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.1),
-                          width: 1.2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.25),
-                            blurRadius: 25,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            'Balance Total',
-                            style: GoogleFonts.poppins(
-                              color: Colors.white.withOpacity(0.85),
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          ShaderMask(
-                            shaderCallback: (r) => const LinearGradient(
-                              colors: [Color(0xFF00FFD1), Color(0xFF00B8FF)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ).createShader(r),
-                            child: Text(
-                              "\$${_rd(_displayedTotal)}",
-                              style: GoogleFonts.poppins(
-                                fontSize: 56,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                                letterSpacing: -1,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // PANEL SUPERIOR
+                              Container(
+                                padding: const EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(22),
+                                  gradient: const LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Color(0xFF0F172A),
+                                      Color(0xFF1E3A8A),
+                                      Color(0xFF312E81),
+                                    ],
+                                  ),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.1),
+                                    width: 1.2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.25),
+                                      blurRadius: 25,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      'Balance Total',
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.white.withOpacity(0.85),
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    ShaderMask(
+                                      shaderCallback: (r) => const LinearGradient(
+                                        colors: [Color(0xFF00FFD1), Color(0xFF00B8FF)],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ).createShader(r),
+                                      child: Text(
+                                        "\$${_rd(_displayedTotal)}",
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 56,
+                                          fontWeight: FontWeight.w900,
+                                          color: Colors.white,
+                                          letterSpacing: -1,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.12),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border:
+                                        Border.all(color: Colors.white.withOpacity(0.25)),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: const [
+                                          Icon(Icons.trending_up_rounded,
+                                              color: Colors.greenAccent, size: 20),
+                                          SizedBox(width: 6),
+                                          Text(
+                                            'En crecimiento',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Container(
-                            padding:
-                            const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.white.withOpacity(0.25)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(Icons.trending_up_rounded,
-                                    color: Colors.greenAccent, size: 20),
-                                SizedBox(width: 6),
-                                Text(
-                                  'En crecimiento',
+
+                              const SizedBox(height: 25),
+
+                              // KPIs
+                              Row(
+                                children: [
+                                  Expanded(
+                                      child: _kpi('Préstamos', ganPrestamo, Colors.blueAccent)),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                      child: _kpi('Productos', ganProducto, Colors.tealAccent)),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                      child: _kpi('Alquiler', ganAlquiler, Colors.orangeAccent)),
+                                ],
+                              ),
+
+                              const SizedBox(height: 30),
+
+                              // PREMIUM CARD
+                              _premiumCard(),
+
+                              const SizedBox(height: 35),
+
+                              // BOTÓN DISCRETO PREMIUM
+                              ElevatedButton.icon(
+                                onPressed: _mostrarBannerConfirmacion,
+                                icon: const Icon(Icons.delete_outline_rounded,
+                                    color: Colors.white70, size: 18),
+                                label: const Text('Borrar ganancias totales'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white.withOpacity(0.08),
+                                  foregroundColor: Colors.white70,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(18)),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20, vertical: 12),
+                                  textStyle: const TextStyle(
+                                      fontWeight: FontWeight.w600, fontSize: 13),
+                                  elevation: 0,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Center(
+                                child: Text(
+                                  'Esta acción es irreversible. Los datos se borrarán de forma permanente.',
+                                  textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13,
+                                    color: Colors.white.withOpacity(0.4),
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 25),
-
-                    Row(
-                      children: [
-                        Expanded(child: _kpi('Préstamos', ganPrestamo, Colors.blueAccent)),
-                        const SizedBox(width: 10),
-                        Expanded(child: _kpi('Productos', ganProducto, Colors.tealAccent)),
-                        const SizedBox(width: 10),
-                        Expanded(child: _kpi('Alquiler', ganAlquiler, Colors.orangeAccent)),
-                      ],
-                    ),
-
-                    const SizedBox(height: 30),
-
-                    _premiumCard(),
-
-                    const SizedBox(height: 35),
-                    // ===== BOTÓN DISCRETO PREMIUM =====
-                    ElevatedButton.icon(
-                      onPressed: _mostrarBannerConfirmacion,
-                      icon: const Icon(Icons.delete_outline_rounded, color: Colors.white70, size: 18),
-                      label: const Text('Borrar ganancias totales'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white.withOpacity(0.08),
-                        foregroundColor: Colors.white70,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                        elevation: 0,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Center(
-                      child: Text(
-                        'Esta acción es irreversible. Los datos se borrarán de forma permanente.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.4),
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                    ),
-
-                    const SizedBox(height: 40),
-                  ],
+                    );
+                  },
                 ),
               );
+
             },
           ),
         ),

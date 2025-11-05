@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/estadisticas_totales_service.dart';
-import 'ganancia_clientes_screen.dart';
+import 'ganancia_prestamo_screen.dart';
 
 class PanelPrestamosScreen extends StatefulWidget {
   const PanelPrestamosScreen({super.key});
@@ -205,15 +205,17 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF081633),
       body: SafeArea(
+        bottom: false, // 👈 evita el overflow por la barra del sistema
         child: cargando
             ? const Center(child: CircularProgressIndicator(color: Colors.white))
             : Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+
+
                 const SizedBox(height: 10),
 
                 // ======== ENCABEZADO ========
@@ -284,14 +286,14 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => GananciaClientesScreen(
+                        builder: (_) => GananciaPrestamoScreen(
                           docPrest: FirebaseFirestore.instance
                               .collection('prestamistas')
                               .doc(uid),
-                          tipo: GananciaTipo.prestamo,
                         ),
                       ),
                     );
+
                   },
                   child: Center(
                     child: Container(
@@ -311,11 +313,7 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
                         ),
                         borderRadius: BorderRadius.circular(30),
                         boxShadow: [
-                          BoxShadow(
-                            color: Colors.blueAccent.withOpacity(0.4),
-                            blurRadius: 15,
-                            offset: const Offset(0, 8),
-                          ),
+
                         ],
                       ),
                       child: Row(
@@ -330,22 +328,28 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
+                              shadows: [
+                                Shadow(
+                                  offset: Offset(0, 1),
+                                  blurRadius: 2,
+                                  color: Colors.black54, // 👈 sombra sutil que mejora el contraste
+                                ),
+                              ],
                             ),
                           ),
+
                         ],
                       ),
                     ),
                   ),
 
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 40),
               ],
             ),
           ),
-        ),
       ),
-
-
+      )
     );
   }
 

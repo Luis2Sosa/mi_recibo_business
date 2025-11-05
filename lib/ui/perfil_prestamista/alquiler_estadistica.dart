@@ -7,7 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/estadisticas_totales_service.dart';
-import 'ganancia_clientes_screen.dart';
+import 'ganancia_alquiler_screen.dart';
+
 
 class AlquilerEstadisticaScreen extends StatefulWidget {
   const AlquilerEstadisticaScreen({super.key});
@@ -210,13 +211,15 @@ class _AlquilerEstadisticaScreenState
     return Scaffold(
       backgroundColor: const Color(0xFF281E14),
       body: SafeArea(
+        bottom: false,
         child: cargando
             ? const Center(
-            child: CircularProgressIndicator(color: Colors.amberAccent))
+          child: CircularProgressIndicator(color: Colors.amberAccent),
+        )
             : Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
+            physics: const ClampingScrollPhysics(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -239,7 +242,7 @@ class _AlquilerEstadisticaScreenState
                         gradient: const LinearGradient(
                           colors: [
                             Color(0xFFFFD700),
-                            Color(0xFFF59E0B)
+                            Color(0xFFF59E0B),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(12),
@@ -294,11 +297,10 @@ class _AlquilerEstadisticaScreenState
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => GananciaClientesScreen(
+                        builder: (_) => GananciaAlquilerScreen(
                           docPrest: FirebaseFirestore.instance
                               .collection('prestamistas')
                               .doc(uid),
-                          tipo: GananciaTipo.alquiler,
                         ),
                       ),
                     );
@@ -320,13 +322,7 @@ class _AlquilerEstadisticaScreenState
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.orangeAccent.withOpacity(0.4),
-                            blurRadius: 15,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
+                        boxShadow: [], // 👈 sin brillo
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -341,20 +337,29 @@ class _AlquilerEstadisticaScreenState
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
+                              shadows: [
+                                Shadow(
+                                  offset: Offset(0, 1),
+                                  blurRadius: 2,
+                                  color: Colors.black45, // 👈 mejora contraste sobre el dorado
+                                ),
+                              ],
                             ),
                           ),
+
                         ],
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 60), // 👈 más espacio inferior
               ],
             ),
           ),
         ),
       ),
     );
+
   }
 
   // ================= TARJETA KPI =================

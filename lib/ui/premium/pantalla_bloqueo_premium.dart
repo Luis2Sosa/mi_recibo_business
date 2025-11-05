@@ -1,16 +1,17 @@
 // lib/ui/premium/pantalla_bloqueo_premium.dart
-
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+// lib/ui/premium/pantalla_bloqueo_premium.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:mi_recibo/ui/perfil_prestamista/ganancias_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:mi_recibo/ui/premium/pantalla_bienvenida_premium.dart';
-import 'package:mi_recibo/ui/perfil_prestamista/ganancia_clientes_screen.dart';
 import 'package:mi_recibo/ui/perfil_prestamista/ganancias_screen.dart';
 
+// (Opcional si desbloquea módulos premium directamente)
+import 'package:mi_recibo/ui/perfil_prestamista/ganancia_prestamo_screen.dart';
+import 'package:mi_recibo/ui/perfil_prestamista/ganancia_producto_screen.dart';
+import 'package:mi_recibo/ui/perfil_prestamista/ganancia_alquiler_screen.dart';
 
-import '../perfil_prestamista/ganancia_clientes_screen.dart';
 
 
 class PantallaBloqueoPremium extends StatelessWidget {

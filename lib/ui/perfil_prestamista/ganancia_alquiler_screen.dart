@@ -11,7 +11,8 @@ class GananciaAlquilerScreen extends StatefulWidget {
   const GananciaAlquilerScreen({super.key, required this.docPrest});
 
   @override
-  State<GananciaAlquilerScreen> createState() => _GananciaAlquilerScreenState();
+  State<GananciaAlquilerScreen> createState() =>
+      _GananciaAlquilerScreenState();
 }
 
 class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
@@ -23,48 +24,76 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
     _future = _cargarGanancias();
   }
 
-  // 🎨 Colores y estilo del módulo Alquiler
-  Color get _colorFondo => const Color(0xFF2A1C09); // Marrón oscuro premium
-  Color get _accent => const Color(0xFFFFD54F); // Dorado suave
+  // 🎨 Paleta premium dorado cálido
+  Color get _colorFondo => const Color(0xFF1E1507);
+  Color get _accent => const Color(0xFFFFD54F);
 
   LinearGradient get _gradiente => const LinearGradient(
-    colors: [Color(0xFFFFB300), Color(0xFFFFD54F)],
+    colors: [Color(0xFF3A2500), Color(0xFFFFB300)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
+
   // ===================== 🔹 CARGAR GANANCIAS =====================
   Future<List<_ClienteGanancia>> _cargarGanancias() async {
-    Query<Map<String, dynamic>> query =
-    widget.docPrest.collection('clientes').where('tipo', isEqualTo: 'alquiler');
+    final query = widget.docPrest
+        .collection('clientes')
+        .where('tipo', isEqualTo: 'alquiler');
 
     final cs = await query.get();
     final List<_ClienteGanancia> rows = [];
 
     for (final c in cs.docs) {
-      final data = c.data();
-      final saldo = (data['saldoActual'] ?? 0) as num;
-      if (saldo <= 0) continue;
+      final dataCliente = c.data();
+      final saldo = num.tryParse((dataCliente['saldoActual'] ?? 0).toString()) ?? 0;
 
       final pagos = await c.reference.collection('pagos').get();
-      num ganancia = 0;
+      num totalAlquilado = 0;
+
+      // 🔹 Recorremos solo los pagos de ESTE cliente
       for (final p in pagos.docs) {
-        ganancia += (p.data()['pagoInteres'] ?? 0) as num;
+        final dataPago = p.data();
+
+        // Convertimos todos los valores a num de forma segura
+        num totalPagado = num.tryParse((dataPago['totalPagado'] ?? 0).toString()) ?? 0;
+        num pagoCapital = num.tryParse((dataPago['pagoCapital'] ?? 0).toString()) ?? 0;
+        num pagoInteres = num.tryParse((dataPago['pagoInteres'] ?? 0).toString()) ?? 0;
+
+        num monto = 0;
+
+        // 🔸 Usamos solo un campo real, sin duplicar
+        if (totalPagado > 0) {
+          monto = totalPagado;
+        } else if (pagoCapital > 0 || pagoInteres > 0) {
+          monto = pagoCapital + pagoInteres;
+        }
+
+        // ✅ Evitamos duplicados y valores fuera de rango
+        if (monto > 0 && monto < 1000000) {
+          totalAlquilado += monto;
+        }
       }
 
-      final nombre =
-      '${(data['nombre'] ?? '').toString()} ${(data['apellido'] ?? '').toString()}'.trim();
+      // 🔹 Nombre del cliente
+      final nombre = '${(dataCliente['nombre'] ?? '').toString()} ${(dataCliente['apellido'] ?? '').toString()}'.trim();
+
+      // 🔹 Agregamos el cliente con SU total alquilado acumulado
       rows.add(_ClienteGanancia(
         id: c.id,
-        nombre: nombre.isEmpty ? (data['telefono'] ?? 'Cliente') : nombre,
-        ganancia: ganancia.toInt(),
+        nombre: nombre.isEmpty ? (dataCliente['telefono'] ?? 'Cliente') : nombre,
+        ganancia: totalAlquilado.toInt(),
         saldo: saldo.toInt(),
       ));
     }
 
+    // 🔹 Orden descendente por ganancia
     rows.sort((a, b) => b.ganancia.compareTo(a.ganancia));
     return rows;
   }
+
+
+
 
   // ===================== 🧱 CONSTRUCCIÓN =====================
   @override
@@ -76,7 +105,8 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
           future: _future,
           builder: (context, snap) {
             if (snap.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator(color: Colors.white));
+              return const Center(
+                  child: CircularProgressIndicator(color: Colors.white));
             }
 
             final list = snap.data ?? [];
@@ -85,20 +115,15 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
             final visibles = list.take(1).toList();
             final bloqueados = list.skip(1).toList();
 
-            if (bloqueados.isEmpty && list.isNotEmpty) {
-              bloqueados.add(list.first);
-            }
-
-            return SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _encabezado(),
-                    const SizedBox(height: 25),
-                    const Text(
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              child: Column(
+                children: [
+                  _encabezado(),
+                  const SizedBox(height: 25),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
                       "💰 Ganancias por alquiler",
                       style: TextStyle(
                         color: Colors.white,
@@ -106,25 +131,37 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
                         fontSize: 18,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                  ),
+                  const SizedBox(height: 14),
 
-                    // 🔹 Cliente visible
-                    ...visibles.map((e) => _card(context, e, false)),
-                    const SizedBox(height: 18),
+                  // 🟡 Tarjeta visible
+                  ...visibles.map((e) => _card(e, false)),
 
-                    // 🔹 Banner Premium
-                    if (bloqueados.isNotEmpty) _premiumBanner(context),
+                  const SizedBox(height: 25),
 
-                    const SizedBox(height: 10),
+                  if (bloqueados.isNotEmpty) _premiumEncabezado(),
+                  const SizedBox(height: 15),
 
-                    // 🔹 Clientes bloqueados
-                    ...bloqueados.map((e) => _card(context, e, true)),
+                  // 🔹 Scroll solo en bloqueados
+                  if (bloqueados.isNotEmpty)
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.only(top: 10),
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: bloqueados.length,
+                        itemBuilder: (context, i) => Padding(
+                          padding: const EdgeInsets.only(bottom: 18),
+                          child: _card(bloqueados[i], true),
+                        ),
+                      ),
+                    )
+                  else
+                    const Spacer(),
 
-                    const SizedBox(height: 35),
-                    _botonFinal(),
-                    const SizedBox(height: 25),
-                  ],
-                ),
+                  const SizedBox(height: 20),
+                  _botonFinal(),
+                  const SizedBox(height: 25),
+                ],
               ),
             );
           },
@@ -133,7 +170,7 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
     );
   }
 
-  // ===================== 🔹 SECCIONES =====================
+  // ===================== 🔹 ENCABEZADO =====================
   Widget _encabezado() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -155,8 +192,14 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: _accent,
-            borderRadius: BorderRadius.circular(10),
+            color: _accent.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: _accent.withOpacity(0.4),
+                blurRadius: 10,
+              )
+            ],
           ),
           child: const Text(
             "LIVE",
@@ -171,135 +214,191 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
     );
   }
 
-  // ===================== 🔹 TARJETA CLIENTE =====================
-  Widget _card(BuildContext context, _ClienteGanancia e, bool bloqueado) {
-    final card = Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.08),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(.1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  e.nombre,
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  "Ganancia: \$${e.ganancia}",
-                  style: TextStyle(
-                    color: _accent,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text(
-                  "Saldo: \$${e.saldo}",
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.trending_up_rounded, color: Colors.white54),
-        ],
-      ),
-    );
-
-    if (!bloqueado) return card;
-
-    // 🔒 Tarjeta bloqueada premium (oscura + borrosa)
+  // ===================== 🔹 BANNER PREMIUM =====================
+  Widget _premiumEncabezado() {
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => const PantallaBloqueoPremium(destino: 'ganancia_alquiler'),
+          builder: (_) =>
+          const PantallaBloqueoPremium(destino: 'ganancia_alquiler'),
         ),
       ),
-      child: Stack(
-        alignment: Alignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                color: Colors.black.withOpacity(0.35),
-                child: Opacity(opacity: 0.25, child: card),
-              ),
+          Icon(Icons.workspace_premium_rounded,
+              color: _accent.withOpacity(0.9), size: 34),
+          const SizedBox(height: 8),
+          Text(
+            "Desbloquea Mi Recibo Premium",
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
             ),
           ),
-          const Icon(Icons.lock_outline_rounded, color: Colors.white70, size: 28),
+          const SizedBox(height: 4),
+          Text(
+            "Visualiza todas las ganancias detalladas de tus alquileres activos.",
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              color: Colors.white70,
+              fontSize: 13.5,
+              height: 1.3,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  // ===================== 🔹 BANNER PREMIUM =====================
-  Widget _premiumBanner(BuildContext context) {
+  // ===================== 🔹 TARJETA CLIENTE =====================
+  Widget _card(_ClienteGanancia e, bool bloqueado) {
+    final baseCard = Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF3A2500).withOpacity(0.9),
+            const Color(0xFF5C3A00).withOpacity(0.8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.amberAccent.withOpacity(0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Nombre del cliente
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                e.nombre,
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Icon(Icons.home_rounded, color: Colors.white70),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Divider(color: Colors.white.withOpacity(0.1), thickness: 1),
+          const SizedBox(height: 10),
+
+          // Datos
+          Row(
+            children: [
+              const Icon(Icons.attach_money_rounded, color: Colors.amber, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                "Total alquilado: \$${e.ganancia}",
+                style: GoogleFonts.inter(
+                  color: Colors.amberAccent,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.payments_rounded, color: Colors.white70, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                e.saldo > 0 ? "Pendiente: \$${e.saldo}" : "Completado ✅",
+                style: GoogleFonts.inter(
+                  color: e.saldo > 0 ? Colors.white70 : Colors.greenAccent,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: const [
+              Icon(Icons.trending_up_rounded, color: Colors.white38, size: 18),
+              SizedBox(width: 8),
+              Text(
+                "Rendimiento activo",
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (!bloqueado) return baseCard;
+
+    // 🔒 Tarjeta bloqueada (con blur cálido)
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => const PantallaBloqueoPremium(destino: 'ganancia_alquiler'),
+          builder: (_) =>
+          const PantallaBloqueoPremium(destino: 'ganancia_alquiler'),
         ),
       ),
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 10),
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          gradient: _gradiente,
-        ),
-        child: Column(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            const Icon(Icons.workspace_premium_rounded,
-                color: Colors.white, size: 32),
-            const SizedBox(height: 12),
-            Text(
-              "Desbloquea Mi Recibo Premium",
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
+            Opacity(opacity: 0.2, child: baseCard),
+            BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+              child: Container(
+                height: 130,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withOpacity(0.05),
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.05),
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              "Visualiza todas las ganancias detalladas de tus alquileres activos.",
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                color: Colors.white70,
-                fontSize: 13.5,
-                height: 1.4,
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withOpacity(0.25),
               ),
+              padding: const EdgeInsets.all(10),
+              child: const Icon(Icons.lock_outline_rounded,
+                  color: Colors.white70, size: 26),
             ),
+
           ],
         ),
       ),
     );
   }
+
 
   // ===================== 🔹 BOTÓN FINAL =====================
   Widget _botonFinal() {

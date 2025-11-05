@@ -7,7 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/estadisticas_totales_service.dart';
-import 'ganancia_clientes_screen.dart';
+
+import 'ganancia_producto_screen.dart';
 
 class ProductoEstadisticaScreen extends StatefulWidget {
   const ProductoEstadisticaScreen({super.key});
@@ -200,13 +201,15 @@ class _ProductoEstadisticaScreenState
     return Scaffold(
       backgroundColor: const Color(0xFF102019),
       body: SafeArea(
+        bottom: false, // 👈 evita desbordamientos por la barra inferior
         child: cargando
             ? const Center(
-            child: CircularProgressIndicator(color: Colors.greenAccent))
+          child: CircularProgressIndicator(color: Colors.greenAccent),
+        )
             : Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
+            physics: const ClampingScrollPhysics(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -229,7 +232,7 @@ class _ProductoEstadisticaScreenState
                         gradient: const LinearGradient(
                           colors: [
                             Color(0xFF22C55E),
-                            Color(0xFF16A34A)
+                            Color(0xFF16A34A),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(12),
@@ -250,14 +253,23 @@ class _ProductoEstadisticaScreenState
                 const SizedBox(height: 10),
 
                 // ======== TARJETAS KPI ========
-                _tile("Total invertido", _fmt(totalInvertido),
-                    const Color(0xFF22C55E)),
+                _tile(
+                  "Total invertido",
+                  _fmt(totalInvertido),
+                  const Color(0xFF22C55E),
+                ),
                 const SizedBox(height: 10),
-                _tile("Clientes activos", "$clientesActivos",
-                    const Color(0xFF86EFAC)),
+                _tile(
+                  "Clientes activos",
+                  "$clientesActivos",
+                  const Color(0xFF86EFAC),
+                ),
                 const SizedBox(height: 10),
-                _tile("Promedio por cliente", _fmt(promedioPorCliente),
-                    const Color(0xFF16A34A)),
+                _tile(
+                  "Promedio por cliente",
+                  _fmt(promedioPorCliente),
+                  const Color(0xFF16A34A),
+                ),
 
                 const SizedBox(height: 20),
                 _graficoCard(),
@@ -285,13 +297,11 @@ class _ProductoEstadisticaScreenState
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            GananciaClientesScreen(
-                              docPrest: FirebaseFirestore.instance
-                                  .collection('prestamistas')
-                                  .doc(uid),
-                              tipo: GananciaTipo.producto,
-                            ),
+                        builder: (_) => GananciaProductoScreen(
+                          docPrest: FirebaseFirestore.instance
+                              .collection('prestamistas')
+                              .doc(uid),
+                        ),
                       ),
                     );
                   },
@@ -312,20 +322,17 @@ class _ProductoEstadisticaScreenState
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.greenAccent.withOpacity(0.4),
-                            blurRadius: 15,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
+                        boxShadow: [],
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: const [
-                          Icon(Icons.auto_graph_rounded,
-                              color: Colors.white, size: 22),
+                          Icon(
+                            Icons.auto_graph_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                           SizedBox(width: 8),
                           Text(
                             "Ver ganancias por cliente",
@@ -333,20 +340,29 @@ class _ProductoEstadisticaScreenState
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
+                              shadows: [
+                                Shadow(
+                                  offset: Offset(0, 1),
+                                  blurRadius: 1.5,
+                                  color: Colors.black38, // 👈 mejora contraste sin dañar el verde
+                                ),
+                              ],
                             ),
                           ),
+
                         ],
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 40),
               ],
             ),
           ),
         ),
       ),
     );
+
   }
 
   // ================= TARJETA KPI =================

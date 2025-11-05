@@ -23,20 +23,21 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
     _future = _cargarGanancias();
   }
 
-  // 🎨 Colores y estilo del módulo Préstamo
-  Color get _colorFondo => const Color(0xFF081021); // Azul marino oscuro premium
-  Color get _accent => const Color(0xFF2196F3); // Azul brillante premium
+  // 🎨 Paleta premium azul petróleo
+  Color get _colorFondo => const Color(0xFF0A192F);
+  Color get _accent => const Color(0xFF2196F3);
 
   LinearGradient get _gradiente => const LinearGradient(
-    colors: [Color(0xFF1976D2), Color(0xFF42A5F5)],
+    colors: [Color(0xFF0A2540), Color(0xFF1976D2)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   // ===================== 🔹 CARGAR GANANCIAS =====================
   Future<List<_ClienteGanancia>> _cargarGanancias() async {
-    Query<Map<String, dynamic>> query =
-    widget.docPrest.collection('clientes').where('tipo', isEqualTo: 'prestamo');
+    final query = widget.docPrest
+        .collection('clientes')
+        .where('tipo', isEqualTo: 'prestamo');
 
     final cs = await query.get();
     final List<_ClienteGanancia> rows = [];
@@ -49,11 +50,20 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
       final pagos = await c.reference.collection('pagos').get();
       num ganancia = 0;
       for (final p in pagos.docs) {
-        ganancia += (p.data()['pagoInteres'] ?? 0) as num;
+        final dataPago = p.data();
+        // ✅ Prioriza 'gananciaPago', si no existe usa 'pagoInteres'
+        final interes = (dataPago['gananciaPago'] ??
+            dataPago['pagoInteres'] ??
+            0) as num;
+        ganancia += interes;
       }
 
+
+
       final nombre =
-      '${(data['nombre'] ?? '').toString()} ${(data['apellido'] ?? '').toString()}'.trim();
+      '${(data['nombre'] ?? '').toString()} ${(data['apellido'] ?? '').toString()}'
+          .trim();
+
       rows.add(_ClienteGanancia(
         id: c.id,
         nombre: nombre.isEmpty ? (data['telefono'] ?? 'Cliente') : nombre,
@@ -76,7 +86,8 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
           future: _future,
           builder: (context, snap) {
             if (snap.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator(color: Colors.white));
+              return const Center(
+                  child: CircularProgressIndicator(color: Colors.white));
             }
 
             final list = snap.data ?? [];
@@ -85,20 +96,18 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
             final visibles = list.take(1).toList();
             final bloqueados = list.skip(1).toList();
 
-            if (bloqueados.isEmpty && list.isNotEmpty) {
-              bloqueados.add(list.first);
-            }
+            // 🌟 Nueva estructura: columna fija con scroll solo en las tarjetas bloqueadas
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              child: Column(
+                children: [
+                  // ===================== CABECERA =====================
+                  _encabezado(),
+                  const SizedBox(height: 25),
 
-            return SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _encabezado(),
-                    const SizedBox(height: 25),
-                    const Text(
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
                       "💰 Ganancias por préstamo",
                       style: TextStyle(
                         color: Colors.white,
@@ -106,25 +115,40 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
                         fontSize: 18,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                  ),
+                  const SizedBox(height: 14),
 
-                    // 🔹 Cliente visible
-                    ...visibles.map((e) => _card(context, e, false)),
-                    const SizedBox(height: 18),
+                  // ===================== CLIENTE VISIBLE =====================
+                  ...visibles.map((e) => _card(e, false)),
 
-                    // 🔹 Banner Premium
-                    if (bloqueados.isNotEmpty) _premiumBanner(context),
+                  const SizedBox(height: 25),
 
-                    const SizedBox(height: 10),
+                  // ===================== ENCABEZADO PREMIUM =====================
+                  if (bloqueados.isNotEmpty) _premiumEncabezado(),
 
-                    // 🔹 Clientes bloqueados
-                    ...bloqueados.map((e) => _card(context, e, true)),
+                  const SizedBox(height: 15),
 
-                    const SizedBox(height: 35),
-                    _botonFinal(),
-                    const SizedBox(height: 25),
-                  ],
-                ),
+                  // ===================== SCROLL SOLO EN BLOQUEADOS =====================
+                  if (bloqueados.isNotEmpty)
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.only(top: 10),
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: bloqueados.length,
+                        itemBuilder: (context, i) => Padding(
+                          padding: const EdgeInsets.only(bottom: 18),
+                          child: _card(bloqueados[i], true),
+                        ),
+                      ),
+                    )
+                  else
+                    const Spacer(),
+
+                  // ===================== BOTÓN FINAL FIJO =====================
+                  const SizedBox(height: 20),
+                  _botonFinal(),
+                  const SizedBox(height: 25),
+                ],
               ),
             );
           },
@@ -140,7 +164,8 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
       children: [
         Row(
           children: [
-            Icon(Icons.account_balance_wallet_rounded, color: _accent, size: 30),
+            Icon(Icons.account_balance_wallet_rounded,
+                color: _accent, size: 30),
             const SizedBox(width: 10),
             Text(
               "Rendimiento préstamo",
@@ -155,8 +180,14 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: _accent,
-            borderRadius: BorderRadius.circular(10),
+            color: _accent.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: _accent.withOpacity(0.4),
+                blurRadius: 10,
+              )
+            ],
           ),
           child: const Text(
             "LIVE",
@@ -171,135 +202,195 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
     );
   }
 
-  // ===================== 🔹 TARJETA CLIENTE =====================
-  Widget _card(BuildContext context, _ClienteGanancia e, bool bloqueado) {
-    final card = Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.08),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(.1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  e.nombre,
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  "Ganancia: \$${e.ganancia}",
-                  style: TextStyle(
-                    color: _accent,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text(
-                  "Saldo: \$${e.saldo}",
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.trending_up_rounded, color: Colors.white54),
-        ],
-      ),
-    );
-
-    if (!bloqueado) return card;
-
-    // 🔒 Tarjeta bloqueada premium (oscura + borrosa)
+  // ===================== 🔹 BANNER PREMIUM =====================
+  Widget _premiumEncabezado() {
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => const PantallaBloqueoPremium(destino: 'ganancia_prestamo'),
+          builder: (_) =>
+          const PantallaBloqueoPremium(destino: 'ganancia_prestamo'),
         ),
       ),
-      child: Stack(
-        alignment: Alignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                color: Colors.black.withOpacity(0.35),
-                child: Opacity(opacity: 0.25, child: card),
-              ),
+          Icon(Icons.workspace_premium_rounded,
+              color: _accent.withOpacity(0.9), size: 34),
+          const SizedBox(height: 8),
+          Text(
+            "Desbloquea Mi Recibo Premium",
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
             ),
           ),
-          const Icon(Icons.lock_outline_rounded, color: Colors.white70, size: 28),
+          const SizedBox(height: 4),
+          Text(
+            "Accede a todas las ganancias completas de tus préstamos.",
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              color: Colors.white70,
+              fontSize: 13.5,
+              height: 1.3,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  // ===================== 🔹 BANNER PREMIUM =====================
-  Widget _premiumBanner(BuildContext context) {
+  // ===================== 🔹 TARJETA CLIENTE =====================
+  // ===================== 🔹 TARJETA CLIENTE =====================
+  Widget _card(_ClienteGanancia e, bool bloqueado) {
+    final baseCard = Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF0A2540).withOpacity(0.9),
+            const Color(0xFF1565C0).withOpacity(0.8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.lightBlueAccent.withOpacity(0.25)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.35),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 🔹 Nombre del cliente
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                e.nombre,
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Icon(Icons.account_balance_wallet_rounded,
+                  color: Colors.white70),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Divider(color: Colors.white.withOpacity(0.1), thickness: 1),
+          const SizedBox(height: 10),
+
+          // 🔹 Datos del préstamo
+          Row(
+            children: [
+              const Icon(Icons.attach_money_rounded,
+                  color: Colors.lightBlueAccent, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                "Ganancia total: \$${e.ganancia}",
+                style: GoogleFonts.inter(
+                  color: Colors.lightBlueAccent,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.payments_rounded,
+                  color: Colors.white70, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                e.saldo > 0 ? "Saldo pendiente: \$${e.saldo}" : "Completado ✅",
+                style: GoogleFonts.inter(
+                  color: e.saldo > 0 ? Colors.white70 : Colors.greenAccent,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: const [
+              Icon(Icons.trending_up_rounded,
+                  color: Colors.white38, size: 18),
+              SizedBox(width: 8),
+              Text(
+                "Rendimiento activo",
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (!bloqueado) return baseCard;
+
+    // 🔒 Tarjeta bloqueada (blur azul petróleo premium)
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => const PantallaBloqueoPremium(destino: 'ganancia_prestamo'),
+          builder: (_) =>
+          const PantallaBloqueoPremium(destino: 'ganancia_prestamo'),
         ),
       ),
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 10),
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          gradient: _gradiente,
-        ),
-        child: Column(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            const Icon(Icons.workspace_premium_rounded,
-                color: Colors.white, size: 32),
-            const SizedBox(height: 12),
-            Text(
-              "Desbloquea Mi Recibo Premium",
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
+            Opacity(opacity: 0.2, child: baseCard),
+            BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+              child: Container(
+                height: 130,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withOpacity(0.05),
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.05),
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              "Accede a todas las ganancias completas de tus préstamos activos.",
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                color: Colors.white70,
-                fontSize: 13.5,
-                height: 1.4,
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withOpacity(0.25),
               ),
+              padding: const EdgeInsets.all(10),
+              child: const Icon(Icons.lock_outline_rounded,
+                  color: Colors.white70, size: 26),
             ),
           ],
         ),
       ),
     );
   }
+
 
   // ===================== 🔹 BOTÓN FINAL =====================
   Widget _botonFinal() {
@@ -311,6 +402,7 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
         decoration: BoxDecoration(
           gradient: _gradiente,
           borderRadius: BorderRadius.circular(30),
+
         ),
         child: const Center(
           child: Text(
