@@ -7,6 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
+
 
 
 import '../home_screen.dart';
@@ -1165,100 +1167,187 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
           ),
           const SizedBox(height: 18),
           SizedBox(
-            height: 180,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: 20000,
-                  getDrawingHorizontalLine: (value) => FlLine(
-                    color: Colors.grey.withOpacity(0.1),
-                    strokeWidth: 1,
-                  ),
+            height: 240,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: 20000,
-                      reservedSize: 42,
-                      getTitlesWidget: (value, _) => Text(
-                        '\$${value ~/ 1000}k',
-                        style: const TextStyle(
-                          color: Color(0xFF64748B),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.12),
+                    blurRadius: 12,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+              child: Column(
+                children: [
+                  // 💰 Monto central elegante con formato de miles
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 22),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.15),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      '\$${NumberFormat("#,###", "en_US").format(pagosMes.reduce((a, b) => a > b ? a : b))}',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF1E3A8A),
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // 📊 Gráfico profesional sin curvatura
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      child: LineChart(
+                        LineChartData(
+                          gridData: FlGridData(
+                            show: true,
+                            drawVerticalLine: false,
+                            horizontalInterval: 1000,
+                            getDrawingHorizontalLine: (value) => FlLine(
+                              color: Colors.white.withOpacity(0.08),
+                              strokeWidth: 1,
+                            ),
+                          ),
+                          titlesData: FlTitlesData(
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 40,
+                                getTitlesWidget: (value, _) {
+                                  final maxPago = pagosMes.reduce((a, b) => a > b ? a : b);
+                                  final resto = maxPago % 1000;
+                                  final maxRedondeado = maxPago - resto; // 🔹 redondea hacia abajo
+                                  if (value == 0) {
+                                    return const Text(
+                                      '0k',
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                      ),
+                                    );
+                                  } else if (value == maxRedondeado.toDouble()) {
+                                    return Text(
+                                      '${(maxRedondeado / 1000).toStringAsFixed(0)}k',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    );
+                                  }
+                                  return const SizedBox.shrink();
+                                },
+                              ),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 38,
+                                getTitlesWidget: (value, _) {
+                                  final idx = value.toInt();
+                                  final start = pagosMesLabels.indexOf('Nov');
+                                  final rotado = [
+                                    ...pagosMesLabels.sublist(start),
+                                    ...pagosMesLabels.sublist(0, start)
+                                  ];
+                                  if (idx < 6 && idx < rotado.length) {
+                                    return Padding(
+                                      padding: EdgeInsets.only(
+                                          right: idx == 5 ? 6 : 0, top: 2),
+                                      child: Text(
+                                        rotado[idx],
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  return const SizedBox.shrink();
+                                },
+                              ),
+                            ),
+                            topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            rightTitles:
+                            AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          ),
+                          borderData: FlBorderData(show: false),
+                          minX: 0,
+                          maxX: 5,
+                          minY: 0,
+                          maxY: (() {
+                            final maxPago = pagosMes.reduce((a, b) => a > b ? a : b);
+                            final resto = maxPago % 1000;
+                            final maxRedondeado = maxPago - resto; // 🔹 redondea hacia abajo
+                            return maxRedondeado.toDouble();
+                          })(),
+                          lineBarsData: [
+                            LineChartBarData(
+                              isCurved: false, // 🚫 Línea completamente recta
+                              color: Colors.white,
+                              barWidth: 3.2,
+                              isStrokeCapRound: true,
+                              dotData: FlDotData(
+                                show: true,
+                                getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(
+                                  radius: 4.5,
+                                  color: Colors.white,
+                                  strokeWidth: 2.5,
+                                  strokeColor: const Color(0xFF60A5FA),
+                                ),
+                              ),
+                              belowBarData: BarAreaData(
+                                show: true,
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.white.withOpacity(0.15),
+                                    Colors.white.withOpacity(0.05),
+                                  ],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                ),
+                              ),
+                              spots: [
+                                for (int i = 0; i < 6 && i < pagosMes.length; i++)
+                                  FlSpot(i.toDouble(), pagosMes[i].toDouble()),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 30,
-                      getTitlesWidget: (value, _) {
-                        final idx = value.toInt();
-                        if (idx >= 0 && idx < pagosMesLabels.length) {
-                          return Text(
-                            pagosMesLabels[idx],
-                            style: const TextStyle(
-                              color: Color(0xFF64748B),
-                              fontSize: 12,
-                            ),
-                          );
-                        }
-                        return const SizedBox();
-                      },
-                    ),
-                  ),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                ),
-                borderData: FlBorderData(show: false),
-                minX: 0,
-                maxX: pagosMes.isEmpty ? 5 : pagosMes.length - 1,
-                minY: 0,
-                maxY: (pagosMes.isEmpty
-                    ? 60000
-                    : pagosMes.reduce((a, b) => a > b ? a : b) * 1.2)
-                    .clamp(20000, 100000)
-                    .toDouble(),
-                lineBarsData: [
-                  LineChartBarData(
-                    isCurved: true,
-                    color: const Color(0xFF2563EB),
-                    barWidth: 3,
-                    isStrokeCapRound: true,
-                    dotData: FlDotData(
-                      show: true,
-                      getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(
-                        radius: 4,
-                        color: Colors.white,
-                        strokeWidth: 3,
-                        strokeColor: const Color(0xFF2563EB),
-                      ),
-                    ),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      gradient: LinearGradient(
-                        colors: [
-                          const Color(0xFF2563EB).withOpacity(0.3),
-                          const Color(0xFF60A5FA).withOpacity(0.05),
-                        ],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                    spots: [
-                      for (int i = 0; i < pagosMes.length; i++)
-                        FlSpot(i.toDouble(), pagosMes[i].toDouble()),
-                    ],
                   ),
                 ],
               ),
             ),
           ),
+
+
+
+
+
+
 
 
           const SizedBox(height: 28),
@@ -1570,49 +1659,60 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     if (_docPrest == null) return;
 
     try {
-      // 🔹 1. Eliminar resumen anterior (summary)
-      await _docPrest!.collection('metrics').doc('summary').delete();
+      // 🔹 1. Borrar colecciones internas (pagos) de todos los clientes
+      final clientes = await _docPrest!.collection('clientes').get();
+      for (final c in clientes.docs) {
+        final pagos = await c.reference.collection('pagos').get();
+        for (final p in pagos.docs) {
+          await p.reference.delete(); // 💥 elimina cada pago
+        }
+      }
 
-      // 🔹 2. Reiniciar los campos principales
-      final refSummary = _docPrest!.collection('metrics').doc('summary');
-      await refSummary.set({
+      // 🔹 2. Reiniciar las métricas generales (Firestore)
+      await _docPrest!.collection('metrics').doc('summary').set({
         'totalCapitalRecuperado': 0,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      final refTotales = _docPrest!.collection('estadisticas').doc('totales');
-      await refTotales.set({
+      await _docPrest!.collection('estadisticas').doc('totales').set({
         'totalCapitalRecuperado': 0,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // 🔹 3. Reiniciar gráfico de pagos mensuales (12 meses planos)
+      // 🔹 3. Reiniciar los datos locales (estado visual)
       setState(() {
         pagosMes = List.filled(12, 0);
-        pagosMesLabels = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        pagosMesLabels = [
+          'Ene','Feb','Mar','Abr','May','Jun','Jul',
+          'Ago','Sep','Oct','Nov','Dic'
+        ];
+        lifetimePrestado = 0;
+        lifetimeRecuperado = 0;
+        lifetimePagosProm = 0;
+        histPrimerPago = '—';
+        histUltimoPago = '—';
+        histMesTop = '—';
+        mayorNombre = '—';
+        mayorSaldo = -1;
       });
+
+      // 🔹 4. Confirmación visual
+      _toast(
+        'Histórico restablecido correctamente',
+        color: _Brand.softRed,
+        icon: Icons.check_circle_outline_rounded,
+      );
 
     } catch (e) {
       print('Error al borrar histórico: $e');
+      _toast(
+        'No se pudo borrar el histórico',
+        color: _Brand.softRed,
+        icon: Icons.error_outline,
+      );
     }
-
-    // 🔹 4. Refrescar métricas visuales
-    setState(() {
-      lifetimePrestado = 0;
-      lifetimeRecuperado = 0;
-      lifetimePagosProm = 0;
-      histPrimerPago = '—';
-      histUltimoPago = '—';
-      histMesTop = '—';
-    });
-
-    // 🔹 5. Feedback visual tipo dashboard premium
-    _toast(
-      'Histórico restablecido correctamente',
-      color: _Brand.softRed,
-      icon: Icons.check_circle_outline_rounded,
-    );
   }
+
 
 
 

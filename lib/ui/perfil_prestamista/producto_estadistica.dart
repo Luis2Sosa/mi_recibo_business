@@ -48,6 +48,7 @@ class _ProductoEstadisticaScreenState
           .doc('summary');
 
       final summaryDoc = await summaryRef.get();
+
       final totalInvertidoFirestore = double.tryParse(
         (summaryDoc.data()?['totalCapitalInvertido'] ?? 0).toString(),
       ) ?? 0.0;

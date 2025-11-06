@@ -215,8 +215,7 @@ class _AnalisisFinancieroScreenState extends State<AnalisisFinancieroScreen>
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 120),
                           height: 10,
-                          width: (MediaQuery.of(context).size.width * 0.7) *
-                              (_progress / 100),
+                          width: (MediaQuery.of(context).size.width * 0.84) * (_progress / 100),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(30),
                             gradient: const LinearGradient(

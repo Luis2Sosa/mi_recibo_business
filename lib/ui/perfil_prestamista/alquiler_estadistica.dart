@@ -48,6 +48,7 @@ class _AlquilerEstadisticaScreenState
           .doc('summary');
 
       final summaryDoc = await summaryRef.get();
+
       final totalAlquiladoFirestore = double.tryParse(
         (summaryDoc.data()?['totalCapitalAlquilado'] ?? 0).toString(),
       ) ?? 0.0;

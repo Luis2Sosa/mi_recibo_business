@@ -78,7 +78,7 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
       // 🔹 Nombre del cliente
       final nombre = '${(dataCliente['nombre'] ?? '').toString()} ${(dataCliente['apellido'] ?? '').toString()}'.trim();
 
-      // 🔹 Agregamos el cliente con SU total alquilado acumulado
+      // 🔹 b Agregamos el cliente con SU total alquilado acumulado
       rows.add(_ClienteGanancia(
         id: c.id,
         nombre: nombre.isEmpty ? (dataCliente['telefono'] ?? 'Cliente') : nombre,
