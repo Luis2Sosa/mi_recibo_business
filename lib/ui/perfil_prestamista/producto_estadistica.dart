@@ -263,14 +263,15 @@ class _ProductoEstadisticaScreenState
                 _tile(
                   "Clientes activos",
                   "$clientesActivos",
-                  const Color(0xFF86EFAC),
+                  const Color(0xFF22C55E),
                 ),
                 const SizedBox(height: 10),
                 _tile(
                   "Promedio por cliente",
                   _fmt(promedioPorCliente),
-                  const Color(0xFF16A34A),
+                  const Color(0xFF22C55E),
                 ),
+
 
                 const SizedBox(height: 20),
                 _graficoCard(),

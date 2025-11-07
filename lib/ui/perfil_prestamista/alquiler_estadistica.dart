@@ -49,9 +49,9 @@ class _AlquilerEstadisticaScreenState
 
       final summaryDoc = await summaryRef.get();
 
-      final totalAlquiladoFirestore = double.tryParse(
-        (summaryDoc.data()?['totalCapitalAlquilado'] ?? 0).toString(),
-      ) ?? 0.0;
+      // Ya no dependemos del campo de metrics.summary
+      double totalAlquiladoFirestore = 0.0; // lo ignoramos
+
 
       final db = FirebaseFirestore.instance;
       final clientesSnap = await db
@@ -169,7 +169,7 @@ class _AlquilerEstadisticaScreenState
       // ✅ Actualizar estado
       setState(() {
         clientesActivos = activos;
-        totalAlquilado = totalAlquiladoFirestore;
+        totalAlquilado = sumaAlquilado;
         promedioPorCliente = activos > 0 ? (sumaAlquilado / activos) : 0;
         graficoData = puntos;
         cargando = false;
@@ -268,10 +268,11 @@ class _AlquilerEstadisticaScreenState
                     const Color(0xFFFFD700)),
                 const SizedBox(height: 10),
                 _tile("Clientes activos", "$clientesActivos",
-                    const Color(0xFFFBBF24)),
+                    const Color(0xFFFFD700)),
                 const SizedBox(height: 10),
                 _tile("Promedio por cliente", _fmt(promedioPorCliente),
-                    const Color(0xFFFFA500)),
+                    const Color(0xFFFFD700)),
+
 
                 const SizedBox(height: 20),
                 _graficoCard(),

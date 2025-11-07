@@ -100,7 +100,7 @@ class ReciboUIConfig {
 
     // Header flotante
     this.showHeaderTitle = true,
-    this.headerTitle = 'RECIBO',
+    this.headerTitle = 'Recibo generado',
     this.headerTitleStyle = const TextStyle(
       color: Colors.white,
       fontSize: 30,
@@ -622,16 +622,22 @@ class _ReciboScreenState extends State<ReciboScreen> {
               // ===== TÍTULO flotante (NO capturable) =====
               if (cfg.showHeaderTitle)
                 Positioned(
-                  top: padding.top + 6,
+                  top: padding.top -20, // 👈 antes era +6, ahora está más abajo
                   left: 0,
                   right: 0,
                   child: Center(
                     child: Text(
                       cfg.headerTitle,
-                      style: GoogleFonts.playfairDisplay(textStyle: cfg.headerTitleStyle),
+                      style: GoogleFonts.playfairDisplay(
+                        textStyle: cfg.headerTitleStyle.copyWith(
+                          fontSize: 28, // 👌 un poco más fino
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                 ),
+
 
               // ===== BOTÓN flotante (NO capturable) =====
               Positioned(
@@ -1248,7 +1254,7 @@ class _ReceiptContent extends StatelessWidget {
                               Divider(height: 14, thickness: 1, color: cfg.mintDivider),
                               _rowIcon(
                                 Icons.request_quote_rounded,
-                                'Saldo restante',
+                                'Monto restante',
                                 pesoSolo(saldoActual),
                                 iconBg: const Color(0xFFEFF6FF),
                                 iconColor: const Color(0xFF2563EB),
@@ -1346,7 +1352,7 @@ class _ReceiptContent extends StatelessWidget {
                                 Divider(height: 14, thickness: 1, color: cfg.mintDivider),
                                 _rowIcon(
                                   Icons.request_quote_rounded,
-                                  'Saldo restante',
+                                  'Monto restante',
                                   pesoSolo(saldoActual),
                                   iconBg: const Color(0xFFEFF6FF),
                                   iconColor: const Color(0xFF2563EB),
@@ -1404,7 +1410,7 @@ class _ReceiptContent extends StatelessWidget {
                                 _rowIcon(
                                   Icons.savings_rounded,
                                   'Pago a capital',
-                                  pesoSolo(pagoCapital),
+                                  pesoSolo(pagoCapital - pagoInteres),
                                   iconBg: const Color(0xFFFFF2F6),
                                   iconColor: const Color(0xFFE11D48),
                                 ),
@@ -1413,7 +1419,7 @@ class _ReceiptContent extends StatelessWidget {
                                   _rowIcon(
                                     Icons.request_quote_rounded,
                                     'Próximo pago',
-                                    pesoSolo(saldoProximoPago),
+                                    pesoSolo(saldoActual),
                                     iconBg: const Color(0xFFFFFAE6),
                                     iconColor: const Color(0xFF92400E),
                                   ),

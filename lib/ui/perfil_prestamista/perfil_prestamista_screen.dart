@@ -1392,41 +1392,75 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
 
 
     // Card borrar histórico
+    // 📊 Card: Borrar histórico
     final borrarHistoricoCard = Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [
-          AppTheme.gradTop.withOpacity(.95),
-          AppTheme.gradBottom.withOpacity(.95),
-        ]),
-        boxShadow: [BoxShadow(color: AppTheme.gradTop.withOpacity(.25), blurRadius: 16, offset: const Offset(0, 6))],
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppTheme.gradTop.withOpacity(.95),
+            AppTheme.gradBottom.withOpacity(.95),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.gradTop.withOpacity(.25),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
         border: Border.all(color: Colors.white.withOpacity(.25), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(.15),
-                border: Border.all(color: Colors.white.withOpacity(.45), width: 1.2),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(.15),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(.45),
+                    width: 1.2,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.delete_sweep_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
               ),
-              child: const Icon(Icons.delete_sweep_rounded, color: Colors.white, size: 22),
-            ),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Text('Borrar historial', maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
-            ),
-          ]),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Borrar historial',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           Text(
-              'Reinicia tus totales acumulados (como el capital recuperado). No borra clientes ni pagos.',
-              style: TextStyle(color: Colors.white.withOpacity(.92), fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
+            'Reinicia tus estadísticas generales sin afectar tus clientes ni pagos. '
+            'Podrás confirmar antes de borrar.',
+            style: TextStyle(
+              color: Colors.white.withOpacity(.92),
+              fontWeight: FontWeight.w700,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 14),
           Align(
             alignment: Alignment.centerRight,
             child: ElevatedButton.icon(
@@ -1440,7 +1474,10 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                 elevation: 6,
                 shadowColor: const Color(0xFFE11D48).withOpacity(0.4),
                 padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                ),
               ),
             ),
           ),
@@ -1454,15 +1491,18 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         filtrosRow,
         const SizedBox(height: 10),
 
-        // 🔹 Primero el bloqueHistorico (para mostrar los KPIs)
+        // 🔹 Primero el bloque histórico (para mostrar los KPIs)
         bloqueHistorico,
         const SizedBox(height: 12),
 
         chartsCard,
         const SizedBox(height: 12),
+
+        // 🔹 Card de borrar historial
         borrarHistoricoCard,
       ],
     );
+
 
   }
 
@@ -1620,11 +1660,13 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             ],
           ),
           content: const Text(
-            'Esto reiniciará las métricas acumuladas (como el capital recuperado o promedios), '
-                'pero no eliminará clientes ni pagos.',
+            'Esto reiniciará las métricas acumuladas, incluyendo el resumen histórico, '
+                'los gráficos y los totales generales (como capital recuperado o promedios). '
+                'No se eliminarán clientes ni pagos registrados.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 15, color: Color(0xFF475569)),
+            style: TextStyle(fontSize: 15, color: Color(0xFF475569), height: 1.35),
           ),
+
           actionsAlignment: MainAxisAlignment.center,
           actions: [
             TextButton(
@@ -1659,46 +1701,36 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     if (_docPrest == null) return;
 
     try {
-      // 🔹 1. Borrar colecciones internas (pagos) de todos los clientes
-      final clientes = await _docPrest!.collection('clientes').get();
-      for (final c in clientes.docs) {
-        final pagos = await c.reference.collection('pagos').get();
-        for (final p in pagos.docs) {
-          await p.reference.delete(); // 💥 elimina cada pago
-        }
-      }
-
-      // 🔹 2. Reiniciar las métricas generales (Firestore)
+      // 🔹 Solo reiniciamos estadísticas visuales y acumulados del resumen general
       await _docPrest!.collection('metrics').doc('summary').set({
         'totalCapitalRecuperado': 0,
+        'totalGanancia': 0,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
       await _docPrest!.collection('estadisticas').doc('totales').set({
         'totalCapitalRecuperado': 0,
+        'totalGanancia': 0,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // 🔹 3. Reiniciar los datos locales (estado visual)
+      // 🔹 Reiniciamos solo los datos visuales locales
       setState(() {
         pagosMes = List.filled(12, 0);
         pagosMesLabels = [
           'Ene','Feb','Mar','Abr','May','Jun','Jul',
           'Ago','Sep','Oct','Nov','Dic'
         ];
-        lifetimePrestado = 0;
         lifetimeRecuperado = 0;
         lifetimePagosProm = 0;
         histPrimerPago = '—';
         histUltimoPago = '—';
         histMesTop = '—';
-        mayorNombre = '—';
-        mayorSaldo = -1;
       });
 
-      // 🔹 4. Confirmación visual
+      // 🔹 Confirmación visual
       _toast(
-        'Histórico restablecido correctamente',
+        'Estadísticas reiniciadas correctamente',
         color: _Brand.softRed,
         icon: Icons.check_circle_outline_rounded,
       );
@@ -1712,6 +1744,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       );
     }
   }
+
 
 
 

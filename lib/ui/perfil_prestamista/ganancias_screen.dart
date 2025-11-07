@@ -148,155 +148,192 @@ class _GananciasScreenState extends State<GananciasScreen>
     final overlay = Overlay.of(context);
     late OverlayEntry entry;
 
+    // Controlador que escucha el botón atrás
     entry = OverlayEntry(
-      builder: (_) => Stack(
-        children: [
-          GestureDetector(
-            onTap: () => entry.remove(),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-              child: Container(color: Colors.black.withOpacity(0.5)),
-            ),
-          ),
-          Center(
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0.95, end: 1),
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOut,
-              builder: (context, scale, _) {
-                return Transform.scale(
-                  scale: scale,
-                  child: Container(
-                    width: MediaQuery.of(context).size.width * 0.85,
-                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 26),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A).withOpacity(0.75),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                          color: Colors.white.withOpacity(0.1), width: 1.2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.35),
-                          blurRadius: 35,
-                          offset: const Offset(0, 15),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFFD4A017),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.25),
-                                blurRadius: 15,
-                                offset: const Offset(0, 6),
-                              ),
+      builder: (context) {
+        return PopScope(
+          canPop: false,
+          onPopInvoked: (didPop) {
+            entry.remove(); // 🔹 Se quita cuando el usuario da atrás
+          },
+          child: Stack(
+            children: [
+              // Fondo oscuro con blur
+              GestureDetector(
+                onTap: () => entry.remove(),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: Container(color: Colors.black.withOpacity(0.55)),
+                ),
+              ),
+
+              // Banner premium
+              Center(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.92, end: 1),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutBack,
+                  builder: (context, scale, _) {
+                    return Transform.scale(
+                      scale: scale,
+                      child: Container(
+                        width: MediaQuery.of(context).size.width * 0.85,
+                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 30),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(28),
+                          gradient: LinearGradient(
+                            colors: [
+                              const Color(0xFF0F172A).withOpacity(0.90),
+                              const Color(0xFF1E3A8A).withOpacity(0.85),
+                              const Color(0xFF2B2D91).withOpacity(0.82),
                             ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                          child: const Icon(
-                            Icons.warning_amber_rounded,
-                            color: Colors.white,
-                            size: 44,
+                          border: Border.all(
+                            width: 1.3,
+                            color: const Color(0xFFFFD700).withOpacity(0.3),
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        Text(
-                          'Confirmar acción',
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 20,
-                            decoration: TextDecoration.none,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          '¿Seguro que deseas borrar todas las ganancias totales?',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(
-                            color: Colors.white70,
-                            fontSize: 15.5,
-                            height: 1.4,
-                            fontWeight: FontWeight.w500,
-                            decoration: TextDecoration.none,
-                          ),
-                        ),
-                        const SizedBox(height: 26),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  elevation: 0,
-                                  backgroundColor:
-                                  Colors.white.withOpacity(0.08),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 14, horizontal: 18),
-                                ),
-                                onPressed: () => entry.remove(),
-                                child: Text(
-                                  'Cancelar',
-                                  style: GoogleFonts.poppins(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 15,
-                                    decoration: TextDecoration.none,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  elevation: 6,
-                                  backgroundColor: const Color(0xFFDC2626),
-                                  shadowColor: Colors.redAccent.withOpacity(0.3),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 14, horizontal: 18),
-                                ),
-                                onPressed: () async {
-                                  entry.remove();
-                                  await _borrarGananciasTotales();
-                                },
-                                child: Text(
-                                  'Sí, borrar',
-                                  style: GoogleFonts.poppins(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 15,
-                                    decoration: TextDecoration.none,
-                                  ),
-                                ),
-                              ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00E5FF).withOpacity(0.25),
+                              blurRadius: 30,
+                              offset: const Offset(0, 10),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Ícono dorado
+                            Container(
+                              padding: const EdgeInsets.all(18),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFFFD700), Color(0xFFFFB347)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.yellowAccent.withOpacity(0.35),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.workspace_premium_rounded,
+                                color: Colors.white,
+                                size: 46,
+                              ),
+                            ),
+
+                            const SizedBox(height: 22),
+                            Text(
+                              'Confirmar reinicio de ganancias',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 19.5,
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Esta acción reiniciará tus ganancias totales acumuladas en todas las categorías. '
+                                  'No se eliminarán clientes ni pagos registrados. Solo se pondrán a cero los montos acumulados.',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.inter(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 15,
+                                height: 1.45,
+                                fontWeight: FontWeight.w500,
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                            const SizedBox(height: 30),
+
+                            // Botones
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      elevation: 0,
+                                      backgroundColor: Colors.white.withOpacity(0.07),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(18),
+                                        side: BorderSide(
+                                          color: Colors.white.withOpacity(0.15),
+                                          width: 1.2,
+                                        ),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 14, horizontal: 18),
+                                    ),
+                                    onPressed: () => entry.remove(),
+                                    child: Text(
+                                      'Cancelar',
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.white.withOpacity(0.9),
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 15,
+                                        decoration: TextDecoration.none,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      elevation: 8,
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 14, horizontal: 18),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(18),
+                                      ),
+                                      backgroundColor: const Color(0xFFFFD700),
+                                      shadowColor:
+                                      const Color(0xFFFFD700).withOpacity(0.4),
+                                    ),
+                                    onPressed: () async {
+                                      entry.remove();
+                                      await _borrarGananciasTotales();
+                                    },
+                                    child: Text(
+                                      'Sí, reiniciar',
+                                      style: GoogleFonts.poppins(
+                                        color: const Color(0xFF0F172A),
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 15,
+                                        decoration: TextDecoration.none,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
 
     overlay.insert(entry);
   }
+
 
   @override
   Widget build(BuildContext context) {

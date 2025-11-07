@@ -1241,14 +1241,10 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                         builder: (context, constraints) {
                           return SingleChildScrollView(
                             physics: const ClampingScrollPhysics(),
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                minHeight: constraints.maxHeight,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min, // 👈 clave: se adapta al contenido
+                              children: [
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
@@ -1283,116 +1279,44 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                       ),
                                       const SizedBox(height: 8),
 
-                                      Row(
-                                        crossAxisAlignment: CrossAxisAlignment.center,
-                                        children: [
-                                          const SizedBox(
-                                            width: 38,
-                                            child: Align(
-                                              alignment: Alignment.center,
-                                              child: Icon(Icons.phone_rounded, size: 18, color: Color(0xFF16A34A)),
+                                      // 🌟 BLOQUE PREMIUM DE DATOS DEL CLIENTE
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(18),
+                                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.05),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 4),
                                             ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Text(
-                                              widget.telefono,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                color: Color(0xFF0F172A),
-                                                fontSize: 15,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
+                                        child: Column(
+                                          children: [
+                                            _filaInfo(Icons.phone_rounded, widget.telefono, const Color(0xFF16A34A)),
+                                            const Divider(height: 16, thickness: 0.8, color: Color(0xFFE2E8F0)),
+
+                                            if (widget.direccion != null && widget.direccion!.trim().isNotEmpty) ...[
+                                              _filaInfo(Icons.location_on_rounded, widget.direccion!, const Color(0xFFDC2626), maxLines: 2),
+                                              const Divider(height: 16, thickness: 0.8, color: Color(0xFFE2E8F0)),
+                                            ],
+
+                                            if ((_nota ?? '').isNotEmpty) ...[
+                                              _filaInfo(Icons.sticky_note_2_rounded, _nota!, const Color(0xFFF59E0B)),
+                                              const Divider(height: 16, thickness: 0.8, color: Color(0xFFE2E8F0)),
+                                            ],
+
+                                            if (widget.producto.trim().isNotEmpty)
+                                              _filaInfo(_iconoProducto(), widget.producto, const Color(0xFF7C3AED)),
+                                          ],
+                                        ),
                                       ),
 
-                                      if (widget.direccion != null && widget.direccion!.trim().isNotEmpty) ...[
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          crossAxisAlignment: CrossAxisAlignment.center,
-                                          children: [
-                                            const SizedBox(
-                                              width: 38,
-                                              child: Align(
-                                                alignment: Alignment.center,
-                                                child: Icon(Icons.location_on_rounded, size: 18, color: Color(0xFFDC2626)),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: Text(
-                                                widget.direccion!,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                  color: Color(0xFF0F172A),
-                                                  fontSize: 15,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
 
-                                      if ((_nota ?? '').isNotEmpty) ...[
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          crossAxisAlignment: CrossAxisAlignment.center,
-                                          children: [
-                                            const SizedBox(
-                                              width: 38,
-                                              child: Align(
-                                                alignment: Alignment.center,
-                                                child: Icon(Icons.sticky_note_2_rounded, size: 18, color: Color(0xFFF59E0B)),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: Text(
-                                                _nota!,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                  color: Color(0xFF0F172A),
-                                                  fontSize: 15,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-
-                                      if (widget.producto.trim().isNotEmpty) ...[
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          crossAxisAlignment: CrossAxisAlignment.center,
-                                          children: [
-                                            SizedBox(
-                                              width: 38,
-                                              child: Align(
-                                                alignment: Alignment.center,
-                                                child: Icon(
-                                                  _iconoProducto(),           // 👈 usa el helper
-                                                  size: 18,
-                                                  color: const Color(0xFF7C3AED),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: Text(
-                                                widget.producto,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                  color: Color(0xFF0F172A),
-                                                  fontSize: 15,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-
-                                      const SizedBox(height: 16),
+                                      const SizedBox(height: 4),
                                     ],
                                   ),
 
@@ -1485,7 +1409,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                     ),
                                   ),
 
-                                  const SizedBox(height: 20),
+                                  const SizedBox(height: 18),
 
                                   SizedBox(
                                     width: double.infinity,
@@ -1567,7 +1491,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                   ),
                                 ],
                               ),
-                            ),
                           );
                         },
                       ),
@@ -1616,3 +1539,30 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     );
   }
 }
+Widget _filaInfo(IconData icon, String texto, Color color, {int maxLines = 1}) {
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      SizedBox(
+        width: 28,
+        child: Icon(icon, color: color, size: 18),
+      ),
+      const SizedBox(width: 6),
+      Expanded(
+        child: Text(
+          texto,
+          maxLines: maxLines,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 14.2,
+            color: Color(0xFF0F172A),
+            height: 1.2,
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+

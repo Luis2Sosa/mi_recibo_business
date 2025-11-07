@@ -857,14 +857,14 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
 
   /// ===================== MINIGRÁFICOS CON VARIACIÓN DIARIA =====================
   Widget _miniChart(Color color, {String tipo = 'qedu'}) {
-    // 🌙 Usamos día + mes para asegurar cambios reales cada día
+    // 🌞 Nueva semilla dinámica: cambia cada día (y mes)
     final int seed = DateTime.now().day + DateTime.now().month * 31;
     final random = Random(seed);
 
     List<FlSpot> spots;
 
     switch (tipo) {
-      case 'qedu': // ⚡ Curva tipo ola eléctrica suave
+      case 'qedu': // ⚡ Energía eléctrica, más viva
         spots = List.generate(
           7,
               (i) => FlSpot(
@@ -874,27 +874,27 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
         );
         break;
 
-      case 'finance': // 💼 Curva ascendente estable y elegante
+      case 'finance': // 💼 Consejo financiero — suave y elegante, pero cambia diario
         spots = List.generate(
           7,
               (i) => FlSpot(
             i.toDouble(),
-            (1.4 + i * 0.45 + sin(i * 0.5 + random.nextDouble() * 0.6) * 0.3),
+            (sin(i * 0.8 + random.nextDouble() * 1.2) * 1.2 + 2.8),
           ),
         );
         break;
 
-      case 'growth': // 📈 Curva con picos más amplios (solo usada si se aplica)
+      case 'growth': // 📈 Crecimiento — con amplitud más marcada
         spots = List.generate(
           7,
               (i) => FlSpot(
             i.toDouble(),
-            (pow(i, 0.9) * 0.8 + 1.6 + random.nextDouble() * 1.0),
+            (pow(i, 0.9) * 0.8 + 1.6 + sin(i * 0.5 + random.nextDouble()) * 1.0),
           ),
         );
         break;
 
-      default: // 🌊 Curva genérica tipo onda
+      default: // 🌊 Curva genérica de respaldo
         spots = List.generate(
           7,
               (i) => FlSpot(
@@ -936,6 +936,7 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
       ),
     );
   }
+
 }
 
   Widget _noDataCard() {

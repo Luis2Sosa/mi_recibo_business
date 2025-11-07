@@ -51,17 +51,39 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
   int get _interesMax =>
       widget.esPrestamo ? (widget.saldoAnterior * (widget.tasaInteres / 100)).round() : 0;
 
+  /// 💰 Total pagado (monto que el cliente entrega)
   int get _totalPagado {
-    final base = _pagoCapital + (widget.esPrestamo ? _pagoInteres : 0);
-    // 👇 si no es préstamo (producto/alquiler), trata la mora como interés
-    final moraComoInteres = (!widget.esPrestamo && widget.moraActual > 0) ? widget.moraActual : 0;
-    return base + moraComoInteres;
+    // el campo "pago capital" representa el total entregado
+    return _pagoCapital;
   }
 
+// 🧮 Saldo nuevo (solo resta lo que realmente bajó de capital)
   int get _saldoNuevo {
-    final n = widget.saldoAnterior - _pagoCapital;
-    return n < 0 ? 0 : n;
+    if (widget.esPrestamo) {
+      // El cliente entrega un total
+      final montoCliente = _pagoCapital;
+
+      // Se cubre primero el interés
+      final pagoInteres = _pagoInteres;
+
+      // El resto va al capital (si sobra)
+      final abonoCapital = montoCliente - pagoInteres;
+
+      // Calcula el nuevo saldo
+      final nuevoSaldo = widget.saldoAnterior - (abonoCapital > 0 ? abonoCapital : 0);
+
+      // Nunca puede ser negativo
+      return nuevoSaldo < 0 ? 0 : nuevoSaldo;
+    } else {
+      // En productos o alquiler se descuenta el monto directo
+      final nuevoSaldo = widget.saldoAnterior - _pagoCapital;
+      return nuevoSaldo < 0 ? 0 : nuevoSaldo;
+    }
   }
+
+
+
+
 
   // ✅ Interés del próximo pago: solo si es préstamo
   int get _interesProximo =>
@@ -203,8 +225,14 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
 
     print('[PagoFormScreen] base local: $_baseProximaLocal');
 
-    final double baseDown = widget.esPrestamo ? 180.0 : 220.0;
+    final esArriendo = _esArriendoDesdeTexto(widget.producto); // 👈 súbela aquí
+
+    final double baseDown = widget.esPrestamo
+        ? 130.0 // préstamo (azul)
+        : (esArriendo ? 200.0 : 180.0); // arriendo 200, producto 160
+
     final double translateY = tecladoAbierto ? 1.0 : (baseDown + 20.0);
+
 
     final size = MediaQuery.of(context).size;
     final double usableH = size.height - (tecladoAbierto ? kb : 0.0) - 8.0;
@@ -221,7 +249,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
     final double extraBottomSafe = 0.0;
 
     final glassWhite = Colors.white.withOpacity(0.12);
-    final esArriendo = _esArriendoDesdeTexto(widget.producto);
+
     final String tipoLabel =
     widget.esPrestamo ? 'Préstamo' : (esArriendo ? 'Arriendo' : 'Producto');
 
@@ -295,30 +323,28 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                       padding:
                       const EdgeInsets.fromLTRB(16, 0, 16, 10),
                       child: Container(
-                        constraints: BoxConstraints(
-                          maxHeight: adjustedHeight,
-                        ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: glassWhite,
-                            borderRadius: BorderRadius.circular(28),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.18),
-                                blurRadius: 22,
-                                offset: const Offset(0, 12),
-                              ),
-                            ],
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.18),
-                              width: 1,
+                        margin: const EdgeInsets.only(bottom: 20), // ✅ aquí va el margin, fuera del decoration
+                        decoration: BoxDecoration(
+                          color: glassWhite,
+                          borderRadius: BorderRadius.circular(28),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.18),
+                              blurRadius: 22,
+                              offset: const Offset(0, 12),
                             ),
+                          ],
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.18),
+                            width: 1,
                           ),
-                          child: ClipRRect(
+                        ),
+                        child: ClipRRect(
                             borderRadius: BorderRadius.circular(28),
+
                             child: Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                  14, 14, 14, 0),
+                              padding: const EdgeInsets.fromLTRB(14, 14, 14, 0), // 👈 antes decía 0
+
                               child: SingleChildScrollView(
                                 physics: scrollPhysics,
                                 padding:
@@ -477,7 +503,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                           const SizedBox(
                                               height: 12),
                                           _resumen(
-                                              'Saldo anterior',
+                                              'Pago mensual',
                                               _formatCurrency(widget
                                                   .saldoAnterior)),
                                           const SizedBox(
@@ -494,12 +520,6 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                             ],
                                           if (widget.esPrestamo)
                                             ...[
-                                              _resumen(
-                                                  'Interés ${widget.periodo.toLowerCase()}',
-                                                  _formatCurrency(
-                                                      _interesMax)),
-                                              const SizedBox(
-                                                  height: 12),
                                               Row(
                                                 children: [
                                                   Expanded(
@@ -532,26 +552,189 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                           else
                                             ...[
                                               _campoValidado(
-                                                label:
-                                                'Pago capital',
-                                                controller:
-                                                _capitalCtrl,
-                                                errorText:
-                                                _errorCapital,
+                                                label: esArriendo
+                                                    ? 'Pago del alquiler'
+                                                    : 'Pago del producto',
+                                                controller: _capitalCtrl,
+                                                errorText: _errorCapital,
                                               ),
                                             ],
                                           const SizedBox(
                                               height: 12),
-                                          _resumen(
-                                              'Total pagado',
-                                              _formatCurrency(
-                                                  _totalPagado)),
-                                          const SizedBox(
-                                              height: 6),
-                                          _resumen(
-                                              'Saldo nuevo',
-                                              _formatCurrency(
-                                                  _saldoNuevoConInteres)),
+                                          // 💼 Tarjeta de resumen de pago (solo para préstamos)
+                                          if (widget.esPrestamo) ...[
+                                            Container(
+                                              margin: const EdgeInsets.only(top: 8, bottom: 8),
+                                              padding: const EdgeInsets.all(14),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white.withOpacity(0.96),
+                                                borderRadius: BorderRadius.circular(14),
+                                                border: Border.all(color: const Color(0xFF64B5F6), width: 1.6), // azul brillante
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: const Color(0xFF1565C0).withOpacity(0.25), // sombra azul
+                                                    blurRadius: 10,
+                                                    offset: const Offset(0, 5),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: const [
+                                                      Icon(Icons.receipt_long_rounded,
+                                                          color: Color(0xFF1565C0), size: 20),
+                                                      SizedBox(width: 6),
+                                                      Text(
+                                                        'Distribución del pago',
+                                                        style: TextStyle(
+                                                          fontWeight: FontWeight.w900,
+                                                          fontSize: 15,
+                                                          color: Color(0xFF1565C0),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 10),
+
+                                                  // 💰 Total entregado
+                                                  _filaResumen('Monto entregado', _formatCurrency(_totalPagado)),
+
+                                                  // 💸 Interés y abono
+                                                  _filaResumen('Interés cobrado', _formatCurrency(_pagoInteres)),
+                                                  _filaResumen('Abono a capital', _formatCurrency(_pagoCapital - _pagoInteres)),
+
+                                                  const Divider(height: 14, color: Color(0xFFE5E7EB)),
+
+                                                  // 📊 Saldos
+                                                  _filaResumen('Saldo anterior', _formatCurrency(widget.saldoAnterior)),
+                                                  _filaResumen('Nuevo saldo', _formatCurrency(_saldoNuevo)),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+
+
+                                          // 💚 Tarjeta de resumen de pago (solo para productos)
+                                          if (!widget.esPrestamo && !esArriendo) ...[
+                                            Container(
+                                              margin: const EdgeInsets.only(top: 8, bottom: 8),
+                                              padding: const EdgeInsets.all(14),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white.withOpacity(0.96),
+                                                borderRadius: BorderRadius.circular(14),
+                                                border: Border.all(color: const Color(0xFF81C784), width: 1.6), // verde brillante
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: const Color(0xFF2E7D32).withOpacity(0.25), // sombra verde
+                                                    blurRadius: 10,
+                                                    offset: const Offset(0, 5),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: const [
+                                                      Icon(Icons.shopping_bag_rounded,
+                                                          color: Color(0xFF2E7D32), size: 20),
+                                                      SizedBox(width: 6),
+                                                      Text(
+                                                        'Resumen del pago del producto',
+                                                        style: TextStyle(
+                                                          fontWeight: FontWeight.w900,
+                                                          fontSize: 15,
+                                                          color: Color(0xFF2E7D32),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 10),
+
+                                                  // 💰 Monto entregado
+                                                  _filaResumen('Monto entregado', _formatCurrency(_totalPagado)),
+
+                                                  // 💸 Mora cobrada (si aplica)
+                                                  if (widget.moraActual > 0)
+                                                    _filaResumen('Mora cobrada', _formatCurrency(widget.moraActual)),
+
+                                                  // 📦 Producto o detalle
+                                                  if (widget.producto.isNotEmpty)
+                                                    _filaResumen('Producto', widget.producto.capitalize()),
+
+                                                  // 🗓️ Próxima fecha (automática)
+                                                  _filaResumen('Próxima fecha', _fmtFecha(_calcNextDate(_baseProximaLocal))),
+
+                                                  const Divider(height: 16, color: Color(0xFFE5E7EB)),
+
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+
+
+                                          // 🟧 Tarjeta de resumen de pago (solo para alquileres)
+                                          if (!widget.esPrestamo && esArriendo) ...[
+                                            Container(
+                                              margin: const EdgeInsets.only(top: 8, bottom: 8),
+                                              padding: const EdgeInsets.all(14),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white.withOpacity(0.95),
+                                                borderRadius: BorderRadius.circular(14),
+                                                border: Border.all(color: const Color(0xFFFFCC80)), // tono suave naranja
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: const Color(0xFFFF9800).withOpacity(0.25),
+                                                    blurRadius: 8,
+                                                    offset: const Offset(0, 4),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: const [
+                                                      Icon(Icons.home_work_rounded, color: Color(0xFFEF6C00), size: 20),
+                                                      SizedBox(width: 6),
+                                                      Text(
+                                                        'Resumen del pago de alquiler',
+                                                        style: TextStyle(
+                                                          fontWeight: FontWeight.w900,
+                                                          fontSize: 15,
+                                                          color: Color(0xFFEF6C00),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 10),
+
+                                                  // 💰 Monto entregado
+                                                  _filaResumen('Monto entregado', _formatCurrency(_totalPagado)),
+
+                                                  // 📆 Mes pagado (mes actual)
+                                                  _filaResumen(
+                                                    'Mes pagado',
+                                                    DateFormat('MMMM yyyy', 'es_ES').format(DateTime.now()).capitalize(),
+                                                  ),
+
+                                                  // 🗓️ Próximo pago (calculado automáticamente)
+                                                  _filaResumen('Próximo pago', _fmtFecha(_calcNextDate(_baseProximaLocal))),
+
+                                                  const Divider(height: 16, color: Color(0xFFE5E7EB)),
+
+
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+
+
+
+
+
                                           const SizedBox(
                                               height: 12),
                                           const SizedBox(
@@ -673,7 +856,6 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -759,5 +941,38 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
         ),
       ],
     );
+  }
+}
+
+Widget _filaResumen(String titulo, String valor) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          titulo,
+          style: const TextStyle(
+            fontSize: 15,
+            color: Color(0xFF374151),
+          ),
+        ),
+        Text(
+          valor,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF111827),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+extension StringCasing on String {
+  String capitalize() {
+    if (isEmpty) return this;
+    return '${this[0].toUpperCase()}${substring(1)}';
   }
 }

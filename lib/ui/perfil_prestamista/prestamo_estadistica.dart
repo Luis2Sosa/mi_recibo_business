@@ -252,14 +252,12 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
 
                 const SizedBox(height: 10),
 
-                _tile("Total prestado", _fmt(totalPrestado),
-                    const Color(0xFF00E5FF)),
+                _tile("Total prestado", _fmt(totalPrestado), const Color(0xFF38BDF8)),
                 const SizedBox(height: 10),
-                _tile("Clientes activos", "$clientesActivos",
-                    const Color(0xFFFFD700)),
+                _tile("Clientes activos", "$clientesActivos", const Color(0xFF38BDF8)),
                 const SizedBox(height: 10),
-                _tile("Promedio por cliente", _fmt(promedioPorCliente),
-                    const Color(0xFFFF8C00)),
+                _tile("Promedio por cliente", _fmt(promedioPorCliente), const Color(0xFF38BDF8)),
+
 
                 const SizedBox(height: 20),
                 _graficoCard(),
