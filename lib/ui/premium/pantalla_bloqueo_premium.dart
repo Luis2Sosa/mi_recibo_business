@@ -1,20 +1,14 @@
-// lib/ui/premium/pantalla_bloqueo_premium.dart
-// lib/ui/premium/pantalla_bloqueo_premium.dart
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// 📂 lib/ui/premium/pantalla_bloqueo_premium.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:mi_recibo/core/premium_service.dart';
 import 'package:mi_recibo/ui/premium/pantalla_bienvenida_premium.dart';
-import 'package:mi_recibo/ui/perfil_prestamista/ganancias_screen.dart';
+import '../perfil_prestamista/ganancias_screen.dart';
 
-// (Opcional si desbloquea módulos premium directamente)
-import 'package:mi_recibo/ui/perfil_prestamista/ganancia_prestamo_screen.dart';
-import 'package:mi_recibo/ui/perfil_prestamista/ganancia_producto_screen.dart';
-import 'package:mi_recibo/ui/perfil_prestamista/ganancia_alquiler_screen.dart';
-
-
-
-class PantallaBloqueoPremium extends StatelessWidget {
+class PantallaBloqueoPremium extends StatefulWidget {
   final String destino;
 
   const PantallaBloqueoPremium({
@@ -22,10 +16,57 @@ class PantallaBloqueoPremium extends StatelessWidget {
     required this.destino,
   });
 
+  @override
+  State<PantallaBloqueoPremium> createState() => _PantallaBloqueoPremiumState();
+}
 
+class _PantallaBloqueoPremiumState extends State<PantallaBloqueoPremium> {
+  bool _cargando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _verificarPremium();
+  }
+
+  /// 🔹 Verifica si el usuario ya es Premium al abrir la pantalla
+  Future<void> _verificarPremium() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final activo = await PremiumService().esPremiumActivo(uid);
+    if (!mounted) return;
+
+    if (activo) {
+      // 🚀 Ya tiene Premium → ir directo a Ganancias
+      final docRef =
+      FirebaseFirestore.instance.collection('prestamistas').doc(uid);
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => GananciasScreen(docPrest: docRef),
+          ),
+        );
+      });
+    } else {
+      // ❌ No tiene Premium → mostrar pantalla normal
+      setState(() => _cargando = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_cargando) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(color: Colors.amber),
+        ),
+      );
+    }
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -57,7 +98,7 @@ class PantallaBloqueoPremium extends StatelessWidget {
               children: [
                 const SizedBox(height: 40),
 
-                // 🌟 Ícono Premium (tono dorado mate)
+                // 🌟 Ícono Premium
                 Container(
                   width: 110,
                   height: 110,
@@ -76,7 +117,6 @@ class PantallaBloqueoPremium extends StatelessWidget {
                       color: Color(0xFFE0B85A),
                       width: 2.5,
                     ),
-
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.3),
@@ -148,27 +188,46 @@ class PantallaBloqueoPremium extends StatelessWidget {
 
                 const Spacer(),
 
-                // 🔘 Botón Premium serio y profesional
+                // 🔘 Botón Premium
                 GestureDetector(
                   onTap: () async {
-                    await Future.delayed(const Duration(milliseconds: 800));
+                    await Future.delayed(const Duration(milliseconds: 500));
+                    final uid = FirebaseAuth.instance.currentUser!.uid;
+
+                    // 🔹 Verifica si ya es Premium
+                    final yaPremium = await PremiumService().esPremiumActivo(uid);
+
+                    if (yaPremium) {
+                      final docRef = FirebaseFirestore.instance
+                          .collection('prestamistas')
+                          .doc(uid);
+
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => GananciasScreen(docPrest: docRef),
+                        ),
+                      );
+                      return;
+                    }
+
+                    // 🟡 Activar Premium
+                    await PremiumService().activarPremium(context);
 
                     final docRef = FirebaseFirestore.instance
                         .collection('prestamistas')
-                        .doc(FirebaseAuth.instance.currentUser!.uid);
+                        .doc(uid);
 
-                    // 🔹 Redirige primero a la pantalla de bienvenida premium
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
                         builder: (_) => PantallaBienvenidaPremium(
                           docPrest: docRef,
-                          destino: destino, // 👈 aquí mandamos si viene de préstamo, totales, etc.
+                          destino: widget.destino,
                         ),
                       ),
                     );
                   },
-
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 18),
@@ -199,7 +258,6 @@ class PantallaBloqueoPremium extends StatelessWidget {
                     ),
                   ),
                 ),
-
 
                 const SizedBox(height: 26),
 
@@ -256,7 +314,7 @@ class PantallaBloqueoPremium extends StatelessWidget {
               ],
             ),
             padding: const EdgeInsets.all(8),
-            child: Icon(icon, color: color, size: 20)
+            child: Icon(icon, color: color, size: 20),
           ),
           const SizedBox(width: 14),
           Expanded(

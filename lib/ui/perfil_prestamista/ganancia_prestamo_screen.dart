@@ -1,9 +1,12 @@
 // 📂 lib/ui/perfil_prestamista/ganancia_prestamo_screen.dart
 import 'dart:ui';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mi_recibo/ui/premium/pantalla_bloqueo_premium.dart';
+import 'package:mi_recibo/core/premium_service.dart';
+
 
 class GananciaPrestamoScreen extends StatefulWidget {
   final DocumentReference<Map<String, dynamic>> docPrest;
@@ -76,86 +79,139 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
     return rows;
   }
 
-  // ===================== 🧱 CONSTRUCCIÓN =====================
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _colorFondo,
-      body: SafeArea(
-        child: FutureBuilder<List<_ClienteGanancia>>(
-          future: _future,
-          builder: (context, snap) {
-            if (snap.connectionState != ConnectionState.done) {
-              return const Center(
-                  child: CircularProgressIndicator(color: Colors.white));
-            }
+    return FutureBuilder<bool>(
+      // ✅ Corrección: usar el UID real del usuario autenticado
+      future: () async {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid == null) return false;
+        return await PremiumService().esPremiumActivo(uid);
+      }(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Scaffold(
+            backgroundColor: Colors.black,
+            body: Center(
+              child: CircularProgressIndicator(color: Colors.amber),
+            ),
+          );
+        }
 
-            final list = snap.data ?? [];
-            if (list.isEmpty) return _empty();
+        final esPremium = snapshot.data ?? false;
 
-            final visibles = list.take(1).toList();
-            final bloqueados = list.skip(1).toList();
 
-            // 🌟 Nueva estructura: columna fija con scroll solo en las tarjetas bloqueadas
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              child: Column(
-                children: [
-                  // ===================== CABECERA =====================
-                  _encabezado(),
-                  const SizedBox(height: 25),
+        // ✅ Si el usuario tiene Premium activo, mostrar pantalla normal
+        return Scaffold(
+          backgroundColor: _colorFondo,
+          body: SafeArea(
+            child: FutureBuilder<List<_ClienteGanancia>>(
+              future: _future,
+              builder: (context, snap) {
+                if (snap.connectionState != ConnectionState.done) {
+                  return const Center(
+                      child: CircularProgressIndicator(color: Colors.white));
+                }
 
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "💰 Ganancias por préstamo",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 18,
-                      ),
+                final list = snap.data ?? [];
+                if (list.isEmpty) return _empty();
+
+// ✅ Si es Premium, mostrar todas las tarjetas sin bloqueo
+                if (esPremium) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                    child: Column(
+                      children: [
+                        _encabezado(),
+                        const SizedBox(height: 25),
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            "💰 Ganancias por préstamo",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Expanded(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.only(top: 10),
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: list.length,
+                            itemBuilder: (context, i) =>
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 18),
+                                  child: _card(list[i], false), // 👈 sin bloqueo
+                                ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        _botonFinal(),
+                        const SizedBox(height: 25),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 14),
+                  );
+                }
 
-                  // ===================== CLIENTE VISIBLE =====================
-                  ...visibles.map((e) => _card(e, false)),
+// 🚫 Si no es Premium, mantener el comportamiento actual
+                final visibles = list.take(1).toList();
+                final bloqueados = list.skip(1).toList();
 
-                  const SizedBox(height: 25),
-
-                  // ===================== ENCABEZADO PREMIUM =====================
-                  if (bloqueados.isNotEmpty) _premiumEncabezado(),
-
-                  const SizedBox(height: 15),
-
-                  // ===================== SCROLL SOLO EN BLOQUEADOS =====================
-                  if (bloqueados.isNotEmpty)
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.only(top: 10),
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: bloqueados.length,
-                        itemBuilder: (context, i) => Padding(
-                          padding: const EdgeInsets.only(bottom: 18),
-                          child: _card(bloqueados[i], true),
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  child: Column(
+                    children: [
+                      _encabezado(),
+                      const SizedBox(height: 25),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          "💰 Ganancias por préstamo",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                          ),
                         ),
                       ),
-                    )
-                  else
-                    const Spacer(),
+                      const SizedBox(height: 14),
+                      ...visibles.map((e) => _card(e, false)),
+                      const SizedBox(height: 25),
+                      if (bloqueados.isNotEmpty) _premiumEncabezado(),
+                      const SizedBox(height: 15),
+                      if (bloqueados.isNotEmpty)
+                        Expanded(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.only(top: 10),
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: bloqueados.length,
+                            itemBuilder: (context, i) => Padding(
+                              padding: const EdgeInsets.only(bottom: 18),
+                              child: _card(bloqueados[i], true),
+                            ),
+                          ),
+                        )
+                      else
+                        const Spacer(),
+                      const SizedBox(height: 20),
+                      _botonFinal(),
+                      const SizedBox(height: 25),
+                    ],
+                  ),
+                );
 
-                  // ===================== BOTÓN FINAL FIJO =====================
-                  const SizedBox(height: 20),
-                  _botonFinal(),
-                  const SizedBox(height: 25),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
+              },
+            ),
+          ),
+        );
+      },
     );
   }
+
+
 
   // ===================== 🔹 ENCABEZADO =====================
   Widget _encabezado() {

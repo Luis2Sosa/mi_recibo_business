@@ -539,7 +539,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                     child:
                                                     _campoValidado(
                                                       label:
-                                                      'Pago capital',
+                                                      'Monto a pagar',
                                                       controller:
                                                       _capitalCtrl,
                                                       errorText:

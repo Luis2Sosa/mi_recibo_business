@@ -85,6 +85,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   late int _saldoActual;
   late DateTime _proximaFecha;
   bool _tieneCambios = false;
+  String? _fechaPrimerPago; // 👈 agrega esto aquí
+
   int _totalPrestado = 0;
   bool _btnPagoBusy = false;
   bool _autoFecha = true; // 👈 NUEVO: por defecto automático
@@ -157,12 +159,17 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     _moraAcumulada = (widget.moraAcumulada > 0) ? widget.moraAcumulada : _calcMoraAcumulada();
     Future.microtask(_autoFixEstado);
     Future.microtask(_cargarTotalPrestado);
-    Future.microtask(_cargarNota); // <-- lee 'nota' si existe
-    Future.microtask(_cargarFlags); // 👈 NUEVO: lee autoFecha del cliente
+    Future.microtask(_cargarNota);
+    Future.microtask(_cargarFlags);
     Future.microtask(_cargarPagoInicial);
 
-
+    // 📅 Nuevo bloque: cargar fecha del primer pago
+    Future.microtask(() async {
+      _fechaPrimerPago = await _obtenerFechaPrimerPago();
+      if (mounted) setState(() {});
+    });
   }
+
 
   @override
   void didUpdateWidget(covariant ClienteDetalleScreen oldWidget) {
@@ -454,6 +461,32 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       setState(() => _pagoInicial = val);
     } catch (_) {/* ignore */}
   }
+
+  Future<String?> _obtenerFechaPrimerPago() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return null;
+
+    final clienteRef = FirebaseFirestore.instance
+        .collection('prestamistas')
+        .doc(uid)
+        .collection('clientes')
+        .doc(widget.id);
+
+    final clienteDoc = await clienteRef.get();
+    final data = clienteDoc.data();
+    if (data == null) return null;
+
+    final fechaRaw = data['primerPago'];
+    if (fechaRaw == null) return null;
+
+    if (fechaRaw is Timestamp) {
+      return DateFormat('dd/MM/yyyy').format(fechaRaw.toDate());
+    } else {
+      return null;
+    }
+  }
+
+
 
 
 
@@ -1249,34 +1282,27 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Row(
-                                        crossAxisAlignment: CrossAxisAlignment.center,
-                                        children: [
-                                          SizedBox(
-                                            width: 38,
-                                            child: Container(
-                                              width: 38,
-                                              height: 38,
-                                              decoration: const BoxDecoration(
-                                                color: Color(0xFFEFF6FF),
-                                                shape: BoxShape.circle,
-                                              ),
-                                              child: const Icon(Icons.person, color: Color(0xFF2563EB)),
+                                      // ✨ Nombre del cliente centrado y elegante
+
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 4),
+                                        child: Center(
+                                          child: Text(
+                                            widget.nombreCompleto,
+                                            textAlign: TextAlign.center,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 24,                // 🔹 un poco más grande
+                                              fontWeight: FontWeight.w900, // 🔹 fuerte y legible
+                                              color: const Color(0xFF0F172A),
+                                              letterSpacing: 0.3,
+                                              height: 1.2,
                                             ),
                                           ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Text(
-                                              widget.nombreCompleto,
-                                              style: GoogleFonts.inter(
-                                                fontSize: 22,
-                                                fontWeight: FontWeight.w800,
-                                                color: const Color(0xFF0F172A),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                                        ),
                                       ),
+
+
+
                                       const SizedBox(height: 8),
 
                                       // 🌟 BLOQUE PREMIUM DE DATOS DEL CLIENTE
@@ -1331,14 +1357,30 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                                     child: Column(
                                       children: [
-                                        _rowStyled(
-                                          esProducto
-                                              ? 'Monto total'
-                                              : (esAlquiler ? 'Total cobrado' : 'Total histórico'),
-                                          _rd(_totalPrestado),
-                                          labelInk,
-                                          valueBlue,
-                                        ),
+                                        if (_fechaPrimerPago != null) ...[
+                                          _rowStyled(
+                                            'Primer pago',
+                                            _fechaPrimerPago!,
+                                            labelInk,
+                                            valueStyle.copyWith(
+                                              color: const Color(0xFF0F172A),
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                          const Divider(height: 14, thickness: 1, color: Color(0xFFE7F0EA)),
+                                        ] else ...[
+                                          _rowStyled(
+                                            'Primer pago',
+                                            'Sin registro',
+                                            labelInk,
+                                            valueStyle.copyWith(
+                                              color: const Color(0xFF0F172A),
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ],
+
+
 
                                         const Divider(
                                           height: 14,
@@ -1544,25 +1586,26 @@ Widget _filaInfo(IconData icon, String texto, Color color, {int maxLines = 1}) {
     crossAxisAlignment: CrossAxisAlignment.center,
     children: [
       SizedBox(
-        width: 28,
-        child: Icon(icon, color: color, size: 18),
+        width: 30, // ⬆️ ligeramente más ancho para iconos
+        child: Icon(icon, color: color, size: 20), // ⬆️ icono más visible
       ),
-      const SizedBox(width: 6),
+      const SizedBox(width: 8), // ⬆️ más espacio entre icono y texto
       Expanded(
         child: Text(
           texto,
           maxLines: maxLines,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 14.2,
+            fontWeight: FontWeight.w800, // ⬆️ más fuerte visualmente
+            fontSize: 15.8, // ⬆️ más grande
             color: Color(0xFF0F172A),
-            height: 1.2,
+            height: 1.25, // ⬆️ un poco más de aire vertical
           ),
         ),
       ),
     ],
   );
 }
+
 
 

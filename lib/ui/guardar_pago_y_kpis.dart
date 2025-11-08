@@ -2,6 +2,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mi_recibo/core/estadisticas_totales_service.dart';
+import 'package:intl/intl.dart';
+
 
 Future<void> guardarPagoYActualizarKPIs({
   required DocumentReference<Map<String, dynamic>> docPrest,
@@ -75,7 +77,8 @@ Future<void> guardarPagoYActualizarKPIs({
 
     final pagosRef = clienteRef.collection('pagos').doc();
     batch.set(pagosRef, {
-      'fecha': FieldValue.serverTimestamp(),
+      'fecha': Timestamp.fromDate(DateTime.now()), // ✅ fecha real
+      'fechaTexto': DateFormat("dd/MM/yyyy").format(DateTime.now()), // legible
       'pagoInteres': pagoInteres,
       'pagoCapital': pagoCapital,
       'moraCobrada': moraCobrada,
@@ -86,6 +89,7 @@ Future<void> guardarPagoYActualizarKPIs({
       'gananciaPago': deltaGanancia,
     });
 
+
     batch.set(clienteRef, {
       'saldoActual': saldoNuevo,
       'proximaFecha': Timestamp.fromDate(proximaFecha),
@@ -94,6 +98,16 @@ Future<void> guardarPagoYActualizarKPIs({
     }, SetOptions(merge: true));
 
     await batch.commit();
+
+    // ✅ Guardar fecha del primer pago solo si el cliente aún no la tiene
+    final clienteSnapshot = await clienteRef.get();
+    final clienteData = clienteSnapshot.data() ?? {};
+    if (clienteData['primerPago'] == null) {
+      await clienteRef.set({
+        'primerPago': Timestamp.fromDate(DateTime.now()),
+      }, SetOptions(merge: true));
+    }
+
 
     // ==============================
     // 🔹 REFERENCIAS GENERALES
@@ -188,7 +202,9 @@ Future<void> guardarPagoYActualizarKPIs({
           'pagoInteres': pagoInteres,
           'moraCobrada': moraCobrada,
           'totalPagado': totalPagado,
-          'fecha': FieldValue.serverTimestamp(),
+          'fecha': Timestamp.fromDate(DateTime.now()), // ✅ guarda la fecha real del pago
+          'fechaTexto': DateFormat("dd/MM/yyyy 'a las' hh:mm a").format(DateTime.now()), // 🧠 texto legible para mostrar
+
           'ganancia': gananciaTotal,
           'nota': 'Producto saldado — ganancia total registrada',
         });

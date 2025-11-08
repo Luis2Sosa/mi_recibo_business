@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mi_recibo/ui/premium/pantalla_bloqueo_premium.dart';
+import 'package:mi_recibo/core/premium_service.dart';
+
 
 class GananciaAlquilerScreen extends StatefulWidget {
   final DocumentReference<Map<String, dynamic>> docPrest;
@@ -98,77 +100,136 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
   // ===================== 🧱 CONSTRUCCIÓN =====================
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _colorFondo,
-      body: SafeArea(
-        child: FutureBuilder<List<_ClienteGanancia>>(
-          future: _future,
-          builder: (context, snap) {
-            if (snap.connectionState != ConnectionState.done) {
-              return const Center(
-                  child: CircularProgressIndicator(color: Colors.white));
-            }
+    return FutureBuilder<bool>(
+      future: PremiumService().esPremiumActivo(widget.docPrest.id),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Scaffold(
+            backgroundColor: Colors.black,
+            body: Center(
+              child: CircularProgressIndicator(color: Colors.amber),
+            ),
+          );
+        }
 
-            final list = snap.data ?? [];
-            if (list.isEmpty) return _empty();
+        final esPremium = snapshot.data ?? false;
 
-            final visibles = list.take(1).toList();
-            final bloqueados = list.skip(1).toList();
 
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              child: Column(
-                children: [
-                  _encabezado(),
-                  const SizedBox(height: 25),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "💰 Ganancias por alquiler",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 18,
-                      ),
+        // ✅ Si tiene Premium, mostrar la vista completa
+        return Scaffold(
+          backgroundColor: _colorFondo,
+          body: SafeArea(
+            child: FutureBuilder<List<_ClienteGanancia>>(
+              future: _future,
+              builder: (context, snap) {
+                if (snap.connectionState != ConnectionState.done) {
+                  return const Center(
+                      child: CircularProgressIndicator(color: Colors.white));
+                }
+
+                final list = snap.data ?? [];
+                if (list.isEmpty) return _empty();
+
+                // ✅ Si el usuario es Premium, mostrar todas las tarjetas sin bloqueo
+                if (esPremium) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                    child: Column(
+                      children: [
+                        _encabezado(),
+                        const SizedBox(height: 25),
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            "💰 Ganancias por alquiler",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Expanded(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.only(top: 10),
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: list.length,
+                            itemBuilder: (context, i) => Padding(
+                              padding: const EdgeInsets.only(bottom: 18),
+                              child: _card(list[i], false), // 👈 sin bloqueo
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        _botonFinal(),
+                        const SizedBox(height: 25),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 14),
+                  );
+                }
 
-                  // 🟡 Tarjeta visible
-                  ...visibles.map((e) => _card(e, false)),
+// 🚫 Si NO es Premium, mantener el diseño con bloqueo
+                final visibles = list.take(1).toList();
+                final bloqueados = list.skip(1).toList();
 
-                  const SizedBox(height: 25),
-
-                  if (bloqueados.isNotEmpty) _premiumEncabezado(),
-                  const SizedBox(height: 15),
-
-                  // 🔹 Scroll solo en bloqueados
-                  if (bloqueados.isNotEmpty)
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.only(top: 10),
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: bloqueados.length,
-                        itemBuilder: (context, i) => Padding(
-                          padding: const EdgeInsets.only(bottom: 18),
-                          child: _card(bloqueados[i], true),
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  child: Column(
+                    children: [
+                      _encabezado(),
+                      const SizedBox(height: 25),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          "💰 Ganancias por alquiler",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                          ),
                         ),
                       ),
-                    )
-                  else
-                    const Spacer(),
+                      const SizedBox(height: 14),
 
-                  const SizedBox(height: 20),
-                  _botonFinal(),
-                  const SizedBox(height: 25),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
+                      // 🟡 Tarjeta visible
+                      ...visibles.map((e) => _card(e, false)),
+
+                      const SizedBox(height: 25),
+
+                      if (bloqueados.isNotEmpty) _premiumEncabezado(),
+                      const SizedBox(height: 15),
+
+                      if (bloqueados.isNotEmpty)
+                        Expanded(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.only(top: 10),
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: bloqueados.length,
+                            itemBuilder: (context, i) => Padding(
+                              padding: const EdgeInsets.only(bottom: 18),
+                              child: _card(bloqueados[i], true),
+                            ),
+                          ),
+                        )
+                      else
+                        const Spacer(),
+
+                      const SizedBox(height: 20),
+                      _botonFinal(),
+                      const SizedBox(height: 25),
+                    ],
+                  ),
+                );
+
+              },
+            ),
+          ),
+        );
+      },
     );
   }
+
 
   // ===================== 🔹 ENCABEZADO =====================
   Widget _encabezado() {
