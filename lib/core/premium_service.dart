@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+
 class PremiumService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -62,6 +63,8 @@ class PremiumService {
   Future<void> activarPremium(BuildContext context) async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
+      final premiumService = PremiumService(); // ✅ una sola instancia compartida
+
       if (uid == null) throw Exception('Usuario no autenticado.');
 
       final fechaInicio = DateTime.now();

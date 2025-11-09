@@ -5,6 +5,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
+import '../core/premium_service.dart';
+
+
 class HistorialScreen extends StatelessWidget {
   final String idCliente;
   final String nombreCliente;
@@ -74,6 +77,8 @@ class HistorialScreen extends StatelessWidget {
     const double _contentTop = 135;
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
+    final premiumService = PremiumService(); // ✅ instancia única para toda la pantalla
+
 
     if (uid == null) {
       return Scaffold(
@@ -137,8 +142,7 @@ class HistorialScreen extends StatelessWidget {
 
     final Color cardTint = colorMain.withOpacity(0.08);
     final Color cardBorder = colorMain.withOpacity(0.22);
-    final Color chipBgLeft = colorMain.withOpacity(_esPrestamo ? 0.06 : 0.08);
-    final Color chipBorderLeft = colorMain.withOpacity(0.18);
+
 
     return Scaffold(
       body: Container(
@@ -270,182 +274,177 @@ class HistorialScreen extends StatelessWidget {
                                           ),
                                         ),
                                         const Divider(height: 1, color: Color(0xFFE5E7EB)),
+
                                         Expanded(
-                                          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                                            stream: pagosRef.snapshots(),
-                                            builder: (context, snapshot) {
-                                              if (snapshot.connectionState == ConnectionState.waiting) {
-                                                return const _LoadingList();
-                                              }
-                                              if (snapshot.hasError) {
-                                                return _ErrorState(onRetry: () {});
-                                              }
-
-                                              final raw = snapshot.data?.docs ?? [];
-
-                                              if (raw.isEmpty) {
-                                                return const _EmptyState();
+                                          child: StreamBuilder<User?>(
+                                            stream: FirebaseAuth.instance.authStateChanges(),
+                                            builder: (context, userSnap) {
+                                              if (!userSnap.hasData) {
+                                                return const Center(
+                                                  child: CircularProgressIndicator(color: Colors.blueAccent),
+                                                );
                                               }
 
-                                              // Ordenar local por fecha (o createdAt si existe) descendente
-                                              final docs = [...raw]..sort((a, b) {
-                                                final ad = a.data();
-                                                final bd = b.data();
-                                                final af = _parseFecha(ad['fecha'] ?? ad['createdAt']);
-                                                final bf = _parseFecha(bd['fecha'] ?? bd['createdAt']);
-                                                return bf.compareTo(af);
-                                              });
+                                              final uid = userSnap.data!.uid;
 
-                                              num sumInteres = 0;
-                                              num sumCapital = 0;
-
-                                              // === Normalización de campos por pago ===
-                                              List<_PagoNorm> pagos = [];
-                                              for (final e in docs) {
-                                                final d = e.data();
-
-                                                // Candidatos comunes en tus colecciones
-                                                final numCapital = (d['pagoCapital'] ??
-                                                    d['capital'] ??
-                                                    d['abonoCapital'] ??
-                                                    d['abono'] ??
-                                                    d['pago'] ??
-                                                    0) as num;
-                                                final int capital = numCapital.toInt();
-
-                                                final num? numTotalMaybe = (d['totalPagado'] ??
-                                                    d['monto'] ??
-                                                    d['pago']) as num?;
-                                                int? totalMaybe = numTotalMaybe?.toInt();
-
-                                                final num? numInteres = (d['pagoInteres'] ?? d['interes']) as num?;
-                                                int interes = (numInteres ?? 0).toInt();
+                                              return StreamBuilder<bool>(
+                                                stream: premiumService.streamEstadoPremium(uid),
 
 
-                                                if (totalMaybe == null) {
-                                                  // si no hay total explícito, suma capital+interés
-                                                  totalMaybe = capital + interes;
-                                                } else {
-                                                  // si hay total pero no hay interés, calcúlalo
-                                                  if (interes == 0 && totalMaybe > capital) {
-                                                    interes = totalMaybe - capital;
+                                                builder: (context, premiumSnap) {
+                                                  if (!premiumSnap.hasData) {
+                                                    return const Center(
+                                                      child: CircularProgressIndicator(color: Colors.blueAccent),
+                                                    );
                                                   }
-                                                }
 
-                                                // evita negativos por inconsistencias
-                                                if (interes < 0) interes = 0;
+                                                  final esPremium = premiumSnap.data ?? false;
 
-                                                sumInteres += interes;
-                                                sumCapital += capital;
+                                                  return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                                                    stream: pagosRef.snapshots(),
+                                                    builder: (context, snapshot) {
+                                                      if (snapshot.connectionState == ConnectionState.waiting) {
+                                                        return const _LoadingList();
+                                                      }
+                                                      if (snapshot.hasError) {
+                                                        return _ErrorState(onRetry: () {});
+                                                      }
 
-                                                pagos.add(
-                                                  _PagoNorm(
-                                                    id: e.id,
-                                                    data: d,
-                                                    total: totalMaybe,
-                                                    interes: interes,
-                                                    capital: capital,
-                                                  ),
-                                                );
-                                              }
+                                                      final raw = snapshot.data?.docs ?? [];
+                                                      if (raw.isEmpty) return const _EmptyState();
 
-                                              // Header de stats, según tipo
-                                              Widget stats() {
-                                                if (_esPrestamo) {
-                                                  return Padding(
-                                                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                                                    child: Row(
-                                                      children: [
-                                                        Expanded(
-                                                          child: _ChipStat(
-                                                            label: 'Intereses',
-                                                            value: _rd(sumInteres),
-                                                            bg: chipBgLeft,
-                                                            border: chipBorderLeft,
-                                                            valueColor: const Color(0xFF22C55E),
-                                                          ),
-                                                        ),
-                                                        const SizedBox(width: 10),
-                                                        Expanded(
-                                                          child: _ChipStat(
-                                                            label: 'Capital',
-                                                            value: _rd(sumCapital),
-                                                            bg: const Color(0xFFF5F8FF),
-                                                            border: const Color(0xFFDDE7FF),
-                                                            valueColor: const Color(0xFF2563EB),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  );
-                                                }
-                                                // Producto / Alquiler → solo capital
-                                                return Padding(
-                                                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                                                  child: _ChipStat(
-                                                    label: 'Capital',
-                                                    value: _rd(sumCapital),
-                                                    bg: chipBgLeft,
-                                                    border: chipBorderLeft,
-                                                    valueColor: colorMain,
-                                                  ),
-                                                );
-                                              }
+                                                      // Ordenar por fecha descendente
+                                                      final docs = [...raw]..sort((a, b) {
+                                                        final ad = a.data();
+                                                        final bd = b.data();
+                                                        final af = _parseFecha(ad['fecha'] ?? ad['createdAt']);
+                                                        final bf = _parseFecha(bd['fecha'] ?? bd['createdAt']);
+                                                        return bf.compareTo(af);
+                                                      });
 
-                                              return Column(
-                                                children: [
-                                                  stats(),
-                                                  const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                                                  Expanded(
-                                                    child: ListView.separated(
-                                                      key: const PageStorageKey('historialPagosList'),
-                                                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                                                      itemCount: pagos.length,
-                                                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                                                      itemBuilder: (context, i) {
-                                                        final p = pagos[i];
-                                                        final d = p.data;
-                                                        final fecha = _parseFecha(d['fecha'] ?? d['createdAt']);
+                                                      List<_PagoNorm> pagos = [];
+                                                      for (final e in docs) {
+                                                        final d = e.data();
+                                                        final capital = (d['pagoCapital'] ?? d['capital'] ?? d['abono'] ?? 0) as num;
+                                                        final interes = (d['pagoInteres'] ?? d['interes'] ?? 0) as num;
+                                                        final total = (d['totalPagado'] ?? capital + interes) as num;
+                                                        pagos.add(_PagoNorm(
+                                                          id: e.id,
+                                                          data: d,
+                                                          total: total.toInt(),
+                                                          interes: interes.toInt(),
+                                                          capital: capital.toInt(),
+                                                        ));
+                                                      }
 
-                                                        final saldoAnterior =
-                                                            (d['saldoAnterior'] as num?)?.toInt() ?? 0;
-                                                        final saldoNuevo =
-                                                            (d['saldoNuevo'] as num?)?.toInt() ?? saldoAnterior;
+                                                      // ✅ Si el usuario es Premium
+                                                      if (esPremium) {
+                                                        return ListView.separated(
+                                                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                                                          itemCount: pagos.length,
+                                                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                                                          itemBuilder: (context, i) {
+                                                            final p = pagos[i];
+                                                            final d = p.data;
+                                                            final fecha = _parseFecha(d['fecha'] ?? d['createdAt']);
+                                                            final saldoAnterior = (d['saldoAnterior'] ?? 0) as num;
+                                                            final saldoNuevo = (d['saldoNuevo'] ?? saldoAnterior) as num;
+                                                            // ✅ Nuevos campos que vienen del recibo (distribución del pago)
+                                                            final pagoInteres = (d['pagoInteres'] ?? 0) as num;
+                                                            final pagoCapital = (d['pagoCapital'] ?? 0) as num;
+                                                            final totalPagado = (d['totalPagado'] ?? 0) as num;
+                                                            final moraCobrada = (d['moraCobrada'] ?? 0) as num;
 
-                                                        final bool fechaPendiente =
-                                                            (d['fecha'] == null && d['createdAt'] == null) ||
-                                                                (d['fecha'] != null && d['fecha'] is! Timestamp);
 
-                                                        // Estética HALO suave por tipo
-                                                        return _PagoCardPremium(
-                                                          key: ValueKey(p.id),
-                                                          fecha: _fmtFecha(fecha),
-                                                          fechaPendiente: fechaPendiente,
-                                                          total: p.total,
-                                                          capital: p.capital,
-                                                          interes: p.interes,
-                                                          saldoAntes: saldoAnterior,
-                                                          saldoDespues: saldoNuevo,
-                                                          rd: _rd,
-                                                          // estilo
-                                                          showInteres: _esPrestamo && p.interes > 0, // solo préstamo y si hay interés
-                                                          tint: cardTint,
-                                                          border: cardBorder,
-                                                          accent: colorMain,
-                                                          leadingIcon: _esAlquiler
-                                                              ? Icons.house_rounded
-                                                              : (_esPrestamo
-                                                              ? Icons.request_quote_rounded
-                                                              : Icons.shopping_bag_rounded),
+                                                            return esPremium
+                                                                ? _PagoCardDesbloqueada(
+                                                              key: ValueKey(p.id),
+                                                              fecha: _fmtFecha(fecha),
+                                                              fechaPendiente: false,
+                                                              total: p.total,
+                                                              capital: p.capital,
+                                                              interes: p.interes,
+                                                              saldoAntes: saldoAnterior.toInt(),
+                                                              saldoDespues: saldoNuevo.toInt(),
+                                                              rd: _rd,
+                                                              showInteres: _esPrestamo && p.interes > 0,
+                                                              tint: cardTint,
+                                                              border: cardBorder,
+                                                              accent: colorMain,
+                                                              leadingIcon: _esAlquiler
+                                                                  ? Icons.house_rounded
+                                                                  : (_esPrestamo
+                                                                  ? Icons.request_quote_rounded
+                                                                  : Icons.shopping_bag_rounded),
+                                                            )
+                                                                : _PagoCardPremium(
+                                                              key: ValueKey(p.id),
+                                                              fecha: _fmtFecha(fecha),
+                                                              fechaPendiente: false,
+                                                              total: p.total,
+                                                              capital: p.capital,
+                                                              interes: p.interes,
+                                                              saldoAntes: saldoAnterior.toInt(),
+                                                              saldoDespues: saldoNuevo.toInt(),
+                                                              rd: _rd,
+                                                              showInteres: _esPrestamo && p.interes > 0,
+                                                              tint: cardTint,
+                                                              border: cardBorder,
+                                                              accent: colorMain,
+                                                              leadingIcon: _esAlquiler
+                                                                  ? Icons.house_rounded
+                                                                  : (_esPrestamo
+                                                                  ? Icons.request_quote_rounded
+                                                                  : Icons.shopping_bag_rounded),
+                                                            );
+
+
+                                                          },
                                                         );
-                                                      },
-                                                    ),
-                                                  ),
-                                                ],
+                                                      }
+
+                                                      // 🚫 Si NO es Premium
+                                                      return ListView.separated(
+                                                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                                                        itemCount: pagos.length,
+                                                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                                                        itemBuilder: (context, i) {
+                                                          final p = pagos[i];
+                                                          final d = p.data;
+                                                          final fecha = _parseFecha(d['fecha'] ?? d['createdAt']);
+                                                          final saldoAnterior = (d['saldoAnterior'] ?? 0) as num;
+                                                          final saldoNuevo = (d['saldoNuevo'] ?? saldoAnterior) as num;
+
+                                                          return _PagoCardPremium(
+                                                            key: ValueKey(p.id),
+                                                            fecha: _fmtFecha(fecha),
+                                                            fechaPendiente: false,
+                                                            total: p.total,
+                                                            capital: p.capital,
+                                                            interes: p.interes,
+                                                            saldoAntes: saldoAnterior.toInt(),
+                                                            saldoDespues: saldoNuevo.toInt(),
+                                                            rd: _rd,
+                                                            showInteres: _esPrestamo && p.interes > 0,
+                                                            tint: cardTint,
+                                                            border: cardBorder,
+                                                            accent: colorMain,
+                                                            leadingIcon: _esAlquiler
+                                                                ? Icons.house_rounded
+                                                                : (_esPrestamo
+                                                                ? Icons.request_quote_rounded
+                                                                : Icons.shopping_bag_rounded),
+                                                          );
+                                                        },
+                                                      );
+                                                    },
+                                                  );
+                                                },
                                               );
                                             },
                                           ),
                                         ),
+
                                       ],
                                     ),
                                   ),
@@ -707,20 +706,22 @@ class _ShimmerCard extends StatelessWidget {
   }
 }
 
+// =======================
+// 🔒 Tarjeta Premium bloqueada (coherente con la desbloqueada)
+// =======================
 class _PagoCardPremium extends StatelessWidget {
   final String fecha;
   final bool fechaPendiente;
   final int total;
   final int capital;
-  final int interes; // se oculta si showInteres=false
+  final int interes;
   final int saldoAntes;
   final int saldoDespues;
   final String Function(num) rd;
-
   final bool showInteres;
-  final Color tint;   // fondo suave
-  final Color border; // borde suave
-  final Color accent; // color de marca por tipo
+  final Color tint;
+  final Color border;
+  final Color accent;
   final IconData leadingIcon;
 
   const _PagoCardPremium({
@@ -742,176 +743,157 @@ class _PagoCardPremium extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final verde = const Color(0xFF22C55E);
-    final azul = const Color(0xFF2563EB);
-    final rojo = Colors.red.shade600;
-    const ink = Color(0xFF0F172A);
+    const Color verdePago = Color(0xFF22C55E);
+    const Color azulCandado = Color(0xFF2563EB);
+    const Color grisTexto = Color(0xFF475569);
+    const Color negroElegante = Color(0xFF0F172A);
 
-    final bool saldoBaja = saldoDespues <= saldoAntes;
-    final Color colorAntes = saldoAntes > 0 ? rojo : verde;
-    final Color colorDespues = saldoDespues == 0 ? verde : (saldoBaja ? ink : rojo);
+    // Gradiente tenue para borde premium bloqueado
+    final gradient = LinearGradient(
+      colors: [const Color(0xFF93C5FD), const Color(0xFFE0E7FF)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
 
     return Container(
       decoration: BoxDecoration(
-        color: tint,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: border),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: accent.withOpacity(0.15),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(14),
-      child: Row(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: accent.withOpacity(0.12),
-              shape: BoxShape.circle,
-              border: Border.all(color: accent.withOpacity(0.22)),
-            ),
-            alignment: Alignment.center,
-            child: Icon(leadingIcon, color: accent, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Text(
-                            fecha,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF111827),
-                            ),
-                          ),
-                          if (fechaPendiente) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFF3C7),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: const Color(0xFFFDE68A)),
-                              ),
-                              child: const Text(
-                                'pendiente de servidor',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF92400E),
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+          // 🔹 Fecha + icono con candado Premium
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(0.08),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: accent.withOpacity(0.15)),
                     ),
-                    Text(
-                      rd(total),
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        color: accent, // usa color del tipo
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-
-                // Interés (solo préstamos, solo si > 0)
-                if (showInteres) ...[
-                  Row(
-                    children: [
-                      const Text(
-                        'Interés: ',
-                        style: TextStyle(
-                          color: Color(0xFF16A34A),
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      Text(
-                        rd(interes),
-                        style: const TextStyle(
-                          color: Color(0xFF16A34A),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
+                    alignment: Alignment.center,
+                    child: Icon(leadingIcon, color: accent, size: 20),
                   ),
-                  const SizedBox(height: 4),
-                ],
-
-                // Capital (siempre)
-                Row(
-                  children: [
-                    Text(
-                      'Capital: ',
-                      style: TextStyle(
-                        color: azul,
-                        fontWeight: FontWeight.w800,
-                      ),
+                  const SizedBox(width: 10),
+                  Text(
+                    fecha,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: negroElegante,
+                      fontSize: 15,
                     ),
+                  ),
+                ],
+              ),
+
+              Container(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8EDFF),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: azulCandado.withOpacity(0.25)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.lock, color: azulCandado, size: 14),
+                    SizedBox(width: 4),
                     Text(
-                      rd(capital),
+                      'Detalle Premium',
                       style: TextStyle(
-                        color: azul,
+                        color: azulCandado,
                         fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+              ),
+            ],
+          ),
 
-                // Saldo (oculto si es alquiler)
-                if (leadingIcon != Icons.house_rounded) ...[
-                  Row(
-                    children: [
-                      Text(
-                        'Saldo: ',
-                        style: TextStyle(
-                          color: Colors.grey.shade800,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        rd(saldoAntes),
-                        style: TextStyle(
-                          color: colorAntes,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        '  →  ',
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        rd(saldoDespues),
-                        style: TextStyle(
-                          color: colorDespues,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
+          const SizedBox(height: 12),
+
+          // 💵 Pago realizado (verde)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.payments_rounded, color: verdePago, size: 20),
+              const SizedBox(width: 6),
+              Text(
+                'Pago realizado:',
+                style: TextStyle(
+                  color: grisTexto,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14.5,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                rd(total),
+                style: const TextStyle(
+                  color: verdePago,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15.5,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          // 🔒 Bloque Premium coherente con el diseño desbloqueado
+          Container(
+            width: double.infinity,
+            padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.white, const Color(0xFFF1F5F9)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withOpacity(0.4)),
+            ),
+            child: Column(
+              children: [
+                const Icon(Icons.lock_outline,
+                    color: azulCandado, size: 24),
+                const SizedBox(height: 8),
+                const Text(
+                  'Ver detalles completos con el plan Premium',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF1E293B),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
                   ),
-                ],
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  height: 3,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    gradient: gradient,
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                ),
               ],
             ),
           ),
@@ -920,3 +902,282 @@ class _PagoCardPremium extends StatelessWidget {
     );
   }
 }
+
+
+
+
+// =======================
+// 💎 Tarjeta Premium desbloqueada (cálculos corregidos por Luis)
+// =======================
+class _PagoCardDesbloqueada extends StatelessWidget {
+  final String fecha;
+  final bool fechaPendiente;
+  final int total;
+  final int capital;
+  final int interes;
+  final int saldoAntes;
+  final int saldoDespues;
+  final String Function(num) rd;
+  final bool showInteres;
+  final Color tint;
+  final Color border;
+  final Color accent;
+  final IconData leadingIcon;
+
+  const _PagoCardDesbloqueada({
+    super.key,
+    required this.fecha,
+    required this.fechaPendiente,
+    required this.total,
+    required this.capital,
+    required this.interes,
+    required this.saldoAntes,
+    required this.saldoDespues,
+    required this.rd,
+    required this.showInteres,
+    required this.tint,
+    required this.border,
+    required this.accent,
+    required this.leadingIcon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const grisTexto = Color(0xFF334155);
+    const negroElegante = Color(0xFF0F172A);
+    final verde = const Color(0xFF22C55E);
+    final azul = const Color(0xFF2563EB);
+    final naranja = const Color(0xFFF59E0B);
+
+    // Detectar tipo
+    final bool esAlquiler = leadingIcon == Icons.house_rounded;
+    final bool esPrestamo = leadingIcon == Icons.request_quote_rounded;
+    final bool esProducto = !esAlquiler && !esPrestamo;
+
+    // Cálculo general
+    int saldoNuevo = saldoAntes;
+    if (esPrestamo || esProducto) {
+      saldoNuevo = saldoAntes - total;
+      if (saldoNuevo < 0) saldoNuevo = 0;
+    }
+
+    // Gradiente visual
+    final gradient = LinearGradient(
+      colors: esPrestamo
+          ? [const Color(0xFF2563EB), const Color(0xFF60A5FA)]
+          : (esAlquiler
+          ? [const Color(0xFFF59E0B), const Color(0xFFFBBF24)]
+          : [const Color(0xFF16A34A), const Color(0xFF4ADE80)]),
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withOpacity(0.25),
+            blurRadius: 20,
+            spreadRadius: 1,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 🔹 Encabezado
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      gradient: gradient,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.withOpacity(0.4),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.check_rounded,
+                        color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    fecha,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: negroElegante,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  gradient: gradient,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.verified_rounded,
+                        color: Colors.white, size: 14),
+                    SizedBox(width: 4),
+                    Text(
+                      'Premium',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // 💵 Pago actual
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Pago actual:',
+                style: TextStyle(
+                  color: grisTexto,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14.5,
+                ),
+              ),
+              ShaderMask(
+                shaderCallback: (bounds) => gradient.createShader(bounds),
+                child: Text(
+                  rd(total),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 17,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Mostrar interés solo si aplica
+          if (showInteres && esPrestamo) ...[
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Interés:',
+                    style: TextStyle(
+                        color: Color(0xFF475569),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600)),
+                Text(
+                  rd(interes),
+                  style: TextStyle(
+                      color: verde,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14.5),
+                ),
+              ],
+            ),
+          ],
+
+          const SizedBox(height: 12),
+          Divider(color: accent.withOpacity(0.25), thickness: 1),
+
+          // 📊 Saldos
+          const SizedBox(height: 8),
+
+          if (!esAlquiler) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Saldo anterior:',
+                    style: TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500)),
+                Text(
+                  rd(saldoAntes),
+                  style: TextStyle(
+                      color: azul,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13.5),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Saldo nuevo:',
+                    style: TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500)),
+                Text(
+                  rd(saldoNuevo),
+                  style: TextStyle(
+                      color: verde,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13.5),
+                ),
+              ],
+            ),
+          ] else ...[
+            // 🟧 Solo para alquiler
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Próximo pago:',
+                    style: TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500)),
+                Text(
+                  'RD\$ ${rd(total)}',
+                  style: const TextStyle(
+                      color: Color(0xFFF59E0B),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13.5),
+                ),
+              ],
+            ),
+          ],
+
+          const SizedBox(height: 14),
+          Container(
+            height: 3,
+            decoration: BoxDecoration(
+              gradient: gradient,
+              borderRadius: BorderRadius.circular(50),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+

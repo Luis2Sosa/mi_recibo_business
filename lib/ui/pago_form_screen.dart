@@ -1,8 +1,11 @@
-import 'dart:ui' show FontFeature;
+import 'dart:io';
+import 'dart:ui' show FontFeature, ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart'; // 🌍 formato de moneda automático
+import 'package:connectivity_plus/connectivity_plus.dart';
+
 
 class PagoFormScreen extends StatefulWidget {
   final int saldoAnterior; // RD$
@@ -743,78 +746,172 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                             width: double.infinity,
                                             height: 54,
                                             child: ElevatedButton(
-                                              style: ElevatedButton
-                                                  .styleFrom(
-                                                backgroundColor:
-                                                const Color(
-                                                    0xFF2563EB),
-                                                foregroundColor:
-                                                Colors.white,
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: const Color(0xFF2563EB),
+                                                foregroundColor: Colors.white,
                                                 elevation: 0,
-                                                shape:
-                                                const StadiumBorder(),
-                                                textStyle:
-                                                const TextStyle(
+                                                shape: const StadiumBorder(),
+                                                textStyle: const TextStyle(
                                                   fontSize: 16,
-                                                  fontWeight:
-                                                  FontWeight.w800,
+                                                  fontWeight: FontWeight.w800,
                                                 ),
                                               ),
                                               onPressed: (_formOk &&
-                                                  (widget.autoFecha ||
-                                                      _proxima !=
-                                                          null) &&
+                                                  (widget.autoFecha || _proxima != null) &&
                                                   !_btnContinuarBusy)
                                                   ? () async {
-                                                HapticFeedback
-                                                    .lightImpact();
-                                                FocusScope.of(
-                                                    context)
-                                                    .unfocus();
-                                                setState(() =>
-                                                _btnContinuarBusy =
-                                                true);
-                                                final DateTime
-                                                proximaOut =
-                                                widget.autoFecha
-                                                    ? _calcNextDate(
-                                                    _baseProximaLocal)
+                                                HapticFeedback.lightImpact();
+                                                FocusScope.of(context).unfocus();
+                                                setState(() => _btnContinuarBusy = true);
+
+                                                // 🌐 Verificación real de conexión
+                                                bool conectado = false;
+                                                try {
+                                                  final connectivityResult =
+                                                  await Connectivity().checkConnectivity();
+                                                  if (connectivityResult != ConnectivityResult.none) {
+                                                    final result = await InternetAddress.lookup('google.com')
+                                                        .timeout(const Duration(seconds: 3));
+                                                    if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
+                                                      conectado = true;
+                                                    }
+                                                  }
+                                                } catch (_) {
+                                                  conectado = false;
+                                                }
+
+                                                if (!conectado) {
+                                                  if (context.mounted) {
+                                                    showGeneralDialog(
+                                                      context: context,
+                                                      barrierDismissible: true,
+                                                      barrierLabel: '',
+                                                      barrierColor: Colors.black.withOpacity(0.35),
+                                                      transitionDuration: const Duration(milliseconds: 500),
+                                                      pageBuilder: (context, anim1, anim2) => const SizedBox.shrink(),
+                                                      transitionBuilder: (context, anim1, anim2, child) {
+                                                        final curvedValue = Curves.easeOutBack.transform(anim1.value) - 1.0;
+                                                        return Transform.translate(
+                                                          offset: Offset(0, curvedValue * -60),
+                                                          child: Opacity(
+                                                            opacity: anim1.value,
+                                                            child: Center(
+                                                              child: Container(
+                                                                margin: const EdgeInsets.symmetric(horizontal: 32),
+                                                                padding:
+                                                                const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+                                                                decoration: BoxDecoration(
+                                                                  borderRadius: BorderRadius.circular(22),
+                                                                  gradient: LinearGradient(
+                                                                    begin: Alignment.topLeft,
+                                                                    end: Alignment.bottomRight,
+                                                                    colors: [
+                                                                      Colors.white.withOpacity(0.15),
+                                                                      Colors.white.withOpacity(0.05),
+                                                                    ],
+                                                                  ),
+                                                                  border: Border.all(
+                                                                    color: Colors.white.withOpacity(0.35),
+                                                                    width: 1.3,
+                                                                  ),
+                                                                  boxShadow: [
+                                                                    BoxShadow(
+                                                                      color: Colors.black.withOpacity(0.25),
+                                                                      blurRadius: 30,
+                                                                      offset: const Offset(0, 10),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                                child: BackdropFilter(
+                                                                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                                                  child: Column(
+                                                                    mainAxisSize: MainAxisSize.min,
+                                                                    children: [
+                                                                      Container(
+                                                                        decoration: const BoxDecoration(
+                                                                          shape: BoxShape.circle,
+                                                                          gradient: LinearGradient(
+                                                                            colors: [Color(0xFF2458D6), Color(0xFF0A9A76)],
+                                                                          ),
+                                                                        ),
+                                                                        padding: const EdgeInsets.all(12),
+                                                                        child: const Icon(
+                                                                          Icons.wifi_off_rounded,
+                                                                          color: Colors.white,
+                                                                          size: 38,
+                                                                        ),
+                                                                      ),
+                                                                      const SizedBox(height: 14),
+                                                                      Text(
+                                                                        'Sin conexión a internet',
+                                                                        textAlign: TextAlign.center,
+                                                                        style: GoogleFonts.poppins(
+                                                                          color: Colors.white,
+                                                                          fontSize: 19,
+                                                                          fontWeight: FontWeight.w800,
+                                                                          letterSpacing: 0.3,
+                                                                          decoration: TextDecoration.none, // 👈 elimina líneas
+                                                                        ),
+                                                                      ),
+                                                                      const SizedBox(height: 6),
+                                                                      Text(
+                                                                        'No se puede registrar el pago.',
+                                                                        textAlign: TextAlign.center,
+                                                                        style: GoogleFonts.inter(
+                                                                          color: Colors.white.withOpacity(0.8),
+                                                                          fontSize: 15,
+                                                                          height: 1.3,
+                                                                          decoration: TextDecoration.none, // 👈 elimina líneas
+                                                                        ),
+                                                                      ),
+                                                                    ],
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        );
+                                                      },
+                                                    );
+
+                                                    // 🔒 Se cierra automáticamente en 3 segundos
+                                                    Future.delayed(const Duration(seconds: 3), () {
+                                                      if (context.mounted) Navigator.of(context).pop();
+                                                    });
+                                                  }
+
+                                                  if (mounted) setState(() => _btnContinuarBusy = false);
+                                                  return;
+                                                }
+
+
+                                                // ✅ Si hay conexión real, continuar normalmente
+                                                final DateTime proximaOut = widget.autoFecha
+                                                    ? _calcNextDate(_baseProximaLocal)
                                                     : _proxima!;
 
-                                                Navigator.pop(
-                                                    context, {
-                                                  'pagoInteres': widget.esPrestamo
-                                                      ? _pagoInteres
+                                                Navigator.pop(context, {
+                                                  'pagoInteres': widget.esPrestamo ? _pagoInteres : 0,
+                                                  'pagoCapital': _pagoCapital,
+                                                  'totalPagado': _totalPagado,
+                                                  'moraCobrada': (!widget.esPrestamo &&
+                                                      widget.moraActual > 0)
+                                                      ? widget.moraActual
                                                       : 0,
-                                                  'pagoCapital':
-                                                  _pagoCapital,
-                                                  'totalPagado':
-                                                  _totalPagado,
-                                                  'moraCobrada': (!widget
-                                                      .esPrestamo &&
-                                                      widget.moraActual >
-                                                          0)
-                                                      ? widget
-                                                      .moraActual
-                                                      : 0,
-                                                  'saldoAnterior':
-                                                  widget
-                                                      .saldoAnterior,
-                                                  'saldoNuevo':
-                                                  _saldoNuevo,
-                                                  'proximaFecha':
-                                                  proximaOut,
+                                                  'saldoAnterior': widget.saldoAnterior,
+                                                  'saldoNuevo': _saldoNuevo,
+                                                  'proximaFecha': proximaOut,
                                                 });
-                                                if (mounted)
-                                                  setState(() =>
-                                                  _btnContinuarBusy =
-                                                  false);
+
+                                                if (mounted) setState(() => _btnContinuarBusy = false);
                                               }
                                                   : null,
-                                              child: const Text(
-                                                  'Continuar'),
+                                              child: const Text('Continuar'),
                                             ),
                                           ),
+
+
+
                                           const SizedBox(height: 12),
                                           SizedBox(
                                             width: double.infinity,

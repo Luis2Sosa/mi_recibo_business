@@ -1367,7 +1367,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                               fontWeight: FontWeight.w900,
                                             ),
                                           ),
-                                          const Divider(height: 14, thickness: 1, color: Color(0xFFE7F0EA)),
+
                                         ] else ...[
                                           _rowStyled(
                                             'Primer pago',

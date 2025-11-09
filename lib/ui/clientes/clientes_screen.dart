@@ -1009,6 +1009,14 @@ class _ClientesScreenState extends State<ClientesScreen> {
     } catch (_) {
       // Fallback: si falla la lectura, abrimos con los datos que venían en la tarjeta
       final estadoAntes = _estadoDe(c);
+
+      final docRef = FirebaseFirestore.instance
+          .collection('prestamistas')
+          .doc(uid)
+          .collection('clientes')
+          .doc(c.id);
+
+
       final result = await Navigator.push(
         context,
         MaterialPageRoute(
