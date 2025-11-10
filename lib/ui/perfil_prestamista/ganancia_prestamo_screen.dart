@@ -48,7 +48,8 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
     for (final c in cs.docs) {
       final data = c.data();
       final saldo = (data['saldoActual'] ?? 0) as num;
-      if (saldo <= 0) continue;
+// 🔁 Antes se ocultaban los préstamos saldados, ahora se muestran todos
+
 
       final pagos = await c.reference.collection('pagos').get();
       num ganancia = 0;

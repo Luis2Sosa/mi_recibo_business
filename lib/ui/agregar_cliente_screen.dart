@@ -63,8 +63,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-      const Color(0xFF183C6A), // 🔹 Fondo azul claro, coherente con la pantalla principal
+      extendBodyBehindAppBar: true, // 👈 hace que el degradado cubra toda la pantalla
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -85,87 +84,104 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
           ),
         ),
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 20),
-
-              // --- Tarjeta Préstamo ---
-              FadeTransition(
-                opacity: _fade1,
-                child: SlideTransition(
-                  position: _slide1,
-                  child: _tarjetaPremium(
-                    context,
-                    color: const Color(0xFF0B60D8),
-                    icon: Icons.account_balance_rounded,
-                    title: "Préstamo",
-                    subtitle: "Registrar cliente con préstamo activo",
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const AgregarClientePrestamoScreen()),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-
-              // --- Tarjeta Producto / Fiado ---
-              FadeTransition(
-                opacity: _fade2,
-                child: SlideTransition(
-                  position: _slide2,
-                  child: _tarjetaPremium(
-                    context,
-                    color: const Color(0xFF00A86B),
-                    icon: Icons.shopping_bag_rounded,
-                    title: "Producto / Fiado",
-                    subtitle: "Registrar cliente con producto o venta fiada",
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const AgregarClienteProductoScreen()),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-
-              // --- Tarjeta Alquiler ---
-              FadeTransition(
-                opacity: _fade3,
-                child: SlideTransition(
-                  position: _slide3,
-                  child: _tarjetaPremium(
-                    context,
-                    color: const Color(0xFFFFA000),
-                    icon: Icons.home_work_rounded,
-                    title: "Alquiler",
-                    subtitle: "Registrar cliente de alquiler o arriendo",
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const AgregarClienteAlquilerScreen()),
-                    ),
-                  ),
-                ),
-              ),
-
-              const Spacer(),
-
-              // --- Bloque Mi Recibo Business ---
-              _bloqueWebInfo(),
-              const SizedBox(height: 14),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Color(0xFF0A2F4E), // azul marino profundo (inicio)
+              Color(0xFF0E4D8F), // azul business moderno
+              Color(0xFF007EA7), // toque turquesa elegante (final)
             ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 20),
+
+                // --- Tarjeta Préstamo ---
+                FadeTransition(
+                  opacity: _fade1,
+                  child: SlideTransition(
+                    position: _slide1,
+                    child: _tarjetaPremium(
+                      context,
+                      color: const Color(0xFF0B60D8),
+                      icon: Icons.account_balance_rounded,
+                      title: "Préstamo",
+                      subtitle: "Registrar cliente con préstamo activo",
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AgregarClientePrestamoScreen(),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // --- Tarjeta Producto / Fiado ---
+                FadeTransition(
+                  opacity: _fade2,
+                  child: SlideTransition(
+                    position: _slide2,
+                    child: _tarjetaPremium(
+                      context,
+                      color: const Color(0xFF00A86B),
+                      icon: Icons.shopping_bag_rounded,
+                      title: "Producto / Fiado",
+                      subtitle: "Registrar cliente con producto o venta fiada",
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AgregarClienteProductoScreen(),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // --- Tarjeta Alquiler ---
+                FadeTransition(
+                  opacity: _fade3,
+                  child: SlideTransition(
+                    position: _slide3,
+                    child: _tarjetaPremium(
+                      context,
+                      color: const Color(0xFFFFA000),
+                      icon: Icons.home_work_rounded,
+                      title: "Alquiler",
+                      subtitle: "Registrar cliente de alquiler o arriendo",
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AgregarClienteAlquilerScreen(),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const Spacer(),
+
+                // --- Bloque Mi Recibo Business ---
+                _bloqueWebInfo(),
+                const SizedBox(height: 14),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
 
   // --- Tarjeta premium con fondo suave y animación moderna ---
   Widget _tarjetaPremium(

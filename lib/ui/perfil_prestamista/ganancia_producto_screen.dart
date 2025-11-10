@@ -48,7 +48,8 @@ class _GananciaProductoScreenState extends State<GananciaProductoScreen> {
     for (final c in cs.docs) {
       final data = c.data();
       final saldo = (data['saldoActual'] ?? 0) as num;
-      if (saldo <= 0) continue;
+// 🔁 Antes se ocultaban los clientes saldados, ahora los mostramos todos
+
 
       num ganancia = (data['ganancia'] ?? data['gananciaTotal'] ?? 0) as num;
 

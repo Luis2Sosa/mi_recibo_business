@@ -1,4 +1,4 @@
-// lib/ui/clientes/agregar_cliente_producto_screen.dart
+// 📂 lib/ui/clientes/agregar_cliente_producto_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,7 +6,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import '../../core/estadisticas_totales_service.dart';
+import '../recibo_screen.dart';
 import 'clientes_screen.dart';
+
 
 // --- Formateador automático de teléfono ---
 class TelefonoInputFormatter extends TextInputFormatter {
@@ -125,11 +127,15 @@ class _AgregarClienteProductoScreenState
     ),
     filled: true,
     fillColor: Colors.white,
-    prefixIcon:
-    icon != null ? Icon(icon, color: const Color(0xFF94A3B8)) : null,
-    contentPadding:
-    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    prefixIcon: icon != null ? Icon(icon, color: Color(0xFF94A3B8)) : null,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+
+    // 🔹 Bordes finos y más transparentes (como en Préstamos)
     border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+    ),
+    enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
       borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
     ),
@@ -138,6 +144,7 @@ class _AgregarClienteProductoScreenState
       borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
     ),
   );
+
 
   @override
   Widget build(BuildContext context) {
@@ -158,7 +165,7 @@ class _AgregarClienteProductoScreenState
               Align(
                 alignment: Alignment.bottomCenter,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(maxHeight: h * 0.95),
                     child: Container(
@@ -174,7 +181,7 @@ class _AgregarClienteProductoScreenState
                         ],
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(18),
                         child: SingleChildScrollView(child: _formBody()),
                       ),
                     ),
@@ -185,7 +192,8 @@ class _AgregarClienteProductoScreenState
                 top: 8,
                 left: 8,
                 child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white),
                   onPressed: () => Navigator.pop(context),
                 ),
               ),
@@ -210,7 +218,7 @@ class _AgregarClienteProductoScreenState
                   style: GoogleFonts.playfairDisplay(
                     textStyle: const TextStyle(
                       color: Colors.white,
-                      fontSize: 26,
+                      fontSize: 28,
                       fontStyle: FontStyle.italic,
                       fontWeight: FontWeight.w600,
                     ),
@@ -225,15 +233,15 @@ class _AgregarClienteProductoScreenState
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           _formPrincipal(),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           _listaProductos(),
-          const SizedBox(height: 16),
+          const SizedBox(height: 22),
           _resumenTotales(),
-          const SizedBox(height: 20),
+          const SizedBox(height: 25),
           _fechaSection(),
-          const SizedBox(height: 20),
+          const SizedBox(height: 25),
           _botonGuardar(),
         ],
       ),
@@ -241,19 +249,7 @@ class _AgregarClienteProductoScreenState
   }
 
   Widget _formPrincipal() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.12),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
+    return _tarjeta(
       child: Column(
         children: [
           Row(
@@ -306,23 +302,83 @@ class _AgregarClienteProductoScreenState
   }
 
   Widget _listaProductos() {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Productos o Servicios',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold, color: Colors.white)),
-            IconButton(
-              icon: const Icon(Icons.add_circle, color: Colors.white, size: 28),
-              onPressed: _agregarProducto,
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        for (int i = 0; i < _productos.length; i++) _productoCard(i),
-      ],
+    return _tarjeta(
+      colorFondo: Colors.white.withOpacity(0.95),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Productos o Servicios',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
+                  fontSize: 16)),
+          const SizedBox(height: 12),
+          for (int i = 0; i < _productos.length; i++) _productoCard(i),
+          const SizedBox(height: 8),
+          // 🟦 Botones de acción (Agregar / Quitar producto)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // ➕ Agregar producto
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _agregarProducto,
+                  icon: const Icon(Icons.add_rounded, color: Colors.white),
+                  label: const Text(
+                    'Agregar producto',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    backgroundColor: const Color(0xFF2563EB),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                    elevation: 6,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // 🔴 Quitar último producto (solo si hay más de uno)
+              if (_productos.length > 1)
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _productos.removeLast();
+                        _calcularTotales();
+                      });
+                    },
+                    icon: const Icon(Icons.remove_rounded, color: Colors.white),
+                    label: const Text(
+                      'Quitar último',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      backgroundColor: Colors.redAccent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      elevation: 6,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+
+        ],
+      ),
     );
   }
 
@@ -331,17 +387,18 @@ class _AgregarClienteProductoScreenState
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.10),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       child: Column(
         children: [
           TextFormField(
@@ -355,7 +412,7 @@ class _AgregarClienteProductoScreenState
             controller: prod['precioBase'],
             keyboardType: TextInputType.number,
             decoration: _deco('Precio base (costo real)',
-                icon: Icons.inventory_2_rounded),
+                icon: Icons.inventory_2_outlined),
             onChanged: (_) => _calcularTotales(),
           ),
           const SizedBox(height: 10),
@@ -372,46 +429,49 @@ class _AgregarClienteProductoScreenState
   }
 
   Widget _resumenTotales() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FA),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
+    return _tarjeta(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Ganancia estimada: \$${_gananciaTotal.toStringAsFixed(0)}',
-              style: const TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          Text('Monto total: \$${_montoTotal.toStringAsFixed(0)}',
-              style: const TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _pagoInicialCtrl,
-            keyboardType: TextInputType.number,
-            decoration:
-            _deco('Pago inicial (opcional)', icon: Icons.price_check),
+          Row(
+            children: [
+              const Icon(Icons.trending_up, color: Color(0xFF2563EB)),
+              const SizedBox(width: 8),
+              Text('Ganancia estimada: RD\$${_gananciaTotal.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: Color(0xFF1E293B))),
+            ],
           ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(Icons.account_balance_wallet_rounded,
+                  color: Color(0xFF0EA5E9)),
+              const SizedBox(width: 8),
+              Text('Monto total: RD\$${_montoTotal.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: Color(0xFF1E293B))),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (_productos.length == 1) // 👈 Solo mostrar si hay 1 producto
+            TextFormField(
+              controller: _pagoInicialCtrl,
+              keyboardType: TextInputType.number,
+              decoration: _deco('Pago inicial (opcional)', icon: Icons.price_check),
+            ),
         ],
       ),
     );
   }
 
   Widget _fechaSection() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FA),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: _proximaFecha == null
-              ? const Color(0xFFEF4444)
-              : const Color(0xFFE5E7EB),
-          width: 1.2,
-        ),
-      ),
+    return _tarjeta(
+      colorFondo: const Color(0xFFF8FAFC),
       child: Row(
         children: [
           Expanded(
@@ -422,13 +482,13 @@ class _AgregarClienteProductoScreenState
               style: TextStyle(
                 color: _proximaFecha == null
                     ? const Color(0xFFEF4444)
-                    : const Color(0xFF374151),
+                    : const Color(0xFF1E293B),
                 fontWeight: FontWeight.w600,
               ),
             ),
           ),
           TextButton.icon(
-            icon: const Icon(Icons.date_range),
+            icon: const Icon(Icons.calendar_today_outlined),
             label: const Text('Elegir'),
             onPressed: () async {
               final sel = await showDatePicker(
@@ -447,6 +507,25 @@ class _AgregarClienteProductoScreenState
     );
   }
 
+  Widget _tarjeta({required Widget child, Color? colorFondo}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorFondo ?? Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          )
+        ],
+      ),
+      child: child,
+    );
+  }
+
   Widget _botonGuardar() {
     return SizedBox(
       width: double.infinity,
@@ -455,8 +534,8 @@ class _AgregarClienteProductoScreenState
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF2458D6),
           foregroundColor: Colors.white,
-          elevation: 6,
-          shadowColor: Colors.black.withOpacity(0.3),
+          elevation: 8,
+          shadowColor: Colors.black.withOpacity(0.25),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),
           ),
@@ -514,6 +593,17 @@ class _AgregarClienteProductoScreenState
     final pagoInicial = double.tryParse(_pagoInicialCtrl.text) ?? 0;
     final saldoActual = (_montoTotal - pagoInicial).clamp(0, 999999999);
 
+    // 🔹 Calcular capital invertido real (solo el costo de los productos)
+    double capitalInvertido = 0;
+    for (final p in _productos) {
+      final base = double.tryParse(p['precioBase']!.text) ?? 0;
+      capitalInvertido += base;
+    }
+    final capital = capitalInvertido.toInt();
+
+    // ========================================
+    // 🔹 Datos principales del cliente
+    // ========================================
     final data = {
       'tipo': 'producto',
       'nombre': _nombreCtrl.text.trim(),
@@ -530,16 +620,17 @@ class _AgregarClienteProductoScreenState
         return {
           'nombre': p['nombre']!.text.trim(),
           'precioBase': (double.tryParse(p['precioBase']!.text) ?? 0).toInt(),
-          'precioCliente':
-          (double.tryParse(p['precioCliente']!.text) ?? 0).toInt(),
+          'precioCliente': (double.tryParse(p['precioCliente']!.text) ?? 0).toInt(),
         };
       }).toList(),
-      'gananciaTotal': _gananciaTotal.toInt(),
+
+      // 🔹 Campos financieros
+      'gananciaTotal': _gananciaTotal.toInt(),  // Ganancia esperada
       'ganancia': _gananciaTotal.toInt(),
-      'montoTotal': _montoTotal.toInt(),
+      'montoTotal': _montoTotal.toInt(),        // 💵 Total que pagará el cliente
       'pagoInicial': pagoInicial.toInt(),
-      'saldoActual': saldoActual.toInt(),
-      'capitalInicial': _montoTotal.toInt(),
+      'saldoActual': saldoActual.toInt(),       // 💰 Saldo pendiente
+      'capitalInicial': capital,                // 💼 Tu inversión real
       'periodo': widget.initPeriodo ?? 'Mensual',
       'proximaFecha': Timestamp.fromDate(_proximaFecha!),
       'estado': saldoActual <= 0 ? 'saldado' : 'al_dia',
@@ -554,14 +645,15 @@ class _AgregarClienteProductoScreenState
       } else {
         // ✅ Si es nuevo, crea un registro nuevo
         await clientesRef.add(data);
-        // ✅ Registrar ganancia de este cliente individual para "Ganancia por producto"
+
+        // ✅ Registrar ganancia individual en “Ganancia por producto”
         final estadisticasProductoRef = db
             .collection('prestamistas')
             .doc(uid)
             .collection('estadisticas')
             .doc('producto')
             .collection('clientes_producto')
-            .doc(); // se crea un doc nuevo
+            .doc();
 
         await estadisticasProductoRef.set({
           'nombre': _nombreCtrl.text.trim(),
@@ -570,25 +662,13 @@ class _AgregarClienteProductoScreenState
           'montoTotal': _montoTotal.toInt(),
           'fechaRegistro': FieldValue.serverTimestamp(),
         });
-
       }
 
-
-      // 🔹 Calcula los valores para las estadísticas
-      final ganancia = _gananciaTotal.toInt();
-
-// 🔹 Calcular capital invertido real (solo el precio base de cada producto)
-      double capitalInvertido = 0;
-      for (final p in _productos) {
-        final base = double.tryParse(p['precioBase']!.text) ?? 0;
-        capitalInvertido += base;
-      }
-      final capital = capitalInvertido.toInt();
-
-// ✅ Asegurar estructura base
+      // ========================================
+      // 🔹 Actualizar métricas globales
+      // ========================================
       await EstadisticasTotalesService.ensureStructure(uid);
 
-// ✅ Actualizar métricas globales (solo inversión)
       final summaryRef = db
           .collection('prestamistas')
           .doc(uid)
@@ -600,21 +680,66 @@ class _AgregarClienteProductoScreenState
         'ultimaActualizacion': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-// ✅ Registrar solo una vez la ganancia neta del producto
-      await EstadisticasTotalesService.adjustCategoria(
-        uid,
-        'producto',
-        gananciaNetaDelta: ganancia,
-      );
-
-
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-          builder: (_) => const ClientesScreen(initFiltro: 'productos'),
-        ),
-            (r) => false,
-      );
+
+// 🔹 Si el cliente hizo un pago inicial, ir directo al recibo
+      if (pagoInicial > 0) {
+        final nuevoClienteRef = await clientesRef
+            .where('telefono', isEqualTo: _telefonoCtrl.text.trim())
+            .get();
+
+        if (nuevoClienteRef.docs.isNotEmpty) {
+          final clienteDoc = nuevoClienteRef.docs.last; // 👈 toma el último registro
+          final clienteData = clienteDoc.data();
+          final clienteId = clienteDoc.id;
+
+          // === Ir al Recibo automáticamente ===
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => ReciboScreen(
+                empresa: "Mi Recibo Business",
+                servidor:
+                FirebaseAuth.instance.currentUser?.displayName ?? "Usuario",
+                telefonoServidor: clienteData['telefono'] ?? '',
+                cliente: "${clienteData['nombre']} ${clienteData['apellido']}",
+                telefonoCliente: clienteData['telefono'] ?? '',
+                producto: clienteData['producto'] ?? 'Producto',
+                numeroRecibo:
+                "AUTO-${DateTime.now().millisecondsSinceEpoch % 10000}",
+                fecha: DateTime.now(),
+                capitalInicial: clienteData['capitalInicial'] ?? 0,
+                pagoInteres: 0,
+                pagoCapital: pagoInicial.toInt(),
+                totalPagado: pagoInicial.toInt(),
+                saldoAnterior: clienteData['montoTotal'] ?? 0,
+                saldoRestante: clienteData['saldoActual'] ?? 0,
+                saldoActual: clienteData['saldoActual'] ?? 0,
+                proximaFecha:
+                (clienteData['proximaFecha'] as Timestamp).toDate(),
+                tasaInteres: 0.0,
+              ),
+            ),
+          );
+        } else {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (_) => const ClientesScreen(initFiltro: 'productos'),
+            ),
+                (r) => false,
+          );
+        }
+      } else {
+        // 🔹 Si no hay pago inicial, guardar y volver como siempre
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => const ClientesScreen(initFiltro: 'productos'),
+          ),
+              (r) => false,
+        );
+      }
+
+
+
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -622,5 +747,6 @@ class _AgregarClienteProductoScreenState
 
     if (mounted) setState(() => _guardando = false);
   }
+
 
 }

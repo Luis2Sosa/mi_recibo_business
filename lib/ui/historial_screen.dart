@@ -246,28 +246,68 @@ class HistorialScreen extends StatelessWidget {
                                               return Column(
                                                 crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
-                                                  Text(
-                                                    nombreCliente,
-                                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                                                  ),
                                                   const SizedBox(height: 6),
-                                                  Row(
-                                                    children: [
-                                                      Icon(icono, color: colorIcono, size: 18),
-                                                      const SizedBox(width: 6),
-                                                      Flexible(
-                                                        child: Text(
-                                                          subtitulo,
+                                                  Center(
+                                                    child: Column(
+                                                      children: [
+                                                        Text(
+                                                          nombreCliente,
                                                           style: const TextStyle(
-                                                            fontSize: 14,
+                                                            fontSize: 20,
+                                                            fontWeight: FontWeight.w900,
                                                             color: Color(0xFF0F172A),
-                                                            fontWeight: FontWeight.w600,
+                                                            letterSpacing: 0.5,
                                                           ),
-                                                          overflow: TextOverflow.ellipsis,
                                                         ),
-                                                      ),
-                                                    ],
+                                                        const SizedBox(height: 4),
+                                                        Row(
+                                                          mainAxisAlignment: MainAxisAlignment.center,
+                                                          children: [
+                                                            Icon(
+                                                              _esPrestamo
+                                                                  ? Icons.request_quote_rounded
+                                                                  : _esAlquiler
+                                                                  ? Icons.house_rounded
+                                                                  : Icons.shopping_bag_rounded,
+                                                              color: _esPrestamo
+                                                                  ? const Color(0xFF2563EB)
+                                                                  : _esAlquiler
+                                                                  ? const Color(0xFFF59E0B)
+                                                                  : const Color(0xFF16A34A),
+                                                              size: 18,
+                                                            ),
+                                                            const SizedBox(width: 5),
+                                                            Text(
+                                                              _esPrestamo
+                                                                  ? 'Préstamo'
+                                                                  : _esAlquiler
+                                                                  ? 'Alquiler'
+                                                                  : 'Producto',
+                                                              style: TextStyle(
+                                                                fontSize: 14,
+                                                                color: _esPrestamo
+                                                                    ? const Color(0xFF2563EB)
+                                                                    : _esAlquiler
+                                                                    ? const Color(0xFFF59E0B)
+                                                                    : const Color(0xFF16A34A),
+                                                                fontWeight: FontWeight.w600,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                        const SizedBox(height: 12),
+                                                        Container(
+                                                          height: 1.3,
+                                                          width: 180,
+                                                          color: Colors.black.withOpacity(0.08),
+                                                        ),
+                                                        const SizedBox(height: 12),
+                                                      ],
+                                                    ),
                                                   ),
+
+
+
                                                 ],
                                               );
                                             },
@@ -955,11 +995,16 @@ class _PagoCardDesbloqueada extends StatelessWidget {
     final bool esProducto = !esAlquiler && !esPrestamo;
 
     // Cálculo general
-    int saldoNuevo = saldoAntes;
-    if (esPrestamo || esProducto) {
-      saldoNuevo = saldoAntes - total;
-      if (saldoNuevo < 0) saldoNuevo = 0;
-    }
+    // ❌ Eliminar todo este bloque
+// int saldoNuevo = saldoAntes;
+// if (esPrestamo || esProducto) {
+//   saldoNuevo = saldoAntes - capital;
+//   if (saldoNuevo < 0) saldoNuevo = 0;
+// }
+
+// ✅ Usar directamente el saldo guardado en Firestore
+    final int saldoNuevo = saldoDespues;
+
 
     // Gradiente visual
     final gradient = LinearGradient(

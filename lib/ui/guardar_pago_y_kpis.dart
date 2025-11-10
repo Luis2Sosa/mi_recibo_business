@@ -1,9 +1,8 @@
-// lib/core/guardar_pago_y_actualizar_kpis.dart
+// 📘 Archivo: lib/core/guardar_pago_y_actualizar_kpis.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mi_recibo/core/estadisticas_totales_service.dart';
 import 'package:intl/intl.dart';
-
 
 Future<void> guardarPagoYActualizarKPIs({
   required DocumentReference<Map<String, dynamic>> docPrest,
@@ -16,8 +15,18 @@ Future<void> guardarPagoYActualizarKPIs({
   required DateTime proximaFecha,
 }) async {
   try {
-    int saldoNuevo = saldoAnterior - pagoCapital;
+
+    // ✅ Calcular abono real al capital (resta interés y mora si corresponde)
+    int abonoReal = totalPagado - pagoInteres - moraCobrada;
+    if (abonoReal < 0) abonoReal = 0;
+
+// ✅ Nuevo saldo basado solo en el abono real
+    int saldoNuevo = saldoAnterior - abonoReal;
     if (saldoNuevo < 0) saldoNuevo = 0;
+
+    // .,
+
+
 
     // ==============================
     // 🔹 LEER CLIENTE Y DETERMINAR CATEGORÍA
@@ -53,20 +62,11 @@ Future<void> guardarPagoYActualizarKPIs({
     } else if (categoria == 'alquiler') {
       deltaGanancia = totalPagado;
     } else if (categoria == 'producto') {
-      final gananciaTotal = (m['gananciaTotal'] ?? 0) as int;
-      final capitalInicial = (m['capitalInicial'] ?? 1) as int;
-
-      if (gananciaTotal > 0 && capitalInicial > 0) {
-        if (saldoNuevo <= 0) {
-          // ✅ Producto completamente pagado → registrar ganancia total
-          deltaGanancia = gananciaTotal;
-        } else {
-          // 📉 Pago parcial → registrar ganancia proporcional
-          final pagado = saldoAnterior - saldoNuevo;
-          deltaGanancia = ((gananciaTotal * pagado) / capitalInicial).round();
-        }
-      }
+      // ⚠️ No sumar ganancia durante los pagos
+      // porque ya fue registrada al crear el cliente.
+      deltaGanancia = 0;
     }
+
 
     if (deltaGanancia < 0) deltaGanancia = 0;
 
@@ -77,8 +77,8 @@ Future<void> guardarPagoYActualizarKPIs({
 
     final pagosRef = clienteRef.collection('pagos').doc();
     batch.set(pagosRef, {
-      'fecha': Timestamp.fromDate(DateTime.now()), // ✅ fecha real
-      'fechaTexto': DateFormat("dd/MM/yyyy").format(DateTime.now()), // legible
+      'fecha': Timestamp.fromDate(DateTime.now()),
+      'fechaTexto': DateFormat("dd/MM/yyyy").format(DateTime.now()),
       'pagoInteres': pagoInteres,
       'pagoCapital': pagoCapital,
       'moraCobrada': moraCobrada,
@@ -89,7 +89,6 @@ Future<void> guardarPagoYActualizarKPIs({
       'gananciaPago': deltaGanancia,
     });
 
-
     batch.set(clienteRef, {
       'saldoActual': saldoNuevo,
       'proximaFecha': Timestamp.fromDate(proximaFecha),
@@ -99,7 +98,9 @@ Future<void> guardarPagoYActualizarKPIs({
 
     await batch.commit();
 
-    // ✅ Guardar fecha del primer pago solo si el cliente aún no la tiene
+    // ==============================
+    // 🔹 REGISTRAR FECHA DEL PRIMER PAGO
+    // ==============================
     final clienteSnapshot = await clienteRef.get();
     final clienteData = clienteSnapshot.data() ?? {};
     if (clienteData['primerPago'] == null) {
@@ -107,7 +108,6 @@ Future<void> guardarPagoYActualizarKPIs({
         'primerPago': Timestamp.fromDate(DateTime.now()),
       }, SetOptions(merge: true));
     }
-
 
     // ==============================
     // 🔹 REFERENCIAS GENERALES
@@ -128,24 +128,52 @@ Future<void> guardarPagoYActualizarKPIs({
     // ==============================
     await EstadisticasTotalesService.ensureStructure(prestamistaId);
 
-    await summaryRef.set({
-      'totalCapitalRecuperado': FieldValue.increment(pagoCapital),
-      'totalCapitalPendiente': FieldValue.increment(-pagoCapital),
-      'totalGanancia': FieldValue.increment(deltaGanancia),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    // ✅ Actualizar estadísticas NORMALES (ajustadas según categoría)
+    if (categoria == 'producto') {
+      // Solo sumar la parte real del capital recuperado (no ganancia)
+      final capitalInicial = (m['capitalInicial'] ?? 0) as int;
+      final montoTotal = (m['montoTotal'] ?? 0) as int;
 
-    await EstadisticasTotalesService.adjustCategoria(
-      prestamistaId,
-      categoria,
-      capitalRecuperadoDelta: pagoCapital,
-      capitalPendienteDelta: -pagoCapital,
-      gananciaNetaDelta: deltaGanancia,
-    );
+      // Calcular proporción del capital que se está recuperando en este pago
+      final pagado = saldoAnterior - saldoNuevo;
+      final capitalPagado = ((pagado * capitalInicial) / montoTotal).round();
+
+      await summaryRef.set({
+        'totalCapitalRecuperado': FieldValue.increment(capitalPagado),
+        'totalCapitalPendiente': FieldValue.increment(-capitalPagado),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      await EstadisticasTotalesService.adjustCategoria(
+        prestamistaId,
+        categoria,
+        capitalRecuperadoDelta: capitalPagado,
+        capitalPendienteDelta: -capitalPagado,
+        gananciaNetaDelta: 0, // no se suma ganancia todavía
+      );
+    } else {
+      // Resto de categorías normales (préstamos, alquileres)
+      await summaryRef.set({
+        'totalCapitalRecuperado': FieldValue.increment(abonoReal),
+        'totalCapitalPendiente': FieldValue.increment(-abonoReal),
+        'totalGanancia': FieldValue.increment(deltaGanancia),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      await EstadisticasTotalesService.adjustCategoria(
+        prestamistaId,
+        categoria,
+        capitalRecuperadoDelta: abonoReal,
+        capitalPendienteDelta: -abonoReal,
+        gananciaNetaDelta: deltaGanancia,
+      );
+    }
+
+
 
     // ==============================
-// 🔹 SUMAR AUTOMÁTICAMENTE TOTAL ALQUILADO (cada pago cuenta)
-// ==============================
+    // 🔹 SUMAR AUTOMÁTICAMENTE TOTAL ALQUILADO
+    // ==============================
     if (categoria == 'alquiler') {
       try {
         await summaryRef.set({
@@ -159,59 +187,58 @@ Future<void> guardarPagoYActualizarKPIs({
       }
     }
 
+    // ==============================
+    // 🔹 REGISTRAR HISTORIAL GLOBAL (para TODAS las categorías)
+    // ==============================
+    await db
+        .collection('prestamistas')
+        .doc(prestamistaId)
+        .collection('historial_pagos')
+        .add({
+      'saldoAnterior': saldoAnterior,
+      'saldoNuevo': saldoNuevo,
+      'categoria': categoria,
+      'clienteId': clienteRef.id,
+      'pagoCapital': pagoCapital,
+      'pagoInteres': pagoInteres,
+      'moraCobrada': moraCobrada,
+      'totalPagado': totalPagado,
+      'ganancia': deltaGanancia,
+      'fecha': Timestamp.fromDate(DateTime.now()),
+      'fechaTexto': DateFormat("dd/MM/yyyy 'a las' hh:mm a").format(DateTime.now()),
+      'nota': categoria == 'producto' && saldoNuevo <= 0
+          ? 'Producto saldado — ganancia total registrada'
+          : 'Pago registrado correctamente',
+    });
+
+    print('✅ Historial global actualizado correctamente');
 
     // ==============================
-    // 🔹 SI EL PRODUCTO SE SALDÓ → REGISTRAR GANANCIA TOTAL HISTÓRICA
+    // 🔹 PRODUCTO SALDADO → GANANCIA TOTAL FINAL
     // ==============================
     if (categoria == 'producto' && saldoNuevo <= 0) {
       final gananciaTotal = (m['gananciaTotal'] ?? 0) as int;
-      final capitalTotal = (m['capitalInicial'] ?? 0) as int;
 
-      if (gananciaTotal > 0) {
-        // 📈 Actualiza métricas globales
-        await summaryRef.set({
-          'totalGanancia': FieldValue.increment(gananciaTotal),
-          'totalCapitalRecuperado': FieldValue.increment(capitalTotal),
-          'totalCapitalPendiente': FieldValue.increment(-capitalTotal),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+      // ✅ Solo sumar la ganancia final del producto
+      await summaryRef.set({
+        'totalGanancia': FieldValue.increment(gananciaTotal),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
-        // 📊 Actualiza categoría "producto"
-        final estadisticaProducto = db
-            .collection('prestamistas')
-            .doc(prestamistaId)
-            .collection('estadisticas')
-            .doc('producto');
+      await db
+          .collection('prestamistas')
+          .doc(prestamistaId)
+          .collection('estadisticas')
+          .doc('producto')
+          .set({
+        'gananciaNeta': FieldValue.increment(gananciaTotal),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
-        await estadisticaProducto.set({
-          'gananciaNeta': FieldValue.increment(gananciaTotal),
-          'capitalRecuperado': FieldValue.increment(capitalTotal),
-          'capitalPendiente': FieldValue.increment(-capitalTotal),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
-        // 🧾 Registrar evento en historial
-        await db
-            .collection('prestamistas')
-            .doc(prestamistaId)
-            .collection('historial_pagos')
-            .add({
-          'categoria': 'producto',
-          'clienteId': clienteRef.id,
-          'pagoCapital': capitalTotal,
-          'pagoInteres': pagoInteres,
-          'moraCobrada': moraCobrada,
-          'totalPagado': totalPagado,
-          'fecha': Timestamp.fromDate(DateTime.now()), // ✅ guarda la fecha real del pago
-          'fechaTexto': DateFormat("dd/MM/yyyy 'a las' hh:mm a").format(DateTime.now()), // 🧠 texto legible para mostrar
-
-          'ganancia': gananciaTotal,
-          'nota': 'Producto saldado — ganancia total registrada',
-        });
-
-        print('✅ Ganancia total registrada correctamente en "producto".');
-      }
+      print('✅ Producto saldado — ganancia total registrada ($gananciaTotal).');
     }
+
+
 
     print('✅ KPI actualizado: $categoria (+$deltaGanancia ganancia)');
   } catch (e) {
