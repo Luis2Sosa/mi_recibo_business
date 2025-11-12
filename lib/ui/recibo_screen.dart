@@ -18,6 +18,7 @@ import 'package:mi_recibo/ui/theme/app_theme.dart';
 import 'package:mi_recibo/ui/widgets/app_frame.dart';
 
 // 👇 Banner premium
+import '../core/ads/ads_manager.dart';
 import '../core/notifications_plus.dart';
 
 /// ==============================
@@ -304,6 +305,8 @@ class ReciboScreen extends StatefulWidget {
 
   final ReciboUIConfig config;
   final double tasaInteres;
+  final bool esPrimerPago;
+
 
   const ReciboScreen({
     super.key,
@@ -330,6 +333,8 @@ class ReciboScreen extends StatefulWidget {
     this.config = const ReciboUIConfig(),
     required this.tasaInteres,
     this.moraCobrada = 0,
+    this.esPrimerPago = false,
+
   });
 
   @override
@@ -467,6 +472,7 @@ class _ReciboScreenState extends State<ReciboScreen> {
       _volverAClientes();
     }
   }
+
 
   Future<String?> _guardarSilencioso(Uint8List bytes, String fileName) async {
     try {
@@ -977,6 +983,8 @@ class _ReceiptContent extends StatelessWidget {
               child: Center(child: Text(tituloPrincipal, style: cfg.recibidoTitleStyle)),
             ),
 
+
+
             // ✔ MONTO GRANDE
             Container(
               decoration: BoxDecoration(
@@ -1332,11 +1340,14 @@ class _ReceiptContent extends StatelessWidget {
                                 // —— RECIBOS NORMALES DE PRODUCTO ——
                                 _rowIcon(
                                   Icons.shopping_bag_rounded,
-                                  'Pago de producto',
+                                  ((context.findAncestorWidgetOfExactType<ReciboScreen>() as ReciboScreen?)?.esPrimerPago ?? false)
+                                      ? 'Monto inicial'
+                                      : 'Pago de producto',
                                   pesoSolo(totalPagado),
                                   iconBg: const Color(0xFFF3F0FF),
                                   iconColor: const Color(0xFF6D28D9),
                                 ),
+
 
                                 if (moraCobrada > 0) ...[
                                   const SizedBox(height: 6),

@@ -234,7 +234,7 @@ class NotificationsPlus {
       nav.push(route);
 
       // Cerrar SOLO esta ruta (no afecta otras pantallas)
-      Future.delayed(const Duration(milliseconds: 1500), () {
+      Future.delayed(const Duration(milliseconds: 3000), () {
         if (route.isActive) {
           // removeRoute no toca las demás rutas del stack
           nav.removeRoute(route);

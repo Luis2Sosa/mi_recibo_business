@@ -2,6 +2,9 @@
 
 import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import '../adaptive_icons.dart';
+
 
 /// =====================
 /// ENUMS GLOBALES
@@ -255,9 +258,44 @@ class ClienteCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
+                      // 🧩 Ícono adaptativo según tipo
+                      platformIcon(
+                        context,
+                        md: cliente.producto == null || cliente.producto!.trim().isEmpty
+                            ? Icons.request_quote_rounded
+                            : cliente.producto!.toLowerCase().contains('alqui') ||
+                            cliente.producto!.toLowerCase().contains('renta') ||
+                            cliente.producto!.toLowerCase().contains('casa') ||
+                            cliente.producto!.toLowerCase().contains('apart')
+                            ? Icons.house_rounded
+                            : cliente.producto!.toLowerCase().contains('car') ||
+                            cliente.producto!.toLowerCase().contains('vehic')
+                            ? Icons.directions_car_rounded
+                            : Icons.shopping_bag_rounded,
+                        ios: cliente.producto == null || cliente.producto!.trim().isEmpty
+                            ? CupertinoIcons.money_dollar_circle
+                            : cliente.producto!.toLowerCase().contains('alqui') ||
+                            cliente.producto!.toLowerCase().contains('renta') ||
+                            cliente.producto!.toLowerCase().contains('casa') ||
+                            cliente.producto!.toLowerCase().contains('apart')
+                            ? CupertinoIcons.house_fill
+                            : cliente.producto!.toLowerCase().contains('car') ||
+                            cliente.producto!.toLowerCase().contains('vehic')
+                            ? CupertinoIcons.car_detailed
+                            : CupertinoIcons.bag_fill,
+
+                        // 💡 Color dinámico según el módulo
+                        color: colorForModule(cliente.producto ?? ''),
+                        size: 26,
+                      ),
+
+
+                      const SizedBox(width: 8),
+
                       Expanded(
                         child: Text(
                           cliente.nombreCompleto,
+
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 20,

@@ -114,7 +114,7 @@ class _GananciaProductoScreenState extends State<GananciaProductoScreen> {
                         const Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            "💰 Ganancias por producto",
+                            "💰 Ganancias por cliente",
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w900,
@@ -341,7 +341,7 @@ class _GananciaProductoScreenState extends State<GananciaProductoScreen> {
                   color: Colors.greenAccent, size: 20),
               const SizedBox(width: 8),
               Text(
-                "Ganancia total: \$${e.ganancia}",
+                "Ganancia estimada: \$${e.ganancia}",
                 style: GoogleFonts.inter(
                   color: Colors.greenAccent,
                   fontWeight: FontWeight.w600,

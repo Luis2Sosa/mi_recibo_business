@@ -1,11 +1,14 @@
 // lib/clientes/clientes_screen.dart
 
+import '../../core/ads/ads_manager.dart';
 import '../recibo_screen.dart';
 import 'agregar_cliente_alquiler_screen.dart';
 import 'agregar_cliente_prestamo.dart';
 import 'agregar_cliente_producto_screen.dart';
 import 'auto_filtro_service.dart';
 import 'agregar_cliente_producto_screen.dart';
+import '../adaptive_icons.dart';
+
 
 
 import 'dart:async';
@@ -39,7 +42,9 @@ class ClientesScreen extends StatefulWidget {
 }
 
 
-class _ClientesScreenState extends State<ClientesScreen> {
+class _ClientesScreenState extends State<ClientesScreen> with WidgetsBindingObserver {
+  // 👇 Bandera temporal para saber si venimos de enviar un recibo
+  static bool _vieneDeRecibo = false;
 
 
   final TextEditingController _searchCtrl = TextEditingController();
@@ -77,6 +82,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
   @override
   void initState() {
     super.initState();
+
+    // 👇 Observa el ciclo de vida (detecta cuando la app vuelve del fondo)
+    WidgetsBinding.instance.addObserver(this);
+
     if (widget.initFiltro != null) {
       switch (widget.initFiltro) {
         case 'prestamos':
@@ -102,6 +111,8 @@ class _ClientesScreenState extends State<ClientesScreen> {
       print('📩 Push (foreground): ${m.notification?.title} - ${m.notification?.body}');
     });
 
+
+
     // ❌ (Quitado) NO forzamos cambio de pestaña aquí para evitar flicker
     // WidgetsBinding.instance.addPostFrameCallback((_) async {
     //   final nuevo = await AutoFiltroService.elegirFiltroPreferido(
@@ -112,6 +123,16 @@ class _ClientesScreenState extends State<ClientesScreen> {
     //   }
     // });
   }
+
+  // 👇 Detecta cuando la app vuelve del fondo (por ejemplo, tras enviar un recibo por WhatsApp)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // ✅ Muestra el anuncio al volver desde WhatsApp
+      AdsManager.showAfterWhatsApp(context, 'enviar recibo');
+    }
+  }
+
 
   // 🕛 Normaliza al mediodía para evitar líos de zona horaria
   DateTime _atNoon(DateTime d) => DateTime(d.year, d.month, d.day, 12);
@@ -897,6 +918,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // 👈 importante
     _debounce?.cancel();
     _searchCtrl.dispose();
     _fcmSub?.cancel();

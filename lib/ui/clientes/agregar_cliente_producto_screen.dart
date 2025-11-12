@@ -429,45 +429,123 @@ class _AgregarClienteProductoScreenState
   }
 
   Widget _resumenTotales() {
+    final pagoInicial = double.tryParse(_pagoInicialCtrl.text) ?? 0;
+    final montoRestante = (_montoTotal - pagoInicial).clamp(0, 999999999);
+
     return _tarjeta(
+      colorFondo: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 🔹 Encabezado
           Row(
             children: [
-              const Icon(Icons.trending_up, color: Color(0xFF2563EB)),
+              const Icon(Icons.bar_chart_rounded, color: Color(0xFF2458D6)),
               const SizedBox(width: 8),
-              Text('Ganancia estimada: RD\$${_gananciaTotal.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                      color: Color(0xFF1E293B))),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Icon(Icons.account_balance_wallet_rounded,
-                  color: Color(0xFF0EA5E9)),
-              const SizedBox(width: 8),
-              Text('Monto total: RD\$${_montoTotal.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                      color: Color(0xFF1E293B))),
+              Text(
+                'Resumen del producto',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 17,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 14),
-          if (_productos.length == 1) // 👈 Solo mostrar si hay 1 producto
-            TextFormField(
-              controller: _pagoInicialCtrl,
-              keyboardType: TextInputType.number,
-              decoration: _deco('Pago inicial (opcional)', icon: Icons.price_check),
+
+          // 💰 Ganancia estimada
+          Row(
+            children: [
+              _iconLabel(Icons.trending_up_rounded, 'Ganancia estimada',
+                  'RD\$${_gananciaTotal.toStringAsFixed(0)}',
+                  color: const Color(0xFF2563EB)),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // 💵 Monto total
+          Row(
+            children: [
+              _iconLabel(Icons.account_balance_wallet_rounded, 'Monto total',
+                  'RD\$${_montoTotal.toStringAsFixed(0)}',
+                  color: const Color(0xFF0EA5E9)),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // 💳 Pago inicial
+          TextFormField(
+            controller: _pagoInicialCtrl,
+            keyboardType: TextInputType.number,
+            decoration: _deco('Pago inicial (opcional)',
+                icon: Icons.payments_outlined),
+            onChanged: (_) => setState(() {}), // 👈 recalcula en vivo
+          ),
+          const SizedBox(height: 12),
+
+          // 🧾 Monto restante
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0F9FF),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFBAE6FD)),
             ),
+            child: Row(
+              children: [
+                const Icon(Icons.receipt_long_rounded,
+                    color: Color(0xFF0284C7)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Monto restante: RD\$${montoRestante.toStringAsFixed(0)}',
+                    style: GoogleFonts.poppins(
+                      color: const Color(0xFF0369A1),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
+
+// 🔹 Pequeño helper visual para no repetir estilo
+  Widget _iconLabel(IconData icon, String label, String value,
+      {Color color = Colors.black}) {
+    return Expanded(
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: const Color(0xFF475569),
+                        fontWeight: FontWeight.w500)),
+                Text(value,
+                    style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1E293B))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   Widget _fechaSection() {
     return _tarjeta(
@@ -625,18 +703,26 @@ class _AgregarClienteProductoScreenState
       }).toList(),
 
       // 🔹 Campos financieros
-      'gananciaTotal': _gananciaTotal.toInt(),  // Ganancia esperada
+      'gananciaTotal': _gananciaTotal.toInt(),
       'ganancia': _gananciaTotal.toInt(),
-      'montoTotal': _montoTotal.toInt(),        // 💵 Total que pagará el cliente
+      'montoTotal': _montoTotal.toInt(),
       'pagoInicial': pagoInicial.toInt(),
-      'saldoActual': saldoActual.toInt(),       // 💰 Saldo pendiente
-      'capitalInicial': capital,                // 💼 Tu inversión real
+      'saldoActual': saldoActual.toInt(),
+      'capitalInicial': capital,
       'periodo': widget.initPeriodo ?? 'Mensual',
+
+      // 🔹 Fechas
       'proximaFecha': Timestamp.fromDate(_proximaFecha!),
+      'venceEl': _proximaFecha != null
+          ? "${_proximaFecha!.year}-${_proximaFecha!.month.toString().padLeft(2, '0')}-${_proximaFecha!.day.toString().padLeft(2, '0')}"
+          : null,
+
+      // 🔹 Estado y timestamps
       'estado': saldoActual <= 0 ? 'saldado' : 'al_dia',
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
+
 
     try {
       if (_isEdit && widget.id != null) {
@@ -693,6 +779,31 @@ class _AgregarClienteProductoScreenState
           final clienteData = clienteDoc.data();
           final clienteId = clienteDoc.id;
 
+
+// 🔹 Crear registro de pago inicial en el historial
+          final pagoRef = clientesRef.doc(clienteId).collection('pagos').doc();
+
+          await pagoRef.set({
+            'fecha': FieldValue.serverTimestamp(),
+            'pagoCapital': pagoInicial.toInt(),
+            'pagoInteres': 0,
+            'totalPagado': pagoInicial.toInt(),
+            'saldoAnterior': clienteData['montoTotal'] ?? 0,
+            'saldoNuevo': clienteData['saldoActual'] ?? 0,
+            'moraCobrada': 0,
+            'metodo': 'pago_inicial',
+            'registradoAutomatico': true,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+          // 🔹 Registrar la fecha del primer pago (si aún no existe)
+          await clientesRef.doc(clienteId).set({
+            'primerPago': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+
+
+
           // === Ir al Recibo automáticamente ===
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
@@ -717,6 +828,8 @@ class _AgregarClienteProductoScreenState
                 proximaFecha:
                 (clienteData['proximaFecha'] as Timestamp).toDate(),
                 tasaInteres: 0.0,
+                esPrimerPago: true,
+
               ),
             ),
           );

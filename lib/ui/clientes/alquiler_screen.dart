@@ -4,6 +4,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'clientes_shared.dart';
+import '../adaptive_icons.dart';
+
+
+
 
 class AlquilerScreen extends StatelessWidget {
   final String search;
@@ -180,11 +184,12 @@ class AlquilerScreen extends StatelessWidget {
               onLongPress: () => onLongPressCliente(c),
               child: ClienteCard(
                 cliente: c,
-                estado: EstadoVenc.alDia, // 👈 fuerza que siempre estén “al día”
+                estado: estado, // ✅ usa el valor dinámico calculado arriba
                 diasHasta: _diasHasta(c.proximaFecha),
                 resaltar: resaltarVencimientos,
                 codigoCorto: codigoCorto,
               ),
+
             );
           },
         );

@@ -11,6 +11,8 @@ import 'package:intl/intl.dart';
 
 
 
+
+import '../../core/ads/ads_manager.dart';
 import '../home_screen.dart';
 import '../widgets/charts_common.dart';
 import '../theme/app_theme.dart';
@@ -599,22 +601,61 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                     elevation: 0,
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(28),
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _tabs(),
-                            const SizedBox(height: 12),
-                            if (_tab == 0) (_loadingProfile ? _skeleton() : _perfilContent())
-                            else (_loadingStats ? _skeleton() : _generalContent()),
-                            const SizedBox(height: 16),
-                            if (_tab == 0) _accountActions(),
-                          ],
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 250),
+                        child: _tab == 0
+                            ? Container(
+                          key: const ValueKey('perfil-fijo'),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _tabs(),
+                              const SizedBox(height: 12),
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.topCenter,
+                                  child: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final availableHeight = constraints.maxHeight;
+                                      return ConstrainedBox(
+                                        constraints: BoxConstraints(minHeight: availableHeight),
+                                        child: IntrinsicHeight(
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.max,
+                                            children: [
+                                              _loadingProfile ? _skeleton() : _perfilContent(),
+                                              const Spacer(flex: 2), // 🔹 espacio flexible, no fijo
+                                              _accountActions(),
+
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+
+                            ],
+                          ),
+                        )
+                            : SingleChildScrollView(
+                          key: const ValueKey('resumen-scroll'),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _tabs(),
+                              const SizedBox(height: 12),
+                              _loadingStats ? _skeleton() : _generalContent(),
+                            ],
+                          ),
                         ),
                       ),
+                    )
+
                     ),
-                  ),
                 ),
               ),
             ],
@@ -715,6 +756,8 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
 
 
 
+
+
   // ==== Acciones de cuenta
   Widget _accountActions() {
     return Column(
@@ -739,7 +782,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             child: const Text('Salir'),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         SizedBox(
           width: double.infinity,
           height: 52,
@@ -760,20 +803,36 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   }
 
   Future<void> _confirmDeleteAccount() async {
-    final ok = await showDialog<bool>(
+    final ok = await showGeneralDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Eliminar cuenta'),
-        content: const Text('Esto borrará tus datos y tu usuario. Esta acción no se puede deshacer. ¿Deseas continuar?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancelar')),
-          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Eliminar', style: TextStyle(color: _Brand.softRed))),
-        ],
-      ),
+      barrierLabel: 'Eliminar cuenta',
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.55),
+      transitionDuration: const Duration(milliseconds: 400),
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (context, animation, _, __) {
+        final curved = Curves.easeOutBack.transform(animation.value);
+        return Transform.scale(
+          scale: curved,
+          child: Opacity(
+            opacity: animation.value,
+            child: Center(
+              child: Dialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                backgroundColor: Colors.transparent,
+                child: const _DeleteDialogContent(),
+              ),
+            ),
+          ),
+        );
+      },
     );
-    if (ok != true) return;
-    await _deleteAccount();
+
+    if (ok == true) await _deleteAccount();
   }
+
 
   Future<void> _reauthWithGoogleIfNeeded(User user) async {
     final google = GoogleSignIn();
@@ -908,95 +967,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                   }, SetOptions(merge: true));
                   if (mounted) setState(() {});
                   _toast(v ? 'Bloqueo activado ✅' : 'Bloqueo desactivado');
-                },
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        _card(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _title('Respaldo en la nube'),
-              const SizedBox(height: 6),
-              Text(
-                _backup
-                    ? 'Respaldo: Activado · Última copia: ${_lastBackup == null ? '—' : _fmtFecha(_lastBackup!)} ${_two(_lastBackup?.hour ?? 0)}:${_two(_lastBackup?.minute ?? 0)}'
-                    : 'Respaldo: Desactivado',
-                style: const TextStyle(color: Colors.black87),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () async {
-                        if (_backup) {
-                          _toast('El respaldo ya está activado');
-                          return;
-                        }
-                        _backup = true;
-                        await _docPrest?.set({'settings': {'backupHabilitado': true}}, SetOptions(merge: true));
-                        if (mounted) setState(() {});
-                        _toast('Respaldo activado ✅');
-                      },
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: _Brand.primary),
-                        foregroundColor: _Brand.primary,
-                        shape: const StadiumBorder(),
-                      ),
-                      child: const Text('Activar respaldo'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _backup ? () async => _hacerBackup() : null,
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: _backup ? _Brand.primary : Colors.grey.shade300),
-                        foregroundColor: _backup ? _Brand.primary : Colors.grey,
-                        shape: const StadiumBorder(),
-                      ),
-                      child: const Text('Hacer copia ahora'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: _backup
-                    ? () async {
-                  _backup = false;
-                  _lastBackup = null;
-                  await _docPrest?.set({
-                    'settings': {'backupHabilitado': false},
-                    'lastBackupAt': null
-                  }, SetOptions(merge: true));
-                  if (mounted) setState(() {});
-                  _toast('Respaldo desactivado');
-                }
-                    : null,
-                child: const Text('Desactivar respaldo'),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        _card(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _title('Notificaciones'),
-              const SizedBox(height: 8),
-              _switchRow(
-                title: 'Recordatorios de vencimientos',
-                value: _notif,
-                onChanged: (v) async {
-                  _notif = v;
-                  await _docPrest?.set({'settings': {'notifVenc': v}}, SetOptions(merge: true));
-                  if (mounted) setState(() {});
-                  _toast(v ? 'Recordatorios activados ✅' : 'Recordatorios desactivados');
                 },
               ),
             ],
@@ -1597,16 +1567,32 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     if (_docPrest == null) { _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline); return; }
     Navigator.push(context, MaterialPageRoute(builder: (_) => const PanelPrestamosScreen()));
 
+    // 🔸 Mostrar anuncio automático al entrar
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AdsManager.showOnValuableScreen(context, 'Prestamos');
+    });
+
+
   }
 
   void _openProductos() {
     if (_docPrest == null) { _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline); return; }Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductoEstadisticaScreen()));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AdsManager.showOnValuableScreen(context, 'Productos');
+    });
+
 
   }
 
   void _openAlquiler() {
     if (_docPrest == null) { _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline); return; }
     Navigator.push(context, MaterialPageRoute(builder: (_) => const AlquilerEstadisticaScreen()));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AdsManager.showOnValuableScreen(context, 'Alquiler');
+    });
+
 
   }
 
@@ -1974,4 +1960,146 @@ class _MiniLineChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
+
+// =======================================================
+// 🎨 Banner premium animado de eliminación de cuenta
+// =======================================================
+class _DeleteDialogContent extends StatefulWidget {
+  const _DeleteDialogContent();
+
+  @override
+  State<_DeleteDialogContent> createState() => _DeleteDialogContentState();
+}
+
+class _DeleteDialogContentState extends State<_DeleteDialogContent>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller =
+    AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_Brand.gradTop, _Brand.gradBottom],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 🗑️ Ícono del zafacón con animación suave de entrada
+          ScaleTransition(
+            scale: CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.25),
+                    blurRadius: 15,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.delete_forever_rounded,
+                size: 48,
+                color: Colors.white,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+          Text(
+            'Eliminar cuenta',
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 22,
+              letterSpacing: .3,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Esto borrará todos tus datos y tu usuario.\n'
+                'Esta acción no se puede deshacer.\n¿Deseas continuar?',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              color: Colors.white.withOpacity(.9),
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 26),
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.white.withOpacity(.15),
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text('Cancelar',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: TextButton.styleFrom(
+                    backgroundColor: _Brand.softRed,
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shadowColor: _Brand.softRed,
+                    elevation: 8,
+                  ),
+                  child: const Text('Eliminar',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 

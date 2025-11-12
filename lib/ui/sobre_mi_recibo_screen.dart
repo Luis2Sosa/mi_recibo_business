@@ -1,10 +1,23 @@
-// lib/ui/sobre_mi_recibo_screen.dart
-
+// 📄 lib/ui/sobre_mi_recibo_screen.dart
+import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:animate_do/animate_do.dart';
+import 'dart:async';
+import 'dart:math';
 
-class SobreMiReciboScreen extends StatelessWidget {
+
+class SobreMiReciboScreen extends StatefulWidget {
   const SobreMiReciboScreen({super.key});
+
+  @override
+  State<SobreMiReciboScreen> createState() => _SobreMiReciboScreenState();
+}
+
+class _SobreMiReciboScreenState extends State<SobreMiReciboScreen>
+    with SingleTickerProviderStateMixin {
+
 
   @override
   Widget build(BuildContext context) {
@@ -34,66 +47,99 @@ class SobreMiReciboScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 20),
-                  _header(),
-                  const SizedBox(height: 20),
-                  _intro(),
-                  const SizedBox(height: 16),
-                  _sectionTitle("Rutas principales"),
-                  const SizedBox(height: 10),
-                  _haloCard(
-                    context,
-                    color: const Color(0xFF2563EB),
-                    icon: Icons.request_quote_rounded,
-                    title: "Préstamos",
-                    bullets: const [
-                      "Controla saldo, intereses y fechas (mensual, quincenal, semanal o diario).",
-                      "Registra abonos y genera recibos profesionales listos para WhatsApp.",
-                      "Recordatorios automáticos y renovaciones para no perder el control.",
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  _haloCard(
-                    context,
-                    color: const Color(0xFF22C55E),
-                    icon: Icons.shopping_bag_rounded,
-                    title: "Productos (fiado) y alquiler corto",
-                    bullets: const [
-                      "Vende a crédito y gestiona saldos por cliente.",
-                      "Alquila vehículos o equipos por días o semanas desde esta sección.",
-                      "Alertas de vencimiento y comprobantes listos para WhatsApp.",
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  _haloCard(
-                    context,
-                    color: const Color(0xFFF59E0B),
-                    icon: Icons.house_rounded,
-                    title: "Alquiler de inmuebles (mensual)",
-                    bullets: const [
-                      "Casas, apartamentos, locales o habitaciones con ciclo mensual.",
-                      "Registra pagos y renueva automáticamente.",
-                      "Recordatorios y historial de cada inquilino.",
-                    ],
+
+
+                  const SizedBox(height: 18),
+                  FadeInDown(
+                    duration: const Duration(milliseconds: 800),
+                    child: _header(),
                   ),
                   const SizedBox(height: 20),
-                  _sectionTitle("Para profesionales"),
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 200),
+                    child: _intro(),
+                  ),
+                  const SizedBox(height: 22),
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 300),
+                    child: _sectionTitle("Soy Negocio"),
+                  ),
                   const SizedBox(height: 10),
-                  _haloCard(
-                    context,
-                    color: const Color(0xFF111827),
-                    icon: Icons.build_rounded,
-                    title: "Profesionales y oficios",
-                    bullets: const [
-                      "Crea cotizaciones elegantes y genera recibos en segundos.",
-                      "Registra ingresos y gastos fácilmente desde tu móvil.",
-                      "Comunicación directa con clientes por WhatsApp.",
-                    ],
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 400),
+                    child: _haloCard(
+                      context,
+                      color: const Color(0xFF2563EB),
+                      icon: Icons.request_quote_rounded,
+                      title: "Préstamos",
+                      bullets: const [
+                        "Controla préstamos personales, intereses y fechas de cobro (mensual, quincenal, semanal o diario).",
+                        "Registra abonos y genera recibos profesionales listos para enviar por WhatsApp.",
+                        "Recibe recordatorios automáticos y mantén el control de cada cliente.",
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 500),
+                    child: _haloCard(
+                      context,
+                      color: const Color(0xFF22C55E),
+                      icon: Icons.shopping_bag_rounded,
+                      title:
+                      "Vende tus productos fiado o alquila vehículos y equipos fácilmente",
+                      bullets: const [
+                        "Registra ventas a crédito y controla saldos de pago por cliente.",
+                        "Alquila vehículos, equipos o artículos por días o semanas con total control.",
+                        "Genera recibos profesionales automáticos y alertas de vencimiento.",
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 600),
+                    child: _haloCard(
+                      context,
+                      color: const Color(0xFFF59E0B),
+                      icon: Icons.house_rounded,
+                      title: "Alquiler de inmuebles (mensual)",
+                      bullets: const [
+                        "Gestiona casas, locales, apartamentos o habitaciones con cobros mensuales.",
+                        "Registra pagos, genera recibos profesionales y renueva automáticamente.",
+                        "Consulta historiales y controla fechas de vencimiento fácilmente.",
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 25),
-                  const _BenefitsBlock(),
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 700),
+                    child: _sectionTitle("Soy Trabajador Independiente"),
+                  ),
+                  const SizedBox(height: 10),
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 800),
+                    child: _haloCard(
+                      context,
+                      color: const Color(0xFF111827),
+                      icon: Icons.engineering_rounded,
+                      title: "Profesionales y oficios",
+                      bullets: const [
+                        "Crea cotizaciones elegantes y genera recibos en segundos.",
+                        "Registra ingresos, gastos y controla tus cobros desde tu móvil.",
+                        "Comunícate directamente con tus clientes por WhatsApp.",
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 30),
-                  const _PremiumPanel(),
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 900),
+                    child: const _BenefitsBlock(),
+                  ),
+                  const SizedBox(height: 30),
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 1000),
+                    child: const _PremiumPanel(),
+                  ),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -135,9 +181,9 @@ class SobreMiReciboScreen extends StatelessWidget {
         ],
       ),
       child: Text(
-        "Mi Recibo Business organiza tu cartera de clientes para préstamos, productos fiados y alquileres. "
-            "Genera recibos profesionales, envía recordatorios por WhatsApp y consulta historiales en segundos.\n\n"
-            "Importante: la app NO mueve dinero; es una herramienta de control y seguimiento pensada para el día a día.",
+        "Mi Recibo Business es una herramienta profesional diseñada para gestionar clientes, pagos y recibos con la máxima eficiencia. "
+            "Permite controlar préstamos, productos y alquileres, generar recibos automáticos y mantener un historial completo de cada cliente.\n\n"
+            "La aplicación no mueve dinero ni realiza transacciones bancarias: su propósito es ayudarte a llevar el control financiero de tu negocio y mostrar una imagen profesional ante tus clientes.",
         style: GoogleFonts.inter(
           color: Colors.white,
           fontWeight: FontWeight.w600,
@@ -294,13 +340,13 @@ class _BenefitsBlock extends StatelessWidget {
           _BenefitRow(
             icon: Icons.alarm_rounded,
             text:
-            'Recordatorios por tipo (préstamo, productos/fiado y alquiler) con mensajes claros.',
+            'Recordatorios automáticos por tipo (préstamo, productos/fiado y alquiler).',
           ),
           SizedBox(height: 10),
           _BenefitRow(
             icon: Icons.analytics_rounded,
             text:
-            'Historial por cliente, control de renovaciones y métricas básicas.',
+            'Panel de control visual con métricas simples y efectivas.',
           ),
           SizedBox(height: 12),
           _FooterQuote(),
@@ -381,7 +427,6 @@ class _PremiumPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // 🏅 Icono Premium elegante con borde dorado
           Container(
             width: 90,
             height: 90,
@@ -393,10 +438,7 @@ class _PremiumPanel extends StatelessWidget {
             child: const Icon(Icons.workspace_premium_rounded,
                 color: Colors.white, size: 48),
           ),
-
           const SizedBox(height: 16),
-
-          // ✨ Título principal
           Text(
             'Mi Recibo Business Premium',
             textAlign: TextAlign.center,
@@ -406,49 +448,40 @@ class _PremiumPanel extends StatelessWidget {
               fontSize: 20,
             ),
           ),
-
           const SizedBox(height: 8),
           Text(
             'Por solo US\$0.99 al mes',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
-              color: const Color(0xFFE0B85A),
+              color: Color(0xFFE0B85A),
               fontWeight: FontWeight.bold,
               fontSize: 15,
             ),
           ),
-
           const SizedBox(height: 22),
-
-          // 📈 Beneficios resumidos
           _benefit(
             icon: Icons.bar_chart_rounded,
-            color: const Color(0xFF2563EB),
+            color: Color(0xFF2563EB),
             text:
             'Consulta tus ganancias totales y divididas por categoría: préstamos, productos y alquileres.',
           ),
           const SizedBox(height: 14),
-
           _benefit(
             icon: Icons.auto_awesome_rounded,
-            color: const Color(0xFF10B981),
+            color: Color(0xFF10B981),
             text:
-            'Recibe estrategias diarias exclusivas con el Potenciador Premium.',
+            'Accede al Potenciador Premium con estrategias financieras y lecturas diarias.',
           ),
           const SizedBox(height: 14),
-
           _benefit(
             icon: Icons.shield_rounded,
-            color: const Color(0xFF8B5CF6),
+            color: Color(0xFF8B5CF6),
             text:
-            'Acceso sin anuncios y con soporte técnico prioritario para profesionales.',
+            'Disfruta de la app sin anuncios y con soporte técnico prioritario.',
           ),
-
           const SizedBox(height: 26),
-
-          // 🧠 Frase final inspiradora
           Text(
-            'Haz crecer tu negocio con herramientas premium diseñadas para emprendedores reales.',
+            'Convierte tu gestión diaria en crecimiento real con herramientas premium diseñadas para profesionales.',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               color: Colors.white.withOpacity(0.85),
@@ -461,7 +494,6 @@ class _PremiumPanel extends StatelessWidget {
     );
   }
 
-  // Widget para ítems de beneficios
   static Widget _benefit({
     required IconData icon,
     required Color color,
@@ -494,6 +526,3 @@ class _PremiumPanel extends StatelessWidget {
     );
   }
 }
-
-
-

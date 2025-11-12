@@ -557,7 +557,13 @@ class _AgregarClienteAlquilerScreenState
       'tipo': 'alquiler',
       'esArriendo': true,
       'periodo': 'Mensual',
+
+      // 🔹 Fechas
       'proximaFecha': Timestamp.fromDate(_proximaFecha!),
+      'venceEl': _proximaFecha != null
+          ? "${_proximaFecha!.year}-${_proximaFecha!.month.toString().padLeft(2, '0')}-${_proximaFecha!.day.toString().padLeft(2, '0')}"
+          : null,
+
       'mora': _moraEnabled
           ? {
         'tipo': _moraTipo,
@@ -572,6 +578,7 @@ class _AgregarClienteAlquilerScreenState
       'updatedAt': FieldValue.serverTimestamp(),
       'estado': 'al_dia',
     };
+
 
     try {
       if (_isEdit && widget.id != null) {

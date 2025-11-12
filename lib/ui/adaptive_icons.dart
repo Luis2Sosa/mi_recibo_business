@@ -56,3 +56,34 @@ IconData _iosIconForMaterial(IconData md) {
   if (md == Icons.add_rounded) return CupertinoIcons.add;
   return CupertinoIcons.circle; // Fallback genérico
 }
+
+// =====================================================
+// COLORES ADAPTATIVOS POR MÓDULO (ajuste final)
+// =====================================================
+Color colorForModule(String tipoRaw) {
+  if (tipoRaw.isEmpty) return const Color(0xFF2563EB); // préstamo = azul
+
+  final tipo = tipoRaw
+      .toLowerCase()
+      .replaceAll(RegExp(r'[áàäâ]'), 'a')
+      .replaceAll(RegExp(r'[éèëê]'), 'e')
+      .replaceAll(RegExp(r'[íìïî]'), 'i')
+      .replaceAll(RegExp(r'[óòöô]'), 'o')
+      .replaceAll(RegExp(r'[úùüû]'), 'u');
+
+  // 🟠 ALQUILER → naranja
+  if (tipo.contains('alquiler') ||
+      tipo.contains('renta') ||
+      tipo.contains('casa') ||
+      tipo.contains('apart') ||
+      tipo.contains('habitacion')) {
+    return const Color(0xFFF59E0B);
+  }
+
+  // 🟢 PRODUCTO → verde (todo lo demás que no sea alquiler)
+  return const Color(0xFF10B981);
+}
+
+
+
+

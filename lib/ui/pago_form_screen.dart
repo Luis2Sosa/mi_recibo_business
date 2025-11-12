@@ -20,6 +20,8 @@ class PagoFormScreen extends StatefulWidget {
   // 👇 Monto de mora vigente al momento de cobrar (solo productos/alquiler)
   final int moraActual;
   final bool autoFecha; // 👈 NUEVO: controla si la fecha es automática
+  final List<dynamic> productosLista; // 👈 NUEVO
+
 
   const PagoFormScreen({
     super.key,
@@ -32,6 +34,8 @@ class PagoFormScreen extends StatefulWidget {
     this.producto = '',
     this.moraActual = 0,
     this.autoFecha = true,
+    this.productosLista = const [], // 👈 NUEVO
+
   });
 
   @override
@@ -150,9 +154,16 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
 
   String? get _errorCapital {
     if (_pagoCapital <= 0) return 'Requerido: ingresa capital > 0';
-    if (_pagoCapital > widget.saldoAnterior) {
-      return 'Máximo ${_formatCurrency(widget.saldoAnterior)}';
+
+    // ✅ Nuevo: el máximo ahora incluye también el interés, pero solo si es préstamo
+    final montoMaximo = widget.esPrestamo
+        ? widget.saldoAnterior + _pagoInteres
+        : widget.saldoAnterior;
+
+    if (_pagoCapital > montoMaximo) {
+      return 'Máximo ${_formatCurrency(montoMaximo)}';
     }
+
     return null;
   }
 
@@ -726,10 +737,18 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                           widget.moraActual)),
 
                                                 // 📦 Producto o detalle
-                                                if (widget.producto.isNotEmpty)
-                                                  _filaResumen('Producto',
-                                                      widget.producto
-                                                          .capitalize()),
+                                                if (widget.productosLista.isNotEmpty)
+                                                  _filaResumen(
+                                                    'Productos',
+                                                    widget.productosLista
+                                                        .map((p) => p is Map ? p['nombre'].toString() : p.toString())
+                                                        .take(4)
+                                                        .join(' / ')
+                                                        .capitalize(),
+                                                  )
+                                                else if (widget.producto.isNotEmpty)
+                                                  _filaResumen('Producto', widget.producto.capitalize()),
+
 
                                                 // 🗓️ Próxima fecha (automática)
                                                 _filaResumen('Próxima fecha',

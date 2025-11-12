@@ -128,7 +128,7 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
                         const Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            "💰 Ganancias por préstamo",
+                            "💰 Ganancias por cliente",
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w900,
@@ -354,7 +354,7 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
                   color: Colors.lightBlueAccent, size: 20),
               const SizedBox(width: 8),
               Text(
-                "Ganancia total: \$${e.ganancia}",
+                "Ganancia estimada: \$${e.ganancia}",
                 style: GoogleFonts.inter(
                   color: Colors.lightBlueAccent,
                   fontWeight: FontWeight.w600,

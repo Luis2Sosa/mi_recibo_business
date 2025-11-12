@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';   // 👈 Firestore
 import 'package:firebase_auth/firebase_auth.dart';      // 👈 UID
 import 'package:intl/intl.dart';                        // 👈 Formato moneda pro
+import '../core/ads/ads_manager.dart';
 import 'pago_form_screen.dart';
 import 'recibo_screen.dart';
 import 'historial_screen.dart';
@@ -547,6 +548,17 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   }
 
   Future<void> _registrarPagoFlow(BuildContext context) async {
+    // 🔹 Antes de abrir el formulario, obtener la lista de productos desde Firestore
+    final snap = await FirebaseFirestore.instance
+        .collection('prestamistas')
+        .doc(FirebaseAuth.instance.currentUser?.uid)
+        .collection('clientes')
+        .doc(widget.id)
+        .get();
+
+    final data = snap.data() ?? {};
+    final productosLista = data['productos'] ?? [];
+
     final result = await Navigator.push<Map?>(
       context,
       MaterialPageRoute(
@@ -556,14 +568,15 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           periodo: widget.periodo,
           proximaFecha: _proximaFecha,
           esPrestamo: _esPrestamo,
-          nombreCliente: widget.nombreCompleto, // ← izquierda
-          producto: widget.producto,           // ← para decidir Producto/Arriendo
-          moraActual: _moraAcumulada,          // 👈 pasa la mora al formulario
-          autoFecha: _autoFecha, // 👈 NUEVO: respeta el flag del cliente
-
+          nombreCliente: widget.nombreCompleto,
+          producto: widget.producto,
+          moraActual: _moraAcumulada,
+          autoFecha: _autoFecha,
+          productosLista: productosLista, // 👈 NUEVO: pasa lista real de Firestore
         ),
       ),
     );
+
     if (result == null) return;
 
     final int pagoInteres   = result['pagoInteres']   as int? ?? 0;
@@ -621,7 +634,13 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           cliente: widget.nombreCompleto,
           telefonoCliente: widget.telefono,
           numeroRecibo: numeroRecibo,
-          producto: widget.producto,
+          producto: (productosLista is List && productosLista.isNotEmpty)
+              ? productosLista
+              .map((p) => p is Map<String, dynamic> ? (p['nombre'] ?? p.toString()) : p.toString())
+              .join(' / ')
+              : widget.producto,
+
+
           tipoProducto: widget.tipoProducto,
           vehiculoTipo: widget.vehiculoTipo,
           fecha: DateTime.now(),
@@ -774,6 +793,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
   Future<void> _enviarPorWhatsApp(String telefono, String mensaje) async {
     final normalized = _normalizarParaWhatsapp(telefono);
+
+
     if (normalized == null) {
       if (!mounted) return;
       _showToastPremium(
@@ -808,6 +829,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       _showToastPremium('Error al intentar abrir WhatsApp.');
     }
   }
+
 
   String _mensajeRecordatorio(String tipo) {
     final nombre = widget.nombreCompleto;
@@ -1335,8 +1357,38 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                               const Divider(height: 16, thickness: 0.8, color: Color(0xFFE2E8F0)),
                                             ],
 
-                                            if (widget.producto.trim().isNotEmpty)
-                                              _filaInfo(_iconoProducto(), widget.producto, const Color(0xFF7C3AED)),
+                                            FutureBuilder<DocumentSnapshot>(
+                                              future: FirebaseFirestore.instance
+                                                  .collection('prestamistas')
+                                                  .doc(FirebaseAuth.instance.currentUser?.uid)
+                                                  .collection('clientes')
+                                                  .doc(widget.id)
+                                                  .get(),
+                                              builder: (context, snapshot) {
+                                                if (!snapshot.hasData) {
+                                                  return _filaInfo(_iconoProducto(), widget.producto, const Color(0xFF7C3AED));
+                                                }
+
+                                                final data = snapshot.data!.data() as Map<String, dynamic>?;
+                                                final productos = data?['productos'];
+
+                                                String productosTexto = '';
+                                                if (productos is List && productos.isNotEmpty) {
+                                                  // 🟢 solo mostrar nombres, sin precios ni mapas
+                                                  final nombres = productos.map((p) {
+                                                    if (p is Map && p.containsKey('nombre')) return p['nombre'].toString();
+                                                    return p.toString();
+                                                  }).toList();
+
+                                                  productosTexto = nombres.take(4).join(' / ');
+                                                } else {
+                                                  productosTexto = widget.producto;
+                                                }
+
+                                                return _filaInfo(_iconoProducto(), productosTexto, const Color(0xFF7C3AED));
+                                              },
+                                            ),
+
                                           ],
                                         ),
                                       ),

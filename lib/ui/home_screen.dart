@@ -6,6 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mi_recibo/ui/sobre_mi_recibo_screen.dart';
 
+import '../core/ads/ads_manager.dart';
 import 'prestamista_registro_screen.dart';
 import 'clientes/clientes_screen.dart';
 import 'pin_screen.dart'; // Gate de PIN/huella
@@ -238,6 +239,17 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) setState(() => _cargando = false);
     }
   }
+
+  @override
+  void initState() {
+    super.initState();
+
+    // ✅ Inicia el sistema de anuncios diarios (mañana, tarde y noche)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AdsManager.handleDailyAd(context);
+    });
+  }
+
 
   @override
   Widget build(BuildContext context) {

@@ -141,7 +141,7 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
                         const Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            "💰 Ganancias por alquiler",
+                            "💰 Ganancias por cliente",
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w900,
