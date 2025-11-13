@@ -545,7 +545,7 @@ class _AgregarClientePrestamoScreenState
 
 
 
-      // 🔹 Fechas
+      // 🔹 Fechas //
       'proximaFecha': Timestamp.fromDate(_atNoon(_proximaFecha!)),
       'venceEl': _proximaFecha != null
           ? "${_proximaFecha!.year}-${_proximaFecha!.month.toString().padLeft(2, '0')}-${_proximaFecha!.day.toString().padLeft(2, '0')}"
