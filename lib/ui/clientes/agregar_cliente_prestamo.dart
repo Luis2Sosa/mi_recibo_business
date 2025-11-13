@@ -542,15 +542,22 @@ class _AgregarClientePrestamoScreenState
       'saldoActual': capital,
       'tasaInteres': tasa,
       'periodo': _periodo,
+
+
+
+      // 🔹 Fechas
       'proximaFecha': Timestamp.fromDate(_atNoon(_proximaFecha!)),
       'venceEl': _proximaFecha != null
           ? "${_proximaFecha!.year}-${_proximaFecha!.month.toString().padLeft(2, '0')}-${_proximaFecha!.day.toString().padLeft(2, '0')}"
           : null,
+
+
+      // 🔹 Estado & Metadata
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
-      'estado': capital == 0 ? 'saldado' : 'al_dia',
       'tipo': 'prestamo',
     };
+
 
 
     try {

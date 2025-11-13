@@ -680,8 +680,8 @@ class _AgregarClienteProductoScreenState
     final capital = capitalInvertido.toInt();
 
     // ========================================
-    // 🔹 Datos principales del cliente
-    // ========================================
+// 🔹 Datos principales del cliente
+// ========================================
     final data = {
       'tipo': 'producto',
       'nombre': _nombreCtrl.text.trim(),
@@ -697,8 +697,10 @@ class _AgregarClienteProductoScreenState
       'productos': _productos.map((p) {
         return {
           'nombre': p['nombre']!.text.trim(),
-          'precioBase': (double.tryParse(p['precioBase']!.text) ?? 0).toInt(),
-          'precioCliente': (double.tryParse(p['precioCliente']!.text) ?? 0).toInt(),
+          'precioBase':
+          (double.tryParse(p['precioBase']!.text) ?? 0).toInt(),
+          'precioCliente':
+          (double.tryParse(p['precioCliente']!.text) ?? 0).toInt(),
         };
       }).toList(),
 
@@ -709,19 +711,29 @@ class _AgregarClienteProductoScreenState
       'pagoInicial': pagoInicial.toInt(),
       'saldoActual': saldoActual.toInt(),
       'capitalInicial': capital,
-      'periodo': widget.initPeriodo ?? 'Mensual',
+
+
 
       // 🔹 Fechas
-      'proximaFecha': Timestamp.fromDate(_proximaFecha!),
+      // 🔹 Fechas (MEDIODÍA PARA NOTIFICACIONES CORRECTAS)
+      'proximaFecha': Timestamp.fromDate(
+        DateTime(
+          _proximaFecha!.year,
+          _proximaFecha!.month,
+          _proximaFecha!.day,
+          12, // 🔥 Siempre mediodía
+        ),
+      ),
       'venceEl': _proximaFecha != null
           ? "${_proximaFecha!.year}-${_proximaFecha!.month.toString().padLeft(2, '0')}-${_proximaFecha!.day.toString().padLeft(2, '0')}"
           : null,
 
+
       // 🔹 Estado y timestamps
-      'estado': saldoActual <= 0 ? 'saldado' : 'al_dia',
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
+
 
 
     try {

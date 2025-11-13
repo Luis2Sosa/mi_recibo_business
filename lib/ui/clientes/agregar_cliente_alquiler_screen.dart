@@ -559,10 +559,14 @@ class _AgregarClienteAlquilerScreenState
       'periodo': 'Mensual',
 
       // 🔹 Fechas
-      'proximaFecha': Timestamp.fromDate(_proximaFecha!),
+      'proximaFecha': Timestamp.fromDate(
+        DateTime(_proximaFecha!.year, _proximaFecha!.month, _proximaFecha!.day, 12),
+      ),
+
       'venceEl': _proximaFecha != null
           ? "${_proximaFecha!.year}-${_proximaFecha!.month.toString().padLeft(2, '0')}-${_proximaFecha!.day.toString().padLeft(2, '0')}"
           : null,
+
 
       'mora': _moraEnabled
           ? {
@@ -574,10 +578,11 @@ class _AgregarClienteAlquilerScreenState
         ],
       }
           : null,
+
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
-      'estado': 'al_dia',
     };
+
 
 
     try {
