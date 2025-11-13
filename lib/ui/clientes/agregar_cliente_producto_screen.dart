@@ -322,7 +322,7 @@ class _AgregarClienteProductoScreenState
               // ➕ Agregar producto
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: _agregarProducto,
+                  onPressed: (_productos.length >= 3) ? null : _agregarProducto,
                   icon: const Icon(Icons.add_rounded, color: Colors.white),
                   label: const Text(
                     'Agregar producto',

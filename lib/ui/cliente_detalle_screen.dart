@@ -1365,6 +1365,11 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                                   .doc(widget.id)
                                                   .get(),
                                               builder: (context, snapshot) {
+                                                // 👉 Si es PRÉSTAMO, no mostrar ícono ni línea de producto
+                                                if (_esPrestamo) {
+                                                  return const SizedBox.shrink();
+                                                }
+
                                                 if (!snapshot.hasData) {
                                                   return _filaInfo(_iconoProducto(), widget.producto, const Color(0xFF7C3AED));
                                                 }
@@ -1374,7 +1379,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
                                                 String productosTexto = '';
                                                 if (productos is List && productos.isNotEmpty) {
-                                                  // 🟢 solo mostrar nombres, sin precios ni mapas
                                                   final nombres = productos.map((p) {
                                                     if (p is Map && p.containsKey('nombre')) return p['nombre'].toString();
                                                     return p.toString();
@@ -1388,6 +1392,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                                 return _filaInfo(_iconoProducto(), productosTexto, const Color(0xFF7C3AED));
                                               },
                                             ),
+
 
                                           ],
                                         ),
