@@ -1,5 +1,3 @@
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,9 +9,7 @@ import 'package:mi_recibo/ui/sobre_mi_recibo_screen.dart';
 import '../core/ads/ads_manager.dart';
 import 'prestamista_registro_screen.dart';
 import 'clientes/clientes_screen.dart';
-import 'pin_screen.dart';
-
-
+import 'pin_screen.dart'; // Gate de PIN/huella
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,13 +19,16 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  // ===== Layout consts =====
   static const double logoTop = -50;
   static const double logoSize = 400;
-  static const double sloganTop = 230;
+  static const double sloganTop = 205;
   static const double buttonsTop = 420;
 
+  // ===== State =====
   bool _cargando = false;
 
+  // ===== Utils =====
   void _showSnack(String msg) {
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
@@ -52,35 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {}
   }
 
-  // ============================================================
-  // 🔥 LOGIN GOOGLE UNIFICADO (WEB + ANDROID + iOS)
-  // ============================================================
-  Future<UserCredential> _loginConGoogleUnificado() async {
-    // 🌐 WEB
-    if (kIsWeb) {
-      try {
-        print("🔥 Iniciando Google Sign-In en Web…");
-
-        // Método oficial para Flutter Web
-        final provider = GoogleAuthProvider();
-
-        // Forzar siempre elegir la cuenta
-        provider.setCustomParameters({
-          'prompt': 'select_account',
-        });
-
-        final cred = await FirebaseAuth.instance.signInWithPopup(provider);
-
-        print("🔥 Usuario Web: ${cred.user?.email}");
-        return cred;
-
-      } catch (e) {
-        print("❌ Error Web Google Sign-In: $e");
-        throw const _UiFriendlyAuthError("Error iniciando sesión en la Web.");
-      }
-    }
-
-    // 📱 ANDROID / iOS
+  Future<UserCredential> _loginConGoogle() async {
     await _googleSignOutSilently();
 
     final google = GoogleSignIn();
@@ -90,19 +61,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     final googleAuth = await googleUser.authentication;
-
     final credential = GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
-
     return await FirebaseAuth.instance.signInWithCredential(credential);
   }
-
-
-
-
-
 
   String _mapAuthError(Object e) {
     if (e is _UiFriendlyAuthError) return e.message;
@@ -115,12 +79,14 @@ class _HomeScreenState extends State<HomeScreen> {
         case 'user-disabled':
           return 'Tu cuenta está deshabilitada.';
         case 'invalid-credential':
-          return 'Credenciales inválidas.';
+          return 'Credenciales inválidas. Intenta de nuevo.';
+        case 'operation-not-allowed':
+          return 'Método de acceso no habilitado.';
         default:
           return 'No se pudo iniciar sesión. (${e.code})';
       }
     }
-    return 'Ocurrió un error.';
+    return 'Ocurrió un error. Intenta de nuevo.';
   }
 
   Future<void> _persistirMetadatos(User user) async {
@@ -132,18 +98,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }, SetOptions(merge: true));
   }
 
-  // ============================================================
-  // 🔥 MANEJAR LOGIN PRESTAMISTA (UNIFICADO)
-  // ============================================================
+  // ===== Login de Prestamista (Soy Negocio) =====
   Future<void> _manejarLoginPrestamista() async {
     if (_cargando) return;
     HapticFeedback.lightImpact();
     setState(() => _cargando = true);
 
     try {
-      final cred = await _loginConGoogleUnificado();
-      final user = cred.user ?? FirebaseAuth.instance.currentUser;
-
+      final cred = await _loginConGoogle();
+      final user = cred.user;
       if (user == null) {
         throw const _UiFriendlyAuthError('No se pudo obtener el usuario.');
       }
@@ -153,6 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (!mounted) return;
 
+      // DATOS NOMBRE COMPLETO
       final nombreCompleto = (user.displayName ?? '').trim();
       String? nombre;
       String? apellido;
@@ -162,6 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
         apellido = p.length > 1 ? p.sublist(1).join(' ') : null;
       }
 
+      // SI NO EXISTE → REGISTRO
       if (!snap.exists) {
         Navigator.push(
           context,
@@ -183,6 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final settings = (data['settings'] as Map?) ?? {};
       final String telefono = (data['telefono'] ?? '').toString().trim();
 
+      // INCOMPLETO → REGISTRO
       if (telefono.isEmpty) {
         Navigator.push(
           context,
@@ -200,11 +166,14 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
+      // COMPLETO → GUARDAR META
       await _persistirMetadatos(user);
 
+      // PIN / HUELLITA
       final bool lockEnabled = settings['lockEnabled'] == true;
       final bool pinEnabled = settings['pinEnabled'] == true;
       final String? pinCode = (settings['pinCode'] as String?)?.trim();
+
       final bool requiereGate = lockEnabled || (pinEnabled && pinCode != null && pinCode.isNotEmpty);
 
       if (requiereGate) {
@@ -250,6 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         body: Stack(
           children: [
+            // Fondo
             Container(
               width: double.infinity,
               height: double.infinity,
@@ -262,11 +232,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // 🧱 TODO EL RESTO SIN CAMBIAR (IGUALITO COMO LO TENÍAS)
-            // ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
-            // — solo se cambió login — nada visual —
-            // ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
-
+            // CONTENIDO PRINCIPAL
             SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -275,88 +241,99 @@ class _HomeScreenState extends State<HomeScreen> {
                   final topSlogan = isSmall ? 220.0 : sloganTop;
                   final topButtons = isSmall ? 420.0 : buttonsTop;
 
-                  return Stack(children: [
-                    Positioned(
-                      top: topLogo,
-                      left: 0,
-                      right: 0,
-                      child: const IgnorePointer(
-                        child: Center(
-                          child: Image(
-                            image: AssetImage('assets/images/logoB.png'),
-                            height: logoSize,
-                            fit: BoxFit.contain,
+                  return Stack(
+                    children: [
+                      // LOGO
+                      Positioned(
+                        top: topLogo,
+                        left: 0,
+                        right: 0,
+                        child: const IgnorePointer(
+                          child: Center(
+                            child: Image(
+                              image: AssetImage('assets/images/logoB.png'),
+                              height: logoSize,
+                              fit: BoxFit.contain,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      top: topSlogan,
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 340),
-                          child: Text(
-                            'Más que un recibo, la gestión que tu negocio merece',
-                            style: GoogleFonts.playfairDisplay(
-                              textStyle: const TextStyle(
-                                fontSize: 25,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: topButtons,
-                      left: 24,
-                      right: 24,
-                      child: Column(
-                        children: [
-                          _googleButton(
-                            labelIdle: 'Soy Negocio',
-                            loading: _cargando,
-                            onTap: _cargando ? null : _manejarLoginPrestamista,
-                          ),
-                          const SizedBox(height: 28),
-                          Text(
-                            'Gestión inteligente para tu negocio',
-                            style: GoogleFonts.playfairDisplay(
-                              textStyle: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.white,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          SizedBox(
-                            height: MediaQuery.of(context).size.width > 600 ? 320 : 200,
-                          ),
-                          _aboutButton(context),
-                        ],
-                      ),
-                    ),
 
-                    if (_cargando)
-                      Positioned.fill(
-                        child: AbsorbPointer(
-                          absorbing: true,
-                          child: Container(
-                            color: Colors.black.withOpacity(0.25),
-                            child: const Center(
-                              child: CircularProgressIndicator(color: Colors.white),
+                      // ESLOGAN
+                      Positioned(
+                        top: topSlogan,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 340),
+                            child: Text(
+                              'Más que un recibo, la gestión que tu negocio merece',
+                              style: GoogleFonts.playfairDisplay(
+                                textStyle: const TextStyle(
+                                  fontSize: 25,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                              textAlign: TextAlign.center,
                             ),
                           ),
                         ),
                       ),
-                  ]);
+
+                      // BOTONES
+                      Positioned(
+                        top: topButtons,
+                        left: 24,
+                        right: 24,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _googleButton(
+                              labelIdle: 'Soy Negocio',
+                              loading: _cargando,
+                              onTap: _cargando ? null : _manejarLoginPrestamista,
+                            ),
+
+                            const SizedBox(height: 28),
+
+                            Text(
+                              'Gestión inteligente para tu negocio',
+                              style: GoogleFonts.playfairDisplay(
+                                textStyle: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+
+                            const SizedBox(height: 200),
+
+                            _aboutButton(context),
+                          ],
+                        ),
+                      ),
+
+                      // Overlay de carga
+                      if (_cargando)
+                        Positioned.fill(
+                          child: AbsorbPointer(
+                            absorbing: true,
+                            child: Container(
+                              color: Colors.black.withOpacity(0.25),
+                              child: const Center(
+                                child: CircularProgressIndicator(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
                 },
               ),
             ),
@@ -371,36 +348,32 @@ class _HomeScreenState extends State<HomeScreen> {
     required bool loading,
     required VoidCallback? onTap,
   }) {
-    final isWeb = MediaQuery.of(context).size.width > 600;
-
-    return Center(
-      child: SizedBox(
-        width: isWeb ? 420 : double.infinity,
-        height: 60,
-        child: ElevatedButton(
-          onPressed: onTap,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFFFFFFF),
-            foregroundColor: const Color(0xff4285F4),
-            shape: const StadiumBorder(),
-            elevation: 6,
-            shadowColor: Colors.black.withOpacity(0.25),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Image.asset('assets/images/google_logo.png', height: 24, width: 24),
-              const SizedBox(width: 12),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                child: Text(
-                  loading ? 'Entrando…' : labelIdle,
-                  key: ValueKey(loading ? 'loading' : 'idle-$labelIdle'),
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
+    return SizedBox(
+      width: double.infinity,
+      height: 60,
+      child: ElevatedButton(
+        onPressed: onTap,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFFFFFFF),
+          foregroundColor: const Color(0xff4285F4),
+          shape: const StadiumBorder(),
+          elevation: 6,
+          shadowColor: Colors.black.withOpacity(0.25),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset('assets/images/google_logo.png', height: 24, width: 24),
+            const SizedBox(width: 12),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: Text(
+                loading ? 'Entrando…' : labelIdle,
+                key: ValueKey(loading ? 'loading' : 'idle-$labelIdle'),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -413,7 +386,7 @@ class _HomeScreenState extends State<HomeScreen> {
         height: 48,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: const Color(0xFF0F2A45),
+            color: const Color(0xFF0F2A45), // ⭐ Azul petróleo igual al logo
             borderRadius: BorderRadius.circular(30),
             boxShadow: [
               BoxShadow(
@@ -441,7 +414,11 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: const [
-                Icon(Icons.info_outline_rounded, color: Colors.white, size: 20),
+                Icon(
+                  Icons.info_outline_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
                 SizedBox(width: 10),
                 Text(
                   'Sobre Mi Recibo Business',
@@ -458,11 +435,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
 }
 
 class _UiFriendlyAuthError implements Exception {
   final String message;
   const _UiFriendlyAuthError(this.message);
 }
-
-

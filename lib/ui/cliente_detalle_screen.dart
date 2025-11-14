@@ -812,12 +812,22 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     try {
       if (await canLaunchUrl(uriApp)) {
         final ok = await launchUrl(uriApp, mode: LaunchMode.externalApplication);
-        if (ok) return;
+        if (ok) {
+          // ⭐ MOSTRAR ANUNCIO DESPUÉS DEL ENVÍO ⭐
+          await AdsManager.showAfterWhatsApp(context, 'recordatorio');
+          return;
+        }
       }
+
       if (await canLaunchUrl(uriBiz)) {
         final ok = await launchUrl(uriBiz, mode: LaunchMode.externalApplication);
-        if (ok) return;
+        if (ok) {
+          // ⭐ MOSTRAR ANUNCIO DESPUÉS DEL ENVÍO ⭐
+          await AdsManager.showAfterWhatsApp(context, 'recordatorio');
+          return;
+        }
       }
+
       if (await canLaunchUrl(uriWeb)) {
         await launchUrl(uriWeb, mode: LaunchMode.externalApplication);
         return;

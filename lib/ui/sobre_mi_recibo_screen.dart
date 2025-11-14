@@ -108,6 +108,8 @@ class _SobreMiReciboScreenState extends State<SobreMiReciboScreen>
                     ),
                   ),
 
+                  // 🔥 SIN SECCIÓN “SOY TRABAJADOR INDEPENDIENTE”
+
                   const SizedBox(height: 35),
                   FadeInUp(
                     delay: const Duration(milliseconds: 700),
@@ -146,43 +148,37 @@ class _SobreMiReciboScreenState extends State<SobreMiReciboScreen>
   }
 
   Widget _intro() {
-    final isWeb = MediaQuery.of(context).size.width > 600;
-
-    return Center(
-      child: Container(
-        width: isWeb ? 900 : double.infinity,
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.25)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.25),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Text(
-          "Mi Recibo Business es una herramienta profesional diseñada para gestionar clientes, pagos y recibos con la máxima eficiencia. "
-              "Permite controlar préstamos, productos y alquileres, generar recibos automáticos y mantener un historial completo de cada cliente.\n\n"
-              "La aplicación no mueve dinero ni realiza transacciones bancarias: su propósito es ayudarte a llevar el control financiero de tu negocio y mostrar una imagen profesional ante tus clientes.",
-          textAlign: TextAlign.center,
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-            fontSize: isWeb ? 18 : 15.5,
-            height: 1.55,
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.25)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           ),
+        ],
+      ),
+      child: Text(
+        "Mi Recibo Business es una herramienta profesional diseñada para gestionar clientes, pagos y recibos con la máxima eficiencia. "
+            "Permite controlar préstamos, productos y alquileres, generar recibos automáticos y mantener un historial completo de cada cliente.\n\n"
+            "La aplicación no mueve dinero ni realiza transacciones bancarias: su propósito es ayudarte a llevar el control financiero de tu negocio y mostrar una imagen profesional ante tus clientes.",
+        textAlign: TextAlign.center,   // 👈 ESTA ES LA CLAVE
+        style: GoogleFonts.inter(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+          fontSize: 15.5,
+          height: 1.5,
         ),
       ),
+
     );
   }
 
   Widget _sectionTitle(String text) {
-    final isWeb = MediaQuery.of(context).size.width > 600;
-
     return Center(
       child: Text(
         text,
@@ -190,14 +186,13 @@ class _SobreMiReciboScreenState extends State<SobreMiReciboScreen>
         style: GoogleFonts.poppins(
           color: Colors.white,
           fontWeight: FontWeight.w900,
-          fontSize: isWeb ? 30 : 22, // 👈 WEB MÁS GRANDE, MÓVIL IGUAL
+          fontSize: 22,
         ),
       ),
     );
   }
 
 
-  // TARJETA CON AJUSTE DEL ICONO MÁS ABAJO 👇
   Widget _haloCard(
       BuildContext context, {
         required Color color,
@@ -205,13 +200,13 @@ class _SobreMiReciboScreenState extends State<SobreMiReciboScreen>
         required String title,
         required List<String> bullets,
       }) {
-    final isWeb = MediaQuery.of(context).size.width > 600;
+
     final bg = color.withOpacity(.25);
     final border = color.withOpacity(.55);
     final chipBg = color.withOpacity(.22);
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(22),
@@ -224,84 +219,76 @@ class _SobreMiReciboScreenState extends State<SobreMiReciboScreen>
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment:
-        isWeb ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            textAlign: isWeb ? TextAlign.center : TextAlign.left,
-            style: GoogleFonts.poppins(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: 19,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          for (final b in bullets) ...[
-            Row(
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment:
-              isWeb ? MainAxisAlignment.center : MainAxisAlignment.start,
               children: [
-                Container(
-                  width: 20,
-                  height: 20,
-                  margin: const EdgeInsets.only(top: 3),
-                  decoration: BoxDecoration(
-                    color: chipBg,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: border.withOpacity(.5)),
-                  ),
-                  child: Icon(Icons.check_rounded, size: 14, color: color),
-                ),
-                const SizedBox(width: 10),
-
-                SizedBox(
-                  width: isWeb ? 500 : MediaQuery.of(context).size.width * 0.65,
-                  child: Text(
-                    b,
-                    textAlign: isWeb ? TextAlign.center : TextAlign.left,
-                    style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                      height: 1.4,
-                    ),
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 17.5,
                   ),
                 ),
+                const SizedBox(height: 8),
+                for (final b in bullets) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 18,
+                        height: 18,
+                        margin: const EdgeInsets.only(top: 3),
+                        decoration: BoxDecoration(
+                          color: chipBg,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: border.withOpacity(.5)),
+                        ),
+                        child: Icon(Icons.check_rounded, size: 14, color: color),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          b,
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14.5,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                ],
               ],
             ),
-            const SizedBox(height: 6),
-          ],
-
-          // ⭐ AJUSTE DEL ICONO (más abajo)
-          const SizedBox(height: 12),
-
-          Align(
-            alignment: isWeb ? Alignment.center : Alignment.centerRight,
-            child: Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [color, color.withOpacity(.78)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withOpacity(.3),
-                    blurRadius: 14,
-                    offset: const Offset(0, 8),
-                  )
-                ],
+          ),
+          const SizedBox(width: 12),
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [color, color.withOpacity(.78)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              child: Icon(icon, color: Colors.white, size: 24),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(.3),
+                  blurRadius: 14,
+                  offset: const Offset(0, 8),
+                )
+              ],
             ),
+            child: Icon(icon, color: Colors.white, size: 22),
           ),
         ],
       ),
@@ -309,40 +296,47 @@ class _SobreMiReciboScreenState extends State<SobreMiReciboScreen>
   }
 }
 
-// =================== BENEFICIOS ===================
+// =================== BLOQUE DE BENEFICIOS ===================
 class _BenefitsBlock extends StatelessWidget {
   const _BenefitsBlock();
 
   @override
   Widget build(BuildContext context) {
-    final isWeb = MediaQuery.of(context).size.width > 600;
-
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(.1),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withOpacity(.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.25),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
-        crossAxisAlignment:
-        isWeb ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: const [
           _BenefitRow(
             icon: Icons.verified_rounded,
-            text: 'Recibos elegantes y consistentes, listos para enviar por WhatsApp.',
+            text:
+            'Recibos elegantes y consistentes, listos para enviar por WhatsApp.',
           ),
           SizedBox(height: 10),
 
           _BenefitRow(
             icon: Icons.alarm_rounded,
-            text: 'Recordatorios automáticos de vencimientos según tipo de negocio.',
+            text:
+            'Recordatorios automáticos de vencimientos según tipo de negocio.',
           ),
           SizedBox(height: 10),
 
           _BenefitRow(
             icon: Icons.analytics_rounded,
-            text: 'Panel de control con métricas visuales y claras.',
+            text:
+            'Panel de control con métricas visuales y claras.',
           ),
           SizedBox(height: 12),
 
@@ -361,11 +355,7 @@ class _BenefitRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isWeb = MediaQuery.of(context).size.width > 600;
-
     return Row(
-      mainAxisAlignment:
-      isWeb ? MainAxisAlignment.center : MainAxisAlignment.start,
       children: [
         Container(
           width: 28,
@@ -376,13 +366,10 @@ class _BenefitRow extends StatelessWidget {
           ),
           child: Center(child: Icon(icon, color: Colors.white, size: 18)),
         ),
-        const SizedBox(width: 12),
-
-        SizedBox(
-          width: isWeb ? 600 : MediaQuery.of(context).size.width * 0.65,
+        const SizedBox(width: 10),
+        Expanded(
           child: Text(
             text,
-            textAlign: isWeb ? TextAlign.center : TextAlign.left,
             style: GoogleFonts.inter(
               color: Colors.white,
               fontWeight: FontWeight.w800,
@@ -415,7 +402,7 @@ class _FooterQuote extends StatelessWidget {
   }
 }
 
-// =================== PREMIUM ===================
+// =================== BLOQUE PREMIUM ===================
 class _PremiumPanel extends StatelessWidget {
   const _PremiumPanel();
 
@@ -431,8 +418,6 @@ class _PremiumPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-
-          // ICONO PREMIUM
           Container(
             width: 90,
             height: 90,
@@ -446,7 +431,6 @@ class _PremiumPanel extends StatelessWidget {
           ),
 
           const SizedBox(height: 16),
-
           Text(
             'Mi Recibo Business Premium',
             textAlign: TextAlign.center,
@@ -458,7 +442,6 @@ class _PremiumPanel extends StatelessWidget {
           ),
 
           const SizedBox(height: 8),
-
           Text(
             'Por solo US\$0.99 al mes',
             textAlign: TextAlign.center,
@@ -469,36 +452,29 @@ class _PremiumPanel extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 30),
-
-          // BENEFICIOS CORREGIDOS (más separados y verticales)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _benefit(
-                icon: Icons.bar_chart_rounded,
-                color: Color(0xFF2563EB),
-                text: 'Consulta tus ganancias totales y por categoría.',
-              ),
-              const SizedBox(height: 18),
-
-              _benefit(
-                icon: Icons.auto_awesome_rounded,
-                color: Color(0xFF10B981),
-                text: 'Accede al Potenciador Premium con estrategias y lecturas diarias.',
-              ),
-              const SizedBox(height: 18),
-
-              _benefit(
-                icon: Icons.shield_rounded,
-                color: Color(0xFF8B5CF6),
-                text: 'App sin anuncios y soporte técnico prioritario.',
-              ),
-            ],
+          const SizedBox(height: 22),
+          _benefit(
+            icon: Icons.bar_chart_rounded,
+            color: Color(0xFF2563EB),
+            text:
+            'Consulta tus ganancias totales y por categoría.',
+          ),
+          const SizedBox(height: 14),
+          _benefit(
+            icon: Icons.auto_awesome_rounded,
+            color: Color(0xFF10B981),
+            text:
+            'Accede al Potenciador Premium con estrategias y lecturas diarias.',
+          ),
+          const SizedBox(height: 14),
+          _benefit(
+            icon: Icons.shield_rounded,
+            color: Color(0xFF8B5CF6),
+            text:
+            'App sin anuncios y soporte técnico prioritario.',
           ),
 
-          const SizedBox(height: 28),
-
+          const SizedBox(height: 26),
           Text(
             'Convierte la gestión diaria en crecimiento real con herramientas profesionales.',
             textAlign: TextAlign.center,
@@ -519,7 +495,7 @@ class _PremiumPanel extends StatelessWidget {
     required String text,
   }) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           padding: const EdgeInsets.all(8),
@@ -531,10 +507,9 @@ class _PremiumPanel extends StatelessWidget {
           child: Icon(icon, color: color, size: 20),
         ),
         const SizedBox(width: 12),
-        Flexible(
+        Expanded(
           child: Text(
             text,
-            textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               color: Colors.white.withOpacity(0.92),
               fontSize: 14.2,

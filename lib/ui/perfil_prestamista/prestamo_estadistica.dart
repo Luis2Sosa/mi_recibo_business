@@ -5,15 +5,21 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../../core/ads/ads_manager.dart';
 import '../../core/estadisticas_totales_service.dart';
 import 'ganancia_prestamo_screen.dart';
 
 class PanelPrestamosScreen extends StatefulWidget {
+
+
+
   const PanelPrestamosScreen({super.key});
+
 
   @override
   State<PanelPrestamosScreen> createState() => _PanelPrestamosScreenState();
 }
+
 
 class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -28,8 +34,21 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
   @override
   void initState() {
     super.initState();
+
+    // 🚀 Esperar a que el Scaffold exista antes de llamar anuncios
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = context;
+      Future.delayed(const Duration(milliseconds: 400), () {
+        if (mounted) {
+          AdsManager.showEveryFiveEntries(ctx, 'PanelPrestamos');
+        }
+      });
+    });
+
     _cargarDatosSecundarios();
   }
+
+
 
   // ===================== 🔹 CARGAR CLIENTES Y PAGOS REALES (PRÉSTAMOS) 🔹 =====================
   Future<void> _cargarDatosSecundarios() async {

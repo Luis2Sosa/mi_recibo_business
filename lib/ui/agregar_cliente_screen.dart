@@ -25,6 +25,45 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
   late Animation<Offset> _slide2;
   late Animation<Offset> _slide3;
 
+  final List<String> _consejos = [
+    "Confirma el número del cliente antes de registrarlo.",
+    "Evita duplicar clientes: revisa tu lista antes de agregar uno nuevo.",
+    "Usa nombres completos para evitar confusiones futuras.",
+    "Verifica que el cliente tenga un número actualizado.",
+    "Actualiza los datos del cliente cuando cambien.",
+    "Revisa si ya existe un cliente con nombre parecido.",
+    "No agregues clientes con información incompleta.",
+    "Mantén notas claras de cada cliente para evitar confusión.",
+    "Comprueba si el cliente ya existe en otra categoría.",
+    "Clientes con datos claros son más fáciles de manejar.",
+    "Verifica el nombre antes de guardar el registro.",
+    "Evita usar apodos como nombre principal.",
+    "Diferencia clientes con nombres iguales usando notas.",
+    "Usa siempre un contacto confiable del cliente.",
+    "Actualiza el número o dirección cuando cambien.",
+    "Revisa la información antes de agregar un nuevo cliente.",
+    "Organiza tus clientes para encontrarlos más rápido.",
+    "Evita registrar números inventados o incompletos.",
+    "Usa notas para detalles importantes del cliente.",
+    "Clientes con referencias claras evitan confusión.",
+    "Datos incompletos pueden causar errores más adelante.",
+    "Usa mayúsculas correctamente para mejor lectura.",
+    "Mantén tu lista limpia y sin duplicados.",
+    "Notas actualizadas evitan problemas futuros.",
+    "No dejes campos importantes vacíos.",
+    "Si dos clientes se parecen, agrega una nota.",
+    "Verifica siempre el teléfono y la dirección.",
+    "Evita registrar clientes sin historial claro.",
+    "Revisa el registro antes de confirmar.",
+    "Clientes bien registrados facilitan tu trabajo.",
+  ];
+
+  String get _consejoDelDia {
+    final now = DateTime.now();
+    final index = now.day % 30;
+    return _consejos[index];
+  }
+
   @override
   void initState() {
     super.initState();
@@ -44,7 +83,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
         .animate(CurvedAnimation(parent: _controller1, curve: Curves.easeOutCubic));
     _slide2 = Tween<Offset>(begin: const Offset(0, 0.35), end: Offset.zero)
         .animate(CurvedAnimation(parent: _controller2, curve: Curves.easeOutCubic));
-    _slide3 = Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero)
+    _slide3 = Tween<Offset>(begin: const Offset(0, 0.40), end: Offset.zero)
         .animate(CurvedAnimation(parent: _controller3, curve: Curves.easeOutCubic));
 
     Future.delayed(const Duration(milliseconds: 200), () => _controller1.forward());
@@ -63,7 +102,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true, // 👈 hace que el degradado cubra toda la pantalla
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -88,9 +127,9 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xFF0A2F4E), // azul marino profundo (inicio)
-              Color(0xFF0E4D8F), // azul business moderno
-              Color(0xFF007EA7), // toque turquesa elegante (final)
+              Color(0xFF0A2F4E),
+              Color(0xFF0E4D8F),
+              Color(0xFF007EA7),
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -124,9 +163,9 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
                     ),
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 28),   // ← MÁS ESPACIO AQUÍ
 
-                // --- Tarjeta Producto / Fiado ---
+                // --- Tarjeta Producto ---
                 FadeTransition(
                   opacity: _fade2,
                   child: SlideTransition(
@@ -146,7 +185,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
                     ),
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 28),   // ← MÁS ESPACIO AQUÍ
 
                 // --- Tarjeta Alquiler ---
                 FadeTransition(
@@ -171,7 +210,6 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
 
                 const Spacer(),
 
-                // --- Bloque Mi Recibo Business ---
                 _bloqueWebInfo(),
                 const SizedBox(height: 14),
               ],
@@ -182,8 +220,7 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
     );
   }
 
-
-  // --- Tarjeta premium con fondo suave y animación moderna ---
+  // --- Tarjeta Premium (solo mejorada)
   Widget _tarjetaPremium(
       BuildContext context, {
         required Color color,
@@ -198,15 +235,18 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+
+        // ← MÁS ALTA, MÁS PREMIUM
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+
         decoration: BoxDecoration(
           color: color.withOpacity(0.14),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(22),
           border: Border.all(color: color.withOpacity(0.25), width: 1.1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 12,
+              color: Colors.black.withOpacity(0.18),
+              blurRadius: 14,
               offset: const Offset(0, 6),
             ),
           ],
@@ -259,90 +299,54 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
     );
   }
 
-  // --- Bloque web final ---
   Widget _bloqueWebInfo() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 26),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       decoration: BoxDecoration(
         color: const Color(0xFF1F4D82),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: Colors.white.withOpacity(0.05)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withOpacity(0.18),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
         ],
       ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             width: 58,
             height: 58,
-            decoration: const BoxDecoration(
-              color: Color(0xFF0B60D8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.18),
               shape: BoxShape.circle,
             ),
-            child:
-            const Icon(Icons.language_rounded, color: Colors.white, size: 28),
+            child: const Icon(Icons.lightbulb_outline,
+                color: Colors.white, size: 26),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
           const Text(
-            "Mi Recibo Business",
+            "Consejo rápido",
+            textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
               fontSize: 18,
-              letterSpacing: .3,
             ),
           ),
-          const SizedBox(height: 8),
-          const Text(
-            "También puedes usarlo en versión web para gestionar tus clientes y recibos desde cualquier dispositivo.",
+          const SizedBox(height: 12),
+          Text(
+            _consejoDelDia,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white70,
-              fontSize: 13.5,
+              fontSize: 15,
               height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 18),
-          GestureDetector(
-            onTap: () async {
-              final url = Uri.parse('https://www.mirecibobusiness.com');
-              if (await canLaunchUrl(url)) {
-                await launchUrl(url, mode: LaunchMode.externalApplication);
-              }
-            },
-            child: Container(
-              padding:
-              const EdgeInsets.symmetric(vertical: 13, horizontal: 34),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0B60D8), Color(0xFF00AEEF)],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
-                borderRadius: BorderRadius.circular(28),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.open_in_new_rounded,
-                      color: Colors.white, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    "Visitar página web",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15.5,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ),
         ],

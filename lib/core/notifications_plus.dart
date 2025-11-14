@@ -250,6 +250,7 @@ class NotificationsPlus {
     _showBanner(text, color: c, intent: 'foreground');
   }
 
+
   // =================== FIRESTORE: LECTURA Y ROTACIÓN ===================
 
   static const _cfgCol = 'config';

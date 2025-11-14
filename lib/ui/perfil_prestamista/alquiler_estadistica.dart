@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../../core/ads/ads_manager.dart';
 import '../../core/estadisticas_totales_service.dart';
 import 'ganancia_alquiler_screen.dart';
 
@@ -31,8 +32,20 @@ class _AlquilerEstadisticaScreenState
   @override
   void initState() {
     super.initState();
+
+    // 🚀 Mostrar anuncio al entrar (cada 5 entradas)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = context;
+      Future.delayed(const Duration(milliseconds: 400), () {
+        if (mounted) {
+          AdsManager.showEveryFiveEntries(ctx, 'AlquilerEstadistica');
+        }
+      });
+    });
+
     _cargarDatosAlquiler();
   }
+
 
   // ===================== 🔹 CARGAR CLIENTES Y PAGOS REALES (ALQUILER) 🔹 =====================
   Future<void> _cargarDatosAlquiler() async {

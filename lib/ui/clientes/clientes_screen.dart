@@ -45,6 +45,8 @@ class ClientesScreen extends StatefulWidget {
 class _ClientesScreenState extends State<ClientesScreen> with WidgetsBindingObserver {
   // 👇 Bandera temporal para saber si venimos de enviar un recibo
   static bool _vieneDeRecibo = false;
+  static bool _vieneDeRecordatorio = false; // 👈 FALTA ESTA
+
 
 
   final TextEditingController _searchCtrl = TextEditingController();
@@ -124,14 +126,28 @@ class _ClientesScreenState extends State<ClientesScreen> with WidgetsBindingObse
     // });
   }
 
-  // 👇 Detecta cuando la app vuelve del fondo (por ejemplo, tras enviar un recibo por WhatsApp)
+  // 👇 NUEVO: Detectar cuando la app vuelve al primer plano
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // Solo actuamos cuando vuelve al foreground
     if (state == AppLifecycleState.resumed) {
-      // ✅ Muestra el anuncio al volver desde WhatsApp
-      AdsManager.showAfterWhatsApp(context, 'enviar recibo');
+      // Si venimos de enviar recibo o recordatorio → mostrar anuncio especial
+      if (_vieneDeRecibo) {
+        _vieneDeRecibo = false; // reset para que no se dispare de nuevo
+        AdsManager.showAfterWhatsApp(context, 'recibo');
+        return;
+      }
+
+      if (_vieneDeRecordatorio) {
+        _vieneDeRecordatorio = false;
+        AdsManager.showAfterWhatsApp(context, 'recordatorio');
+        return;
+      }
     }
   }
+
 
 
   // 🕛 Normaliza al mediodía para evitar líos de zona horaria

@@ -2,32 +2,87 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../premium_service.dart'; // 👈 importante este import
+import '../premium_service.dart';
 
 class AdsManager {
   static DateTime? _lastAdTime;
   static Map<String, DateTime> _shownAds = {};
 
-  /// ✅ Comprueba si el usuario tiene Premium
+  /// 🔢 Contador de entradas por pantalla
+  static Map<String, int> _entradas = {};
+
+  /// 👉 Reiniciar contador de una pantalla específica
+  static void resetCounter(String screenName) {
+    _entradas[screenName] = 0;
+  }
+
+
   static Future<bool> _esPremium() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return false;
+
       final premiumService = PremiumService();
-      return await premiumService.esPremiumActivo(user.uid);
-    } catch (_) {
+      final activo = await premiumService.esPremiumActivo(user.uid);
+
+      debugPrint("💎 Premium activo?: $activo"); // 👈 VERIFICACIÓN REAL
+
+      return activo;
+    } catch (e) {
+      debugPrint("❌ Error Premium: $e");
       return false;
     }
   }
 
-  /// ✅ Muestra un anuncio (solo si NO es premium)
+
+  /// 👉 Función MAESTRA
+  /// Regla: 1 anuncio → 3 entradas libres → anuncio → repetir
+  static Future<void> showEveryFiveEntries(
+      BuildContext context, String screenName) async {
+
+    final esPro = await _esPremium();
+    if (esPro) return; // Premium NO ve anuncios
+
+    // Inicializar contador si no existe
+    _entradas.putIfAbsent(screenName, () => 0);
+
+    // Incrementar contador
+    _entradas[screenName] = _entradas[screenName]! + 1;
+    final int count = _entradas[screenName]!;
+    debugPrint("📌 Entradas en $screenName: $count");
+
+    // 1️⃣ Primera entrada → anuncio después de 3 segundos
+    if (count == 1) {
+      Future.delayed(const Duration(seconds: 3), () {
+        showAd(context, 'Primer acceso: $screenName');
+      });
+      return;
+    }
+
+    // 2️⃣ Entradas 2, 3 y 4 → NO ANUNCIO
+    if (count >= 2 && count <= 4) {
+      return;
+    }
+
+    // 3️⃣ Entrada 5 → anuncio + reinicio del ciclo
+    if (count == 5) {
+      Future.delayed(const Duration(seconds: 3), () {
+        showAd(context, 'Reingreso #5: $screenName');
+      });
+
+      // RESET SEGURO (vuelve a 0)
+      _entradas[screenName] = 0;
+    }
+  }
+
+
+  /// 👉 Mostrar anuncio (simulado)
   static Future<void> showAd(BuildContext context, String adName) async {
     final esPro = await _esPremium();
-    if (esPro) return; // 🚫 Premium → no mostrar
+    if (esPro) return;
 
     debugPrint('🔸 Mostrar anuncio: $adName');
 
-    // Placeholder temporal mientras se integran los anuncios reales de Google
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: Colors.blueAccent,
@@ -42,10 +97,10 @@ class AdsManager {
     _lastAdTime = DateTime.now();
   }
 
-  /// ✅ Lógica para los anuncios diarios inteligentes
+  /// 👉 Anuncios diarios (mañana/tarde/noche)
   static Future<void> handleDailyAd(BuildContext context) async {
     final esPro = await _esPremium();
-    if (esPro) return; // 🚫 Premium → no mostrar
+    if (esPro) return;
 
     final now = DateTime.now();
     final hour = now.hour;
@@ -65,8 +120,9 @@ class AdsManager {
     }
   }
 
-  /// ✅ Anuncio al volver de WhatsApp
-  static Future<void> showAfterWhatsApp(BuildContext context, String action) async {
+  /// 👉 Anuncio después de WhatsApp
+  static Future<void> showAfterWhatsApp(
+      BuildContext context, String action) async {
     final esPro = await _esPremium();
     if (esPro) return;
 
@@ -74,8 +130,10 @@ class AdsManager {
     showAd(context, 'Anuncio después de $action');
   }
 
-  /// ✅ Anuncio en pantallas valiosas
-  static Future<void> showOnValuableScreen(BuildContext context, String screenName) async {
+  /// 👉 Anuncio en pantallas valiosas
+  static Future<void> showOnValuableScreen(
+      BuildContext context, String screenName) async {
+
     final esPro = await _esPremium();
     if (esPro) return;
 

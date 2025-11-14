@@ -1562,39 +1562,47 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     Navigator.push(context, MaterialPageRoute(builder: (_) => GananciasScreen(docPrest: _docPrest!)));
   }
 
-  // Abrir mini-dashboards desde los filtros
   void _openPrestamos() {
-    if (_docPrest == null) { _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline); return; }
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const PanelPrestamosScreen()));
+    if (_docPrest == null) {
+      _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
+      return;
+    }
 
-    // 🔸 Mostrar anuncio automático al entrar
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      AdsManager.showOnValuableScreen(context, 'Prestamos');
-    });
-
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const PanelPrestamosScreen()),
+    );
 
   }
+
 
   void _openProductos() {
-    if (_docPrest == null) { _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline); return; }Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductoEstadisticaScreen()));
+    if (_docPrest == null) {
+      _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
+      return;
+    }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      AdsManager.showOnValuableScreen(context, 'Productos');
-    });
-
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProductoEstadisticaScreen()),
+    );
 
   }
+
 
   void _openAlquiler() {
-    if (_docPrest == null) { _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline); return; }
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const AlquilerEstadisticaScreen()));
+    if (_docPrest == null) {
+      _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
+      return;
+    }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      AdsManager.showOnValuableScreen(context, 'Alquiler');
-    });
-
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AlquilerEstadisticaScreen()),
+    );
 
   }
+
 
   // ===== Helpers de UI
   Widget _card({required Widget child}) {
