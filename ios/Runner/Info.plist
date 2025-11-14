@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Mi Recibo</string>
+	<string>Mi Recibo Business</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -22,18 +22,21 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
+
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -41,9 +44,29 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<!-- ⚠️ PERMISOS OBLIGATORIOS PARA APPS CON PDF, ARCHIVOS, FOTOS, BIOMETRÍA Y NOTIFICACIONES -->
+
+	<!-- Galería: guardar archivos / imágenes / PDFs -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Mi Recibo Business necesita acceder a tu galería para guardar recibos y archivos PDF.</string>
+
+	<!-- Galería: ver fotos (si usas compartir o adjuntar) -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Mi Recibo Business necesita acceder a tus fotos para permitir adjuntar o compartir archivos.</string>
+
+	<!-- Biometría: Face ID / Touch ID -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>Mi Recibo Business usa Face ID para proteger el acceso a tu información.</string>
+
+	<!-- Notificaciones (Firebase Messaging) -->
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Mi Recibo Business enviará notificaciones para recordatorios y actualizaciones importantes.</string>
+
 </dict>
 </plist>

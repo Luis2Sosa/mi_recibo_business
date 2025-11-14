@@ -175,13 +175,24 @@ class _PremiumBoostsScreenState extends State<PremiumBoostsScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
+      // ===================== APPBAR PREMIUM SIN BOTÓN =====================
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
         automaticallyImplyLeading: false,
-        titleSpacing: 14,
-        title: const HeaderBar(title: 'Potenciador Premium'),
+        centerTitle: true,
+        title: Text(
+          'Potenciador Premium',
+          style: GoogleFonts.poppins(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            fontSize: 20,
+            letterSpacing: .2,
+          ),
+        ),
       ),
+
+
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(

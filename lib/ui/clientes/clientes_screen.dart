@@ -297,8 +297,16 @@ class _ClientesScreenState extends State<ClientesScreen> with WidgetsBindingObse
           children: [
             const Align(
               alignment: Alignment.centerLeft,
-              child: Icon(Icons.notifications_active_rounded, color: Colors.white, size: 22),
+              child: Padding(
+                padding: EdgeInsets.only(bottom: 20), // 👈 sube la campanita
+                child: Icon(
+                  Icons.notifications_active_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
             ),
+
             // Centro perfecto
             Column(
               mainAxisSize: MainAxisSize.min,
@@ -1464,7 +1472,7 @@ class _ClientesScreenState extends State<ClientesScreen> with WidgetsBindingObse
 
                 // ===== Logo (independiente) =====
                 const Positioned(
-                  top: -90,
+                  top: -100,
                   left: 0,
                   right: 0,
                   child: IgnorePointer(

@@ -72,7 +72,7 @@ class HistorialScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double _logoTop = -90;
+    const double _logoTop = -100;
     const double _logoHeight = 350;
     const double _contentTop = 135;
 
@@ -489,45 +489,11 @@ class HistorialScreen extends StatelessWidget {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 12),
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 52,
-                                  child: OutlinedButton(
-                                    style: OutlinedButton.styleFrom(
-                                      backgroundColor: Colors.white,
-                                      foregroundColor: const Color(0xFF2563EB),
-                                      side: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
-                                      shape: const StadiumBorder(),
-                                      textStyle: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('Volver'),
-                                  ),
-                                ),
                               ],
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 8,
-                left: 8,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(24),
-                    onTap: () => Navigator.pop(context),
-                    child: const Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: Icon(Icons.arrow_back, color: Colors.white, size: 28),
                     ),
                   ),
                 ),

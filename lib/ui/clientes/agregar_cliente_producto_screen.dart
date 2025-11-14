@@ -319,7 +319,6 @@ class _AgregarClienteProductoScreenState
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // ➕ Agregar producto
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: (_productos.length >= 3) ? null : _agregarProducto,
@@ -344,7 +343,6 @@ class _AgregarClienteProductoScreenState
               ),
               const SizedBox(width: 12),
 
-              // 🔴 Quitar último producto (solo si hay más de uno)
               if (_productos.length > 1)
                 Expanded(
                   child: ElevatedButton.icon(
@@ -375,6 +373,23 @@ class _AgregarClienteProductoScreenState
                 ),
             ],
           ),
+
+          // 🔵 MENSAJE ELEGANTE CUANDO LLEGA A 3
+          if (_productos.length >= 3)
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Center(
+                child: Text(
+                  'Máximo 3 productos permitidos',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+
 
 
         ],

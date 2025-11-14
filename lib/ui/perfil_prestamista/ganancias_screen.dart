@@ -435,16 +435,19 @@ class _GananciasScreenState extends State<GananciasScreen>
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
+        automaticallyImplyLeading: false,   // 👈 IMPORTANTE
+        centerTitle: true,                   // 👈 CENTRADO
+        title: Text(
           'Ganancias Totales',
           style: TextStyle(
-              fontWeight: FontWeight.w900, color: Colors.white, fontSize: 18),
+            fontWeight: FontWeight.w900,
+            color: Colors.white,
+            fontSize: 20,                    // 🔥 un poquito más grande
+            letterSpacing: 0.3,              // 🔥 más elegante
+          ),
         ),
       ),
+
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -510,85 +513,103 @@ class _GananciasScreenState extends State<GananciasScreen>
                       child: ConstrainedBox(
                         constraints: BoxConstraints(minHeight: constraints.maxHeight),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                          padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+
+                          mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              // PANEL SUPERIOR
+                              // PANEL SUPERIOR — NUEVO DISEÑO PREMIUM MINIMALISTA
                               Container(
-                                padding: const EdgeInsets.all(24),
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(22),
+                                  borderRadius: BorderRadius.circular(20),
+
+                                  // 🎨 Fondo sobrio y elegante
                                   gradient: const LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
                                     colors: [
-                                      Color(0xFF0F172A),
-                                      Color(0xFF1E3A8A),
-                                      Color(0xFF312E81),
+                                      Color(0xFF101C3D),
+                                      Color(0xFF182A5C),
                                     ],
                                   ),
+
+                                  // 🎨 Borde suave profesional
                                   border: Border.all(
-                                    color: Colors.white.withOpacity(0.1),
+                                    color: Colors.white.withOpacity(0.08),
                                     width: 1.2,
                                   ),
+
+                                  // 🎨 Sombra premium suave
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.25),
-                                      blurRadius: 25,
-                                      offset: const Offset(0, 10),
+                                      color: Colors.black.withOpacity(0.40),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 12),
                                     ),
                                   ],
                                 ),
+
                                 child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
+                                    // 📌 Título
                                     Text(
                                       'Balance Total',
                                       style: GoogleFonts.poppins(
                                         color: Colors.white.withOpacity(0.85),
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 15,
                                       ),
                                     ),
-                                    const SizedBox(height: 8),
+
+                                    const SizedBox(height: 10),
+
+                                    // 📌 MONTO con degradado premium
                                     ShaderMask(
-                                      shaderCallback: (r) => const LinearGradient(
-                                        colors: [Color(0xFF00FFD1), Color(0xFF00B8FF)],
+                                      shaderCallback: (bounds) => const LinearGradient(
+                                        colors: [
+                                          Color(0xFF00E7D6), // Turquesa premium
+                                          Color(0xFF00A8FF), // Azul financiero
+                                        ],
                                         begin: Alignment.topLeft,
                                         end: Alignment.bottomRight,
-                                      ).createShader(r),
+                                      ).createShader(bounds),
+                                      blendMode: BlendMode.srcIn,
                                       child: Text(
                                         "\$${_rd(_displayedTotal)}",
                                         style: GoogleFonts.poppins(
-                                          fontSize: 56,
+                                          fontSize: 48,
                                           fontWeight: FontWeight.w900,
-                                          color: Colors.white,
+                                          color: Colors.white, // requerido para el ShaderMask
                                           letterSpacing: -1,
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(height: 10),
+
+                                    const SizedBox(height: 14),
+
+                                    // 📌 Chip “En crecimiento” minimalista
                                     Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 6),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.12),
-                                        borderRadius: BorderRadius.circular(20),
-                                        border:
-                                        Border.all(color: Colors.white.withOpacity(0.25)),
+                                        color: Colors.white.withOpacity(0.10),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: Colors.white.withOpacity(0.20)),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: const [
                                           Icon(Icons.trending_up_rounded,
-                                              color: Colors.greenAccent, size: 20),
-                                          SizedBox(width: 6),
+                                              color: Colors.greenAccent, size: 18),
+                                          SizedBox(width: 5),
                                           Text(
                                             'En crecimiento',
                                             style: TextStyle(
                                               color: Colors.white,
-                                              fontWeight: FontWeight.w700,
                                               fontSize: 13,
+                                              fontWeight: FontWeight.w600,
                                             ),
                                           ),
                                         ],
@@ -597,6 +618,7 @@ class _GananciasScreenState extends State<GananciasScreen>
                                   ],
                                 ),
                               ),
+
 
                               const SizedBox(height: 25),
 

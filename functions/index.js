@@ -154,31 +154,38 @@ exports.pushTick = onSchedule(
 
       // ======= SOLO 09:00 DIARIA =======
       if (isWithinSlot(nowHHMM, "09:00", 2)) {
+
+        // --- LOCK DEL DÍA ---
         const lock = await getUserLock(uid);
 
-        if (!(lock?.lastSlot === "09:00" && lock?.yyyymmdd == String(todayYMD))) {
-          const body = await getDailyMessage(todayYMD);
+        // Si ya se envió hoy → continuar
+        if (lock?.yyyymmdd == String(todayYMD)) {
+          continue;
+        }
 
-          if (body) {
-            const payload = {
-              notification: {
-                title: "Mi Recibo",
-                body,
-              },
-              data: { type: "daily" },
-            };
+        // --- Obtener mensaje ---
+        const body = await getDailyMessage(todayYMD);
+        if (!body) continue;
 
-            const r = await sendToTokens(tokens, payload);
+        const payload = {
+          notification: {
+            title: "Mi Recibo",
+            body,
+          },
+          data: { type: "daily" },
+        };
 
-            if (r.sent > 0) {
-              await setUserLock(uid, offsetMin, "09:00");
-            }
-          }
+        const r = await sendToTokens(tokens, payload);
+
+        // Si se envió al menos a 1 token → guardar lock del día
+        if (r.sent > 0) {
+          await setUserLock(uid, offsetMin, todayYMD);
         }
       }
     }
   }
 );
+
 
 /* ====================== ENDPOINT DE TEST ====================== */
 

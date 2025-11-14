@@ -80,7 +80,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   }
 
   static const double _logoHeight = 310;
-  static const double _logoTop = -80;
+  static const double _logoTop = -100;
   static const double _contentTop = 110;
 
   late int _saldoActual;
@@ -1594,22 +1594,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                         },
                       ),
                     ),
-                  ),
-                ),
-              ),
-            ),
-
-            Positioned(
-              top: 8,
-              left: 8,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(24),
-                  onTap: _onBack,
-                  child: const Padding(
-                    padding: EdgeInsets.all(8.0),
-                    child: Icon(Icons.arrow_back, color: Colors.white, size: 28),
                   ),
                 ),
               ),

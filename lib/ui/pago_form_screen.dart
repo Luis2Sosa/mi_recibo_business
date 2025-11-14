@@ -43,7 +43,7 @@ class PagoFormScreen extends StatefulWidget {
 }
 
 class _PagoFormScreenState extends State<PagoFormScreen> {
-  static const double _logoTop = -80;
+  static const double _logoTop = -100;
   static const double _logoHeight = 350;
 
   final _interesCtrl = TextEditingController();
