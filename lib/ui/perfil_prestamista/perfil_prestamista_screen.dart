@@ -584,6 +584,8 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     const contentTop = 8.0;
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
+
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [_Brand.gradTop, _Brand.gradBottom]),
@@ -617,17 +619,23 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                                   alignment: Alignment.topCenter,
                                   child: LayoutBuilder(
                                     builder: (context, constraints) {
-                                      final availableHeight = constraints.maxHeight;
+                                      final tecladoArriba = MediaQuery.of(context).viewInsets.bottom > 0;
+                                      final alturaReal = constraints.maxHeight - MediaQuery.of(context).viewInsets.bottom;
+
                                       return ConstrainedBox(
-                                        constraints: BoxConstraints(minHeight: availableHeight),
+                                        constraints: BoxConstraints(
+                                          minHeight: tecladoArriba ? alturaReal : constraints.maxHeight,
+                                        ),
                                         child: IntrinsicHeight(
                                           child: Column(
                                             mainAxisSize: MainAxisSize.max,
                                             children: [
                                               _loadingProfile ? _skeleton() : _perfilContent(),
-                                              const Spacer(flex: 2), // 🔹 espacio flexible, no fijo
-                                              _accountActions(),
 
+                                              // ❗ El Spacer solo cuando el teclado está abajo
+                                              if (!tecladoArriba) const Spacer(flex: 2),
+
+                                              _accountActions(),
                                             ],
                                           ),
                                         ),
@@ -636,6 +644,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                                   ),
                                 ),
                               ),
+
 
                             ],
                           ),

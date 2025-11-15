@@ -1280,7 +1280,8 @@ class _ClientesScreenState extends State<ClientesScreen> with WidgetsBindingObse
   @override
   Widget build(BuildContext context) {
     const double logoTop = -90;
-    const double contentTop = 95;
+    const double contentTop = 80; // ó 60 si quieres más espacio
+
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
 

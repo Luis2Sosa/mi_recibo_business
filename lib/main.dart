@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart'; // 👈 para saber si hay ses
 import 'package:cloud_firestore/cloud_firestore.dart'; // 🔐 leer settings lockEnabled
 import 'package:firebase_messaging/firebase_messaging.dart'; // 🔔 FCM
 import 'package:connectivity_plus/connectivity_plus.dart'; // 🔄 detectar conexión
-
+import 'package:flutter/services.dart';
 import 'ui/home_screen.dart';
 import 'ui/theme/app_theme.dart';
 import 'ui/clientes/clientes_screen.dart'; // Perfil / Clientes
@@ -26,6 +26,11 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+
   await Firebase.initializeApp();
 
   // ✅ Cache/persistencia offline de Firestore
@@ -49,7 +54,7 @@ class MiReciboApp extends StatelessWidget {
   const MiReciboApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) {git
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Mi Recibo',

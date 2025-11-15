@@ -21,6 +21,7 @@ import 'package:mi_recibo/ui/widgets/app_frame.dart';
 import '../core/ads/ads_manager.dart';
 import '../core/notifications_plus.dart';
 
+
 /// ==============================
 /// CONFIGURACIÓN VISUAL AJUSTABLE
 /// ==============================
@@ -667,7 +668,11 @@ class _ReciboScreenState extends State<ReciboScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: const StadiumBorder(),
                   ),
-                  onPressed: _compartirWhatsApp,
+                  onPressed: () async {
+                    await AdsManager.showAfterWhatsApp(context, "enviar recibo");
+                    await _compartirWhatsApp();
+                  },
+
                 ),
               ),
             ],

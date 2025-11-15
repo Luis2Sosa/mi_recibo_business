@@ -514,17 +514,18 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   }
 
   Future<Map<String, String>> _prestamistaSeguro() async {
-    String empresa = widget.empresa.trim();
-    String servidor = widget.servidor.trim();
-    String telefono = widget.telefonoServidor.trim();
-
-    if (empresa.isNotEmpty && servidor.isNotEmpty && telefono.isNotEmpty) {
-      return {'empresa': empresa, 'servidor': servidor, 'telefono': telefono};
-    }
+    // Nunca confiar en los valores congelados del constructor
+    String empresa = '';
+    String servidor = '';
+    String telefono = '';
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      return {'empresa': empresa, 'servidor': servidor, 'telefono': telefono};
+      return {
+        'empresa': widget.empresa.trim(),
+        'servidor': widget.servidor.trim(),
+        'telefono': widget.telefonoServidor.trim(),
+      };
     }
 
     try {
@@ -532,20 +533,38 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           .collection('prestamistas')
           .doc(uid)
           .get();
+
       final data = snap.data() ?? {};
+
+      // 🔥 LEER SIEMPRE DE FIRESTORE (actualizados)
+      empresa = (data['empresa'] ?? widget.empresa).toString().trim();
+
       final nombre = (data['nombre'] ?? '').toString().trim();
       final apellido = (data['apellido'] ?? '').toString().trim();
+      final servidorFS =
+      [nombre, apellido].where((e) => e.isNotEmpty).join(' ').trim();
 
-      empresa =
-      empresa.isNotEmpty ? empresa : (data['empresa'] ?? '').toString().trim();
       servidor =
-      servidor.isNotEmpty ? servidor : [nombre, apellido].where((s) => s.isNotEmpty).join(' ');
-      telefono = telefono.isNotEmpty ? telefono : (data['telefono'] ?? '')
+      servidorFS.isNotEmpty ? servidorFS : widget.servidor.trim();
+
+      telefono = (data['telefono'] ?? widget.telefonoServidor)
           .toString()
           .trim();
-    } catch (_) {}
-    return {'empresa': empresa, 'servidor': servidor, 'telefono': telefono};
+
+    } catch (_) {
+      // Si Firestore falla, usa los valores locales
+      empresa = widget.empresa.trim();
+      servidor = widget.servidor.trim();
+      telefono = widget.telefonoServidor.trim();
+    }
+
+    return {
+      'empresa': empresa,
+      'servidor': servidor,
+      'telefono': telefono,
+    };
   }
+
 
   Future<void> _registrarPagoFlow(BuildContext context) async {
     // 🔹 Antes de abrir el formulario, obtener la lista de productos desde Firestore
@@ -624,13 +643,20 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
     // 👉 Mostrar Recibo ya mismo
     if (!mounted) return;
+    // 🔥 Obtener datos actualizados del prestamista ANTES de mostrar el recibo
+    final prest = await _prestamistaSeguro();
+    final empresaReal  = prest['empresa'] ?? widget.empresa;
+    final servidorReal = prest['servidor'] ?? widget.servidor;
+    final telReal      = prest['telefono'] ?? widget.telefonoServidor;
+
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ReciboScreen(
-          empresa: widget.empresa,
-          servidor: widget.servidor,
-          telefonoServidor: widget.telefonoServidor,
+          empresa: empresaReal,
+          servidor: servidorReal,
+          telefonoServidor: telReal,
+          // 💥 Lo demás se queda igual
           cliente: widget.nombreCompleto,
           telefonoCliente: widget.telefono,
           numeroRecibo: numeroRecibo,
@@ -639,24 +665,23 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
               .map((p) => p is Map<String, dynamic> ? (p['nombre'] ?? p.toString()) : p.toString())
               .join(' / ')
               : widget.producto,
-
-
           tipoProducto: widget.tipoProducto,
           vehiculoTipo: widget.vehiculoTipo,
           fecha: DateTime.now(),
           capitalInicial: saldoAnterior,
           pagoInteres: pagoInteres,
           pagoCapital: pagoCapital,
-          totalPagado: totalConMora,  // incluye mora
+          totalPagado: totalConMora,
           saldoAnterior: saldoAnterior,
-          saldoRestante: saldoNuevo, // 👈 NUEVO
+          saldoRestante: saldoNuevo,
           saldoActual: saldoNuevo,
           proximaFecha: proxNoon,
           tasaInteres: widget.tasaInteres,
-          moraCobrada: moraCobrada,   // para mostrar línea "Mora cobrada"
+          moraCobrada: moraCobrada,
         ),
       ),
     );
+
 
     // ✅ 3) GUARDAR DESPUÉS (si hay internet). Sin duplicar nada.
     final uid = FirebaseAuth.instance.currentUser?.uid;

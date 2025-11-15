@@ -38,7 +38,7 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
     // 🚀 Esperar a que el Scaffold exista antes de llamar anuncios
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = context;
-      Future.delayed(const Duration(milliseconds: 400), () {
+      Future.delayed(const Duration(milliseconds: 200), () {
         if (mounted) {
           AdsManager.showEveryFiveEntries(ctx, 'PanelPrestamos');
         }

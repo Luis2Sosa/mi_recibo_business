@@ -136,67 +136,70 @@ class NotificationsPlus {
       }
 
       Widget _card() => Container(
-        constraints: const BoxConstraints(minWidth: 240, maxWidth: 340),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-        decoration: intent == 'deuda_finalizada'
-            ? BoxDecoration(
-          color: const Color(0xFF16A34A),
-          borderRadius: BorderRadius.circular(26),
-        )
-            : BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+        constraints: const BoxConstraints(minWidth: 260, maxWidth: 360),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 22),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.18),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.28),
+            width: 1.8,
           ),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.22),
-              blurRadius: 22,
-              spreadRadius: 0,
-              offset: const Offset(0, 8),
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 30,
+              spreadRadius: 2,
+              offset: const Offset(0, 12),
             ),
           ],
+          // Efecto GLASS real
+          backgroundBlendMode: BlendMode.overlay,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: intent == 'deuda_finalizada'
-                    ? Colors.white.withOpacity(0.18)
-                    : color.withOpacity(0.10),
-                shape: BoxShape.circle,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ICONO PREMIUM
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: intent == 'pago_ok'
+                      ? const Color(0xFF22C55E).withOpacity(0.18)
+                      : const Color(0xFF0EA5E9).withOpacity(0.18),
+                ),
+                child: Icon(
+                  Icons.check_rounded,
+                  size: 32,
+                  color: intent == 'pago_ok'
+                      ? const Color(0xFF22C55E)
+                      : const Color(0xFF0EA5E9),
+                ),
               ),
-              child: Icon(
-                Icons.check_circle_rounded,
-                size: 30,
-                color: intent == 'deuda_finalizada' ? Colors.white : color,
+
+              const SizedBox(height: 16),
+
+              // TEXTO PREMIUM
+              Text(
+                text,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  height: 1.3,
+                  letterSpacing: 0.4,
+                  decoration: TextDecoration.none,
+                ),
               ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: intent == 'deuda_finalizada'
-                    ? Colors.white
-                    : const Color(0xFF0F172A),
-                fontSize: 17,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.2,
-                height: 1.35,
-                decoration: TextDecoration.none,
-                decorationColor: Colors.transparent,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
+
 
       // 🚫 Nada de showGeneralDialog + nav.pop()
       // ✅ Empujamos una ruta propia y la removemos explícitamente.
