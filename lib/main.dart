@@ -54,7 +54,7 @@ class MiReciboApp extends StatelessWidget {
   const MiReciboApp({super.key});
 
   @override
-  Widget build(BuildContext context) {git
+  Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Mi Recibo',
