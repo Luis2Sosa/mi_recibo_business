@@ -1349,6 +1349,7 @@ class _ReceiptContent extends StatelessWidget {
                                       ? 'Monto inicial'
                                       : 'Pago de producto',
                                   pesoSolo(totalPagado),
+
                                   iconBg: const Color(0xFFF3F0FF),
                                   iconColor: const Color(0xFF6D28D9),
                                 ),
@@ -1409,37 +1410,55 @@ class _ReceiptContent extends StatelessWidget {
                             else ...[
                                 _rowIcon(
                                   Icons.account_balance_wallet_rounded,
-                                  'Monto adeudado',
+                                  'Saldo pendiente anterior',
                                   pesoSolo(saldoAnterior),
                                   iconBg: const Color(0xFFF2F6FD),
                                   iconColor: const Color(0xFF2563EB),
                                 ),
+
                                 Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+
                                 _rowIcon(
                                   Icons.trending_up_rounded,
-                                  'Pago de interés',
+                                  'Interés del periodo',
                                   pesoSolo(pagoInteres),
                                   iconBg: const Color(0xFFEFFAF4),
                                   iconColor: const Color(0xFF22C55E),
                                 ),
+
                                 Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+
                                 _rowIcon(
                                   Icons.savings_rounded,
-                                  'Pago a capital',
+                                  'Abono a capital',
                                   pesoSolo(pagoCapital - pagoInteres),
                                   iconBg: const Color(0xFFFFF2F6),
                                   iconColor: const Color(0xFFE11D48),
                                 ),
+
+                                Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+
+                                _rowIcon(
+                                  Icons.payments_rounded,
+                                  'Total pagado',
+                                  pesoSolo(totalPagado),
+                                  iconBg: const Color(0xFFEFFAF4),
+                                  iconColor: const Color(0xFF16A34A),
+                                ),
+
                                 if (saldoActual > 0) ...[
                                   Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+
                                   _rowIcon(
                                     Icons.request_quote_rounded,
-                                    'Próximo pago',
+                                    'Saldo pendiente actual',
                                     pesoSolo(saldoActual),
                                     iconBg: const Color(0xFFFFFAE6),
                                     iconColor: const Color(0xFF92400E),
                                   ),
+
                                   Divider(height: 14, thickness: 1, color: cfg.mintDivider),
+
                                   _rowIcon(
                                     Icons.event_rounded,
                                     'Próxima fecha',
@@ -1449,6 +1468,7 @@ class _ReceiptContent extends StatelessWidget {
                                   ),
                                 ],
                               ],
+
                           ],
                         ),
                       );
