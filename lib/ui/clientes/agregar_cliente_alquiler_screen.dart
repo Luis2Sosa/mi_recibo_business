@@ -162,7 +162,8 @@ class _AgregarClienteAlquilerScreenState
           child: Stack(
             children: [
               Align(
-                alignment: Alignment.bottomCenter,
+                alignment: Alignment.center,
+
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 5),
                   child: ConstrainedBox(
@@ -185,14 +186,6 @@ class _AgregarClienteAlquilerScreenState
                       ),
                     ),
                   ),
-                ),
-              ),
-              Positioned(
-                top: 8,
-                left: 8,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => Navigator.pop(context),
                 ),
               ),
             ],

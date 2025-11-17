@@ -200,14 +200,6 @@ class _AgregarClientePrestamoScreenState
                   ),
                 ),
               ),
-              Positioned(
-                top: 8,
-                left: 8,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ),
             ],
           ),
         ),
