@@ -431,39 +431,26 @@ class _ReciboScreenState extends State<ReciboScreen> {
       final pdf = pw.Document();
       final img = pw.MemoryImage(pngBytes);
 
+      // Usa el tamaño EXACTO de la imagen capturada
+      final pageFormat = PdfPageFormat(
+        image.width.toDouble(),
+        image.height.toDouble(),
+      );
+
+// Agrega la imagen como página completa
       pdf.addPage(
         pw.Page(
-          pageFormat: PdfPageFormat.a4,
+          pageFormat: pageFormat,
           margin: pw.EdgeInsets.zero,
-          build: (pw.Context ctx) {
-            return pw.Container(
-              decoration: pw.BoxDecoration(
-                gradient: pw.LinearGradient(
-                  colors: [
-                    PdfColor.fromInt(0xFF2458D6), // Azul arriba
-                    PdfColor.fromInt(0xFF0A9A76), // Verde abajo
-                  ],
-                  begin: pw.Alignment.topCenter,
-                  end: pw.Alignment.bottomCenter,
-                ),
-              ),
-              child: pw.Center(
-                child: pw.Container(
-                  width: 480, // Tamaño perfecto para el recibo
-                  padding: const pw.EdgeInsets.all(18),
-                  decoration: pw.BoxDecoration(
-                    color: PdfColor.fromInt(0xFFFFFFFF),
-                    borderRadius: pw.BorderRadius.circular(20),
-                  ),
-                  child: pw.Image(img, fit: pw.BoxFit.contain),
-                ),
-              ),
-            );
-          },
+          build: (_) => pw.Image(
+            img,
+            fit: pw.BoxFit.cover,   // 🔥 NO CAMBIAR NUNCA
+          ),
         ),
       );
 
       final pdfBytes = await pdf.save();
+
 
       final clienteTok = _sanitizeToken(widget.cliente);
       final numeroTok = _sanitizeToken(_reciboFmt);
