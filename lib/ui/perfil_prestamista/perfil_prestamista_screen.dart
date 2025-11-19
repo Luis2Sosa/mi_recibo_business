@@ -26,6 +26,14 @@ import './producto_estadistica.dart';
 import './alquiler_estadistica.dart';
 import 'ganancia_prestamo_screen.dart';
 
+int toInt(dynamic v) {
+  if (v == null) return 0;
+  if (v is int) return v;
+  if (v is double) return v.round();
+  return int.tryParse(v.toString()) ?? 0;
+}
+
+
 // === Categorías de los filtros
 enum PerfilCategoria { prestamos, productos, alquiler }
 
@@ -432,8 +440,9 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       // 🔹 Recorrer clientes y sus pagos
       for (final d in cs.docs) {
         final m = d.data();
-        final cap = (m['capitalInicial'] ?? 0) as int;
-        final sal = (m['saldoActual'] ?? 0) as int;
+        final cap = toInt(m['capitalInicial']);
+        final sal = toInt(m['saldoActual']);
+
         prestado += cap;
         pendiente += sal;
 
@@ -467,9 +476,10 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         for (final p in pagos.docs) {
           final mp = p.data();
           final ts = mp['fecha'];
-          final int totalPagado = (mp['totalPagado'] ?? 0) as int;
-          final int pagoInteres = (mp['pagoInteres'] ?? 0) as int;
-          final int saldoAnterior = (mp['saldoAnterior'] ?? 0) as int;
+          final int totalPagado = toInt(mp['totalPagado']);
+          final int pagoInteres = toInt(mp['pagoInteres']);
+          final int saldoAnterior = toInt(mp['saldoAnterior']);
+
 
           if (ts is Timestamp) {
             final dt = ts.toDate();
@@ -515,7 +525,8 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         for (final p in pagos.docs) {
           final mp = p.data();
           final ts = mp['fecha'];
-          final int totalPagado = (mp['totalPagado'] ?? 0) as int;
+          final int totalPagado = toInt(mp['totalPagado']);
+
           if (ts is Timestamp) {
             final dt = ts.toDate();
             final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';

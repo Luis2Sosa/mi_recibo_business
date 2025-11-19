@@ -22,6 +22,8 @@ import '../core/ads/ads_manager.dart';
 import '../core/notifications_plus.dart';
 
 
+
+
 /// ==============================
 /// CONFIGURACIÓN VISUAL AJUSTABLE
 /// ==============================
@@ -96,7 +98,7 @@ class ReciboUIConfig {
 
     // Capturable (recibo)
     this.cardHeight = 600,
-    this.designWidth = 450,
+    this.designWidth = 490,
     this.cardRadius = const BorderRadius.all(Radius.circular(20)),
     this.cardPadding = const EdgeInsets.fromLTRB(16, 16, 16, 16),
 
@@ -307,6 +309,8 @@ class ReciboScreen extends StatefulWidget {
   final ReciboUIConfig config;
   final double tasaInteres;
   final bool esPrimerPago;
+  final bool isPremium;
+
 
 
   const ReciboScreen({
@@ -335,6 +339,8 @@ class ReciboScreen extends StatefulWidget {
     required this.tasaInteres,
     this.moraCobrada = 0,
     this.esPrimerPago = false,
+    this.isPremium = false,
+
 
   });
 
@@ -345,14 +351,27 @@ class ReciboScreen extends StatefulWidget {
 class _ReciboScreenState extends State<ReciboScreen> {
   final GlobalKey _captureKey = GlobalKey();
 
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+
+
+
   DateTime? _lastBackPress;
   static const Duration _backWindow = Duration(seconds: 2);
 
   ReciboUIConfig get cfg => widget.config;
 
+
   @override
   void initState() {
     super.initState();
+    if (!widget.isPremium) {
+
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (widget.saldoActual <= 0) {
@@ -411,14 +430,39 @@ class _ReciboScreenState extends State<ReciboScreen> {
 
       final pdf = pw.Document();
       final img = pw.MemoryImage(pngBytes);
-      final pageFormat = PdfPageFormat(image.width.toDouble(), image.height.toDouble());
+
       pdf.addPage(
         pw.Page(
-          pageFormat: pageFormat,
+          pageFormat: PdfPageFormat.a4,
           margin: pw.EdgeInsets.zero,
-          build: (_) => pw.Image(img, fit: pw.BoxFit.cover),
+          build: (pw.Context ctx) {
+            return pw.Container(
+              decoration: pw.BoxDecoration(
+                gradient: pw.LinearGradient(
+                  colors: [
+                    PdfColor.fromInt(0xFF2458D6), // Azul arriba
+                    PdfColor.fromInt(0xFF0A9A76), // Verde abajo
+                  ],
+                  begin: pw.Alignment.topCenter,
+                  end: pw.Alignment.bottomCenter,
+                ),
+              ),
+              child: pw.Center(
+                child: pw.Container(
+                  width: 480, // Tamaño perfecto para el recibo
+                  padding: const pw.EdgeInsets.all(18),
+                  decoration: pw.BoxDecoration(
+                    color: PdfColor.fromInt(0xFFFFFFFF),
+                    borderRadius: pw.BorderRadius.circular(20),
+                  ),
+                  child: pw.Image(img, fit: pw.BoxFit.contain),
+                ),
+              ),
+            );
+          },
         ),
       );
+
       final pdfBytes = await pdf.save();
 
       final clienteTok = _sanitizeToken(widget.cliente);

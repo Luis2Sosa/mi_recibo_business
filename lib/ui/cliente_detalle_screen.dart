@@ -87,6 +87,8 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   late DateTime _proximaFecha;
   bool _tieneCambios = false;
   String? _fechaPrimerPago; // 👈 agrega esto aquí
+  bool _esPremium = false;   // 👈 NUEVO
+
 
   int _totalPrestado = 0;
   bool _btnPagoBusy = false;
@@ -155,21 +157,35 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   @override
   void initState() {
     super.initState();
+
     _saldoActual = widget.saldoActual;
     _proximaFecha = widget.proximaFecha;
-    _moraAcumulada = (widget.moraAcumulada > 0) ? widget.moraAcumulada : _calcMoraAcumulada();
+
+    // 🟢 Inicializa mora local
+    _moraAcumulada = (widget.moraAcumulada > 0)
+        ? widget.moraAcumulada
+        : _calcMoraAcumulada();
+
+    // 🟢 Cargas normales
     Future.microtask(_autoFixEstado);
     Future.microtask(_cargarTotalPrestado);
     Future.microtask(_cargarNota);
     Future.microtask(_cargarFlags);
     Future.microtask(_cargarPagoInicial);
 
-    // 📅 Nuevo bloque: cargar fecha del primer pago
+    // 🟢 Cargar fecha del primer pago
     Future.microtask(() async {
       _fechaPrimerPago = await _obtenerFechaPrimerPago();
       if (mounted) setState(() {});
     });
+
+    // ⭐⭐⭐ Cargar PREMIUM AUTOMÁTICO ⭐⭐⭐
+    Future.microtask(() async {
+      _esPremium = await _cargarPremium();   // ← aquí se carga
+      if (mounted) setState(() {});
+    });
   }
+
 
 
   @override
@@ -183,7 +199,10 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
       _moraAcumulada = (widget.moraAcumulada > 0) ? widget.moraAcumulada : _calcMoraAcumulada();
       setState(() {});
     }
+
   }
+
+
 
 
   // =======================
@@ -441,6 +460,23 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     }
   }
 
+  // =======================
+// 👇 NUEVO: cargar si el usuario es PRO o GRATIS
+  Future<bool> _cargarPremium() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+
+    final snap = await FirebaseFirestore.instance
+        .collection('prestamistas')
+        .doc(uid)
+        .get();
+
+    final data = snap.data() ?? {};
+    return (data['isPremium'] ?? false) == true;
+  }
+// =======================
+
+
   // 👇 Cargar el pago inicial solo para productos (prioriza productoPagoInicial)
   Future<void> _cargarPagoInicial() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -678,7 +714,9 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           proximaFecha: proxNoon,
           tasaInteres: widget.tasaInteres,
           moraCobrada: moraCobrada,
-        ),
+          isPremium: _esPremium,
+
+  ),
       ),
     );
 
