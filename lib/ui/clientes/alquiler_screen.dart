@@ -92,6 +92,30 @@ class AlquilerScreen extends StatelessWidget {
     return 'CL-${cut.toUpperCase()}';
   }
 
+  // --- BLINDAJE SEGURO PARA FIELDS ---
+  int _safeInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
+    return 0;
+  }
+
+  double _safeDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is double) return v;
+    if (v is int) return v.toDouble();
+    if (v is String) return double.tryParse(v.replaceAll(',', '.')) ?? 0.0;
+    return 0.0;
+  }
+
+  DateTime _safeDate(dynamic v) {
+    if (v is Timestamp) return v.toDate();
+    if (v is DateTime) return v;
+    return DateTime.now();
+  }
+
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -123,35 +147,44 @@ class AlquilerScreen extends StatelessWidget {
 
         final docs = snap.data?.docs ?? [];
         final lista = docs.map((d) {
-          final data = d.data() as Map<String, dynamic>;
+          final data = d.data() as Map<String, dynamic>? ?? {};
+
           final codigoGuardado = (data['codigo'] as String?)?.trim();
           final codigoVisible = (codigoGuardado != null &&
               codigoGuardado.isNotEmpty)
               ? codigoGuardado
               : _codigoDesdeId(d.id);
+
           return Cliente(
             id: d.id,
             codigo: codigoVisible,
-            nombre: (data['nombre'] ?? '') as String,
-            apellido: (data['apellido'] ?? '') as String,
-            telefono: (data['telefono'] ?? '') as String,
-            direccion: data['direccion'] as String?,
-            producto: (data['producto'] as String?)?.trim(),
-            capitalInicial: (data['capitalInicial'] ?? 0) as int,
-            // tolerante con posible typo 'salvoActual'
-            saldoActual: (data['salvoActual'] ?? data['saldoActual'] ??
-                0) as int,
-            tasaInteres: (data['tasaInteres'] ?? 0.0).toDouble(),
-            periodo: (data['periodo'] ?? 'Mensual') as String,
-            proximaFecha: (data['proximaFecha'] is Timestamp)
-                ? (data['proximaFecha'] as Timestamp).toDate()
-                : DateTime.now(),
-            mora: (data['mora'] is Map)
-                ? Map<String, dynamic>.from(data['mora'] as Map)
-                : null,
 
+            // 🔐 BLINDAJE STRING
+            nombre: (data['nombre'] ?? '').toString(),
+            apellido: (data['apellido'] ?? '').toString(),
+            telefono: (data['telefono'] ?? '').toString(),
+            direccion: (data['direccion'] as String?),
+
+            producto: (data['producto'] ?? '').toString().trim(),
+
+            // 🔐 BLINDAJE NUMÉRICO
+            capitalInicial: _safeInt(data['capitalInicial']),
+            saldoActual: _safeInt(data['salvoActual'] ?? data['saldoActual']),
+            tasaInteres: _safeDouble(data['tasaInteres']),
+
+            // 🔐 BLINDAJE PERÍODO
+            periodo: (data['periodo'] ?? 'Mensual').toString(),
+
+            // 🔐 BLINDAJE FECHA
+            proximaFecha: _safeDate(data['proximaFecha']),
+
+            // 🔐 BLINDAJE MAPA DE MORA
+            mora: (data['mora'] is Map)
+                ? Map<String, dynamic>.from(data['mora'])
+                : null,
           );
         }).toList();
+
 
         final q = search.toLowerCase();
         final filtered = lista.where((c) {

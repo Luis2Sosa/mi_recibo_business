@@ -93,7 +93,6 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
         final esValido = estado.contains('activo') ||
             estado.contains('al_dia') ||
             estado.contains('al día') ||
-            estado.contains('saldado') ||
             estado.isEmpty;
         if (!esValido) continue;
 
@@ -583,9 +582,6 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
       ],
     );
   }
-
-
-
 }
 
 // ======================================================

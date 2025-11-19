@@ -255,7 +255,18 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
         ? 130.0 // préstamo (azul)
         : (esArriendo ? 200.0 : 180.0); // arriendo 200, producto 160
 
-    final double translateY = tecladoAbierto ? 1.0 : (baseDown + 20.0);
+    final double translateY = tecladoAbierto
+        ? 1.0
+        : (
+        widget.esPrestamo
+            ? (baseDown + 22.0)          // Préstamo
+            : (esArriendo
+            ? (baseDown + 28.0)      // Alquiler (ajuste ideal)
+            : (baseDown - 28.0)      // Producto
+        )
+    );
+
+
 
 
     final size = MediaQuery
@@ -754,6 +765,12 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                 _filaResumen('Próxima fecha',
                                                     _fmtFecha(_calcNextDate(
                                                         _baseProximaLocal))),
+                                                // 🧮 Saldo anterior
+                                                _filaResumen('Saldo anterior', _formatCurrency(widget.saldoAnterior)),
+
+// 🟢 Nuevo saldo
+                                                _filaResumen('Nuevo saldo', _formatCurrency(_saldoNuevo)),
+
 
                                                 const Divider(height: 16,
                                                     color: Color(0xFFE5E7EB)),

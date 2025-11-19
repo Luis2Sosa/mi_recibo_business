@@ -91,7 +91,6 @@ class _ProductoEstadisticaScreenState
         final esValido = estado.contains('activo') ||
             estado.contains('al_dia') ||
             estado.contains('al día') ||
-            estado.contains('saldado') ||
             estado.isEmpty;
         if (!esValido) continue;
 
@@ -117,7 +116,9 @@ class _ProductoEstadisticaScreenState
         if (data['createdAt'] != null) {
           final nombre = (data['nombre'] ?? '').toString();
           final primerNombre =
-          nombre.split(' ').isNotEmpty ? nombre.split(' ')[0] : nombre;
+          nombre
+              .split(' ')
+              .isNotEmpty ? nombre.split(' ')[0] : nombre;
           movimientos.add({
             'monto': 0,
             'fecha': (data['createdAt'] as Timestamp).toDate(),
@@ -132,7 +133,9 @@ class _ProductoEstadisticaScreenState
             final d = p.data();
             final nombre = (data['nombre'] ?? '').toString();
             final primerNombre =
-            nombre.split(' ').isNotEmpty ? nombre.split(' ')[0] : nombre;
+            nombre
+                .split(' ')
+                .isNotEmpty ? nombre.split(' ')[0] : nombre;
 
             movimientos.add({
               'monto': ((d['totalPagado'] ?? d['pago'] ?? 0) as num).toDouble(),
@@ -156,7 +159,6 @@ class _ProductoEstadisticaScreenState
         ultimosMovimientos.add(mov);
         if (ultimosMovimientos.length >= 3) break;
       }
-
 
 
       // 🔹 Datos para gráfico
@@ -312,11 +314,12 @@ class _ProductoEstadisticaScreenState
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => GananciaProductoScreen(
-                          docPrest: FirebaseFirestore.instance
-                              .collection('prestamistas')
-                              .doc(uid),
-                        ),
+                        builder: (_) =>
+                            GananciaProductoScreen(
+                              docPrest: FirebaseFirestore.instance
+                                  .collection('prestamistas')
+                                  .doc(uid),
+                            ),
                       ),
                     );
                   },
@@ -359,7 +362,8 @@ class _ProductoEstadisticaScreenState
                                 Shadow(
                                   offset: Offset(0, 1),
                                   blurRadius: 1.5,
-                                  color: Colors.black38, // 👈 mejora contraste sin dañar el verde
+                                  color: Colors
+                                      .black38, // 👈 mejora contraste sin dañar el verde
                                 ),
                               ],
                             ),
@@ -377,7 +381,6 @@ class _ProductoEstadisticaScreenState
         ),
       ),
     );
-
   }
 
   // ================= TARJETA KPI =================
@@ -423,7 +426,8 @@ class _ProductoEstadisticaScreenState
 
   // ================= GRÁFICO =================
   Widget _graficoCard() {
-    final tieneProductos = totalInvertido > 0 && clientesActivos > 0;
+    final tieneProductos = graficoData.isNotEmpty;
+
     final Color color =
     tieneProductos ? Colors.greenAccent : Colors.amberAccent;
     final String mensaje = tieneProductos
@@ -489,6 +493,7 @@ class _ProductoEstadisticaScreenState
       mainAxisSize: MainAxisSize.min,
       children: [
         if (ultimosMovimientos.isEmpty)
+        // 🔸 Si no hay movimientos
           Center(
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
@@ -509,6 +514,7 @@ class _ProductoEstadisticaScreenState
             ),
           )
         else
+        // 🔸 Mostrar las 3 tarjetas dinámicas
           ...ultimosMovimientos.take(3).map((m) {
             final fecha = DateFormat('dd/MM/yyyy').format(m['fecha']);
             final monto = _fmt(m['monto']);
@@ -526,6 +532,7 @@ class _ProductoEstadisticaScreenState
                 boxShadow: [
                   BoxShadow(
                     color: Colors.greenAccent.withOpacity(0.15),
+
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),

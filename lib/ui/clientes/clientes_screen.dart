@@ -32,6 +32,95 @@ import 'prestamos_screen.dart';
 import 'productos_screen.dart';
 import 'alquiler_screen.dart';
 
+// =====================
+// 🔐 BLINDAJE FIRESTORE
+// =====================
+
+// Lee un int de forma segura
+int fsInt(dynamic v, {int fallback = 0}) {
+  if (v is int) return v;
+  if (v is double) return v.round();
+  if (v is String) {
+    final cleaned = v.replaceAll(RegExp(r'[^0-9\-]'), '');
+    return int.tryParse(cleaned) ?? fallback;
+  }
+  return fallback;
+}
+
+// Lee un double de forma segura
+double fsDouble(dynamic v, {double fallback = 0.0}) {
+  if (v is double) return v;
+  if (v is int) return v.toDouble();
+  if (v is String) {
+    final cleaned = v.replaceAll(RegExp(r'[^0-9\.\-]'), '');
+    return double.tryParse(cleaned) ?? fallback;
+  }
+  return fallback;
+}
+
+// Lee un String de forma segura
+String fsString(dynamic v, {String fallback = ''}) {
+  if (v is String) return v.trim();
+  return fallback;
+}
+
+// Lee un Map de forma segura
+Map<String, dynamic> fsMap(dynamic v) {
+  if (v is Map<String, dynamic>) return v;
+  if (v is Map) return Map<String, dynamic>.from(v);
+  return {};
+}
+
+// Lee fecha segura
+DateTime fsDate(dynamic v, {required DateTime fallback}) {
+  if (v is Timestamp) return v.toDate();
+  if (v is DateTime) return v;
+  if (v is String) {
+    final d = DateTime.tryParse(v);
+    if (d != null) return d;
+  }
+  return fallback;
+}
+
+// ===============================
+// 🔐 BLINDAJE DE NAVEGACIÓN
+// ===============================
+
+// push seguro (evita pantallas rojas si la pantalla ya se cerró)
+Future<T?> pushSafe<T>(BuildContext context, Widget page) async {
+  if (!context.mounted) return null;
+  try {
+    return await Navigator.push<T>(
+      context,
+      MaterialPageRoute(builder: (_) => page),
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
+// pop seguro
+void popSafe(BuildContext context, [dynamic result]) {
+  if (!context.mounted) return;
+  if (Navigator.canPop(context)) {
+    try {
+      Navigator.pop(context, result);
+    } catch (_) {}
+  }
+}
+
+// setState seguro
+extension SafeState on State {
+  void setStateSafe(VoidCallback fn) {
+    if (!mounted) return;
+    try {
+      setState(fn);
+    } catch (_) {}
+  }
+}
+
+
+
 class ClientesScreen extends StatefulWidget {
   final String? initFiltro; // 👈 nuevo parámetro opcional
 
@@ -459,7 +548,13 @@ class _ClientesScreenState extends State<ClientesScreen> with WidgetsBindingObse
   }
 
   EstadoVenc _estadoDe(Cliente c) {
+    // 🟢 PRIMERO: detectar saldados correctos
+    if (c.saldoActual <= 0) {
+      return EstadoVenc.alDia; // 👈 ESTE valor NO es el texto. El texto “SALDADO” sale en el Card.
+    }
+
     final d = _diasHasta(c.proximaFecha);
+
     if (d < 0) return EstadoVenc.vencido;
     if (d == 0) return EstadoVenc.hoy;
     if (d <= 2) return EstadoVenc.pronto;
@@ -597,9 +692,13 @@ class _ClientesScreenState extends State<ClientesScreen> with WidgetsBindingObse
         'capitalInicial': nuevoCapital,
         'tasaInteres': tasa,
         'periodo': periodo,
+
+        // 🔥 ESTA ES LA LÍNEA QUE FALTABA
         'proximaFecha': Timestamp.fromDate(nuevaProx),
+
         'updatedAt': FieldValue.serverTimestamp(),
       };
+
       await docRef.set(update, SetOptions(merge: true));
 
       _showBanner('Cliente actualizado ✅', color: const Color(0xFF417CDE));
@@ -1008,10 +1107,9 @@ class _ClientesScreenState extends State<ClientesScreen> with WidgetsBindingObse
 
       final estadoAntes = _estadoDe(c);
 
-      final result = await Navigator.push(
+      final result = await pushSafe(
         context,
-        MaterialPageRoute(
-          builder: (_) => ClienteDetalleScreen(
+        ClienteDetalleScreen(
             // -------- cliente ----------
             id: c.id,
             codigo: codigoCorto,
@@ -1031,8 +1129,40 @@ class _ClientesScreenState extends State<ClientesScreen> with WidgetsBindingObse
             moraAcumulada: c.moraAcumulada, // 👈 NUEVO
 
           ),
-        ),
-      );
+    );
+
+      // 🔥 Releer Firestore después de un pago para refrescar saldos/montos
+      if (uid != null) {
+        final snapCheck = await FirebaseFirestore.instance
+            .collection('prestamistas')
+            .doc(uid)
+            .collection('clientes')
+            .doc(c.id)
+            .get();
+
+        final fresh = snapCheck.data();
+        if (fresh != null) {
+          c = Cliente(
+            id: c.id,
+            codigo: c.codigo,
+            nombre: c.nombre,
+            apellido: c.apellido,
+            telefono: c.telefono,
+            direccion: c.direccion,
+            nota: c.nota,
+            producto: c.producto,
+            capitalInicial: c.capitalInicial,
+            saldoActual: fresh['saldoActual'] ?? c.saldoActual,
+            tasaInteres: (fresh['tasaInteres'] ?? c.tasaInteres).toDouble(),
+            periodo: fresh['periodo'] ?? c.periodo,
+            proximaFecha: fresh['proximaFecha'] is Timestamp
+                ? (fresh['proximaFecha'] as Timestamp).toDate()
+                : c.proximaFecha,
+            mora: fresh['mora'] is Map ? Map<String, dynamic>.from(fresh['mora']) : c.mora,
+          );
+        }
+      }
+
 
       // Mensaje si volvemos desde un pago
       if (result != null && result is Map && result['accion'] == 'pago') {
@@ -1126,27 +1256,37 @@ class _ClientesScreenState extends State<ClientesScreen> with WidgetsBindingObse
           final codigoVisible = (codigoGuardado != null && codigoGuardado.isNotEmpty)
               ? codigoGuardado
               : _codigoDesdeId(d.id);
+
           return Cliente(
             id: d.id,
             codigo: codigoVisible,
-            nombre: (data['nombre'] ?? '') as String,
-            apellido: (data['apellido'] ?? '') as String,
-            telefono: (data['telefono'] ?? '') as String,
-            direccion: data['direccion'] as String?,
-            producto: (data['producto'] as String?)?.trim(),
-            capitalInicial: (data['capitalInicial'] ?? 0) as int,
-            saldoActual: (data['saldoActual'] ?? 0) as int,
-            tasaInteres: (data['tasaInteres'] ?? 0.0).toDouble(),
-            periodo: (data['periodo'] ?? 'Mensual') as String,
-            proximaFecha: (data['proximaFecha'] is Timestamp)
-                ? (data['proximaFecha'] as Timestamp).toDate()
-                : DateTime.now(),
-            mora: (data['mora'] is Map)
-                ? Map<String, dynamic>.from(data['mora'] as Map)
-                : null,
+            nombre: fsString(data['nombre']),
+            apellido: fsString(data['apellido']),
+            telefono: fsString(data['telefono']),
+            direccion: (data['direccion'] as String?)?.trim(),
+            producto: (data['producto']  as String?)?.trim(),
 
+
+            // 🔐 BLINDAJE NUMÉRICO
+            capitalInicial: fsInt(data['capitalInicial']),
+            saldoActual: fsInt(data['saldoActual']),
+
+
+            tasaInteres: fsDouble(data['tasaInteres']),
+
+            periodo: fsString(data['periodo'], fallback: 'Mensual'),
+
+            // 🔐 BLINDAJE FECHA
+            proximaFecha: fsDate(
+              data['proximaFecha'],
+              fallback: DateTime.now(),
+            ),
+
+            // 🔐 BLINDAJE MAPA
+            mora: fsMap(data['mora']),
           );
         }).toList();
+
 
         int cVencidos = 0, cHoy = 0, cPronto = 0;
         for (final c in lista) {

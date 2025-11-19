@@ -6,13 +6,6 @@ import 'package:flutter/material.dart';
 import 'clientes_shared.dart';
 import '../adaptive_icons.dart';
 
-
-
-
-
-
-
-
 class PrestamosScreen extends StatelessWidget {
   final String search;
   final bool resaltarVencimientos;
@@ -47,17 +40,34 @@ class PrestamosScreen extends StatelessWidget {
   int _compareClientes(Cliente a, Cliente b) {
     final sa = _esSaldado(a);
     final sb = _esSaldado(b);
-    if (sa != sb) return sa ? 1 : -1; // saldados al final
+    if (sa != sb) return sa ? 1 : -1;
     final fa = a.proximaFecha;
     final fb = b.proximaFecha;
     if (fa != fb) return fa.compareTo(fb);
     return a.nombreCompleto.compareTo(b.nombreCompleto);
   }
 
-  String _codigoDesdeId(String docId) {
-    final base = docId.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
-    final cut = base.length >= 6 ? base.substring(0, 6) : base.padRight(6, '0');
-    return 'CL-${cut.toUpperCase()}';
+  // --- BLINDAJE SEGURO PARA FIELDS ---
+  int _safeInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
+    return 0;
+  }
+
+  double _safeDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is double) return v;
+    if (v is int) return v.toDouble();
+    if (v is String) return double.tryParse(v.replaceAll(',', '.')) ?? 0.0;
+    return 0.0;
+  }
+
+  DateTime _safeDate(dynamic v) {
+    if (v is Timestamp) return v.toDate();
+    if (v is DateTime) return v;
+    return DateTime.now();
   }
 
   @override
@@ -74,53 +84,67 @@ class PrestamosScreen extends StatelessWidget {
           .collection('prestamistas')
           .doc(uid)
           .collection('clientes')
-          .orderBy('proximaFecha')
+          .orderBy('proximaFecha', descending: false)
           .snapshots(),
       builder: (_, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Colors.white));
+          return const Center(
+              child: CircularProgressIndicator(color: Colors.white));
         }
         if (snap.hasError) {
           return Center(
-            child: Text('Error: ${snap.error}', style: const TextStyle(color: Colors.white)),
+            child: Text('Error: ${snap.error}',
+                style: const TextStyle(color: Colors.white)),
           );
         }
 
         final docs = snap.data?.docs ?? [];
+
         final lista = docs.map((d) {
-          final data = d.data() as Map<String, dynamic>;
+          final data = d.data() as Map<String, dynamic>? ?? {};
+
+          // código visible seguro
           final codigoGuardado = (data['codigo'] as String?)?.trim();
-          final codigoVisible = (codigoGuardado != null && codigoGuardado.isNotEmpty)
+          final codigoVisible = (codigoGuardado != null &&
+              codigoGuardado.isNotEmpty)
               ? codigoGuardado
               : _codigoDesdeId(d.id);
+
           return Cliente(
             id: d.id,
             codigo: codigoVisible,
+
+            // --- BLINDAJE TOTAL ---
             nombre: (data['nombre'] ?? '') as String,
             apellido: (data['apellido'] ?? '') as String,
             telefono: (data['telefono'] ?? '') as String,
-            direccion: data['direccion'] as String?,
+            direccion: (data['direccion'] as String?),
+
             producto: (data['producto'] as String?)?.trim(),
-            capitalInicial: (data['capitalInicial'] ?? 0) as int,
-            // tolerante con posible typo 'salvoActual'
-            saldoActual: (data['salvoActual'] ?? data['saldoActual'] ?? 0) as int,
-            tasaInteres: (data['tasaInteres'] ?? 0.0).toDouble(),
+
+            capitalInicial: _safeInt(data['capitalInicial']),
+            saldoActual: _safeInt(
+                data['salvoActual'] ?? data['saldoActual']), // tolerante
+
+            tasaInteres: _safeDouble(data['tasaInteres']),
+
             periodo: (data['periodo'] ?? 'Mensual') as String,
-            proximaFecha: (data['proximaFecha'] is Timestamp)
-                ? (data['proximaFecha'] as Timestamp).toDate()
-                : DateTime.now(),
+
+            proximaFecha: _safeDate(data['proximaFecha']),
 
             mora: (data['mora'] is Map)
                 ? Map<String, dynamic>.from(data['mora'] as Map)
                 : null,
-
           );
         }).toList();
 
         final q = search.toLowerCase();
         final filtered = lista.where((c) {
           final prod = (c.producto ?? '').trim().toLowerCase();
-          final isPrestamo = prod.isEmpty; // préstamo => sin producto
+
+          // 🔐 BLINDAJE: préstamos son los que NO tienen producto claro
+          final isPrestamo = prod.isEmpty || prod == 'null';
+
           final match = c.codigo.toLowerCase().contains(q) ||
               c.nombreCompleto.toLowerCase().contains(q) ||
               c.telefono.contains(q);
@@ -128,9 +152,11 @@ class PrestamosScreen extends StatelessWidget {
         }).toList()
           ..sort(_compareClientes);
 
+
         if (filtered.isEmpty) {
           return const Center(
-            child: Text('No hay préstamos', style: TextStyle(color: Colors.white)),
+            child: Text('No hay préstamos',
+                style: TextStyle(color: Colors.white)),
           );
         }
 
@@ -141,7 +167,9 @@ class PrestamosScreen extends StatelessWidget {
           itemBuilder: (_, i) {
             final c = filtered[i];
             final estado = _estadoDe(c);
-            final codigoCorto = 'CL-${(i + 1).toString().padLeft(4, '0')}';
+            final codigoCorto =
+                'CL-${(i + 1).toString().padLeft(4, '0')}';
+
             return GestureDetector(
               onTap: () => onTapCliente(c, codigoCorto),
               onLongPress: () => onLongPressCliente(c),
@@ -157,5 +185,11 @@ class PrestamosScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  String _codigoDesdeId(String docId) {
+    final base = docId.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+    final cut = base.length >= 6 ? base.substring(0, 6) : base.padRight(6, '0');
+    return 'CL-${cut.toUpperCase()}';
   }
 }

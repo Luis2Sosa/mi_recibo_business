@@ -18,7 +18,7 @@ class TelefonoInputFormatter extends TextInputFormatter {
 
     for (int i = 0; i < text.length; i++) {
       newText += text[i];
-      if (i == 2 || i == 5) newText += '-'; // agrega guiones automáticamente
+      if (i == 2 || i == 5) newText += '-';
     }
 
     return TextEditingValue(
@@ -27,7 +27,6 @@ class TelefonoInputFormatter extends TextInputFormatter {
     );
   }
 }
-
 
 class AgregarClientePrestamoScreen extends StatefulWidget {
   final String? id;
@@ -88,12 +87,10 @@ class _AgregarClientePrestamoScreenState
     _telefonoCtrl = TextEditingController(text: widget.initTelefono ?? '');
     _direccionCtrl = TextEditingController(text: widget.initDireccion ?? '');
     _notaCtrl = TextEditingController(text: widget.initNota ?? '');
-    _capitalCtrl = TextEditingController(
-      text: widget.initCapital?.toString() ?? '',
-    );
-    _tasaCtrl = TextEditingController(
-      text: widget.initTasa?.toString() ?? '',
-    );
+    _capitalCtrl =
+        TextEditingController(text: widget.initCapital?.toString() ?? '');
+    _tasaCtrl =
+        TextEditingController(text: widget.initTasa?.toString() ?? '');
     _periodo = widget.initPeriodo ?? 'Mensual';
     _proximaFecha = widget.initProximaFecha;
   }
@@ -157,7 +154,7 @@ class _AgregarClientePrestamoScreenState
 
   @override
   Widget build(BuildContext context) {
-    final double h = MediaQuery.of(context).size.height;
+    final h = MediaQuery.of(context).size.height;
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -248,246 +245,253 @@ class _AgregarClientePrestamoScreenState
             ),
           ),
           const SizedBox(height: 14),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.12),
-                  blurRadius: 18,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _nombreCtrl,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: _deco('Nombre', icon: Icons.person),
-                        textInputAction: TextInputAction.next,
-                        validator: (v) =>
-                        (v == null || v.trim().isEmpty)
-                            ? 'Obligatorio'
-                            : null,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _apellidoCtrl,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: _deco('Apellido', icon: Icons.badge),
-                        textInputAction: TextInputAction.next,
-                        validator: (v) =>
-                        (v == null || v.trim().isEmpty)
-                            ? 'Obligatorio'
-                            : null,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _telefonoCtrl,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [
-                    TelefonoInputFormatter(), // 👈 aquí usamos el nuevo formateador
-                  ],
-                  decoration: _deco('Teléfono', icon: Icons.call),
-                  textInputAction: TextInputAction.next,
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Obligatorio';
-                    return _isValidPhone(v.trim())
-                        ? null
-                        : 'Número inválido';
-                  },
-                ),
-
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _direccionCtrl,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration:
-                  _deco('Dirección (opcional)', icon: Icons.home),
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _notaCtrl,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: _deco('Nota (opcional)',
-                      icon: Icons.note_alt_outlined),
-                  maxLines: 3,
-                  textInputAction: TextInputAction.newline,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _capitalCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly
-                  ],
-                  decoration: _deco('Monto del préstamo (\$)',
-                      icon: Icons.payments),
-                  validator: (v) =>
-                  (v == null || v.isEmpty) ? 'Obligatorio' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _tasaCtrl,
-                  keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))
-                  ],
-                  decoration:
-                  _deco('% Interés', icon: Icons.percent),
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Obligatorio';
-                    final x = double.tryParse(v.replaceAll(',', '.'));
-                    if (x == null) return 'Número inválido';
-                    if (x < 0 || x > 100) return 'Debe ser entre 0 y 100';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Text('Período:',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(width: 12),
-                    ChoiceChip(
-                      label: const Text('Mensual'),
-                      selected: _periodo == 'Mensual',
-                      onSelected: (_) =>
-                          setState(() => _periodo = 'Mensual'),
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: const Text('Quincenal'),
-                      selected: _periodo == 'Quincenal',
-                      onSelected: (_) =>
-                          setState(() => _periodo = 'Quincenal'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7F8FA),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: _proximaFecha == null
-                          ? const Color(0xFFEF4444)
-                          : const Color(0xFFE5E7EB),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _proximaFecha == null
-                                  ? 'Próxima fecha: (selecciona)'
-                                  : 'Próxima fecha: ${_fmtFecha(_proximaFecha!)}',
-                              style: TextStyle(
-                                color: _proximaFecha == null
-                                    ? const Color(0xFFEF4444)
-                                    : const Color(0xFF374151),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          TextButton.icon(
-                            icon: const Icon(Icons.date_range),
-                            label: const Text('Elegir'),
-                            onPressed: () async {
-                              final sel = await showDatePicker(
-                                context: context,
-                                initialDate: _proximaFecha ??
-                                    DateTime.now(),
-                                firstDate: DateTime.now(),
-                                lastDate: DateTime(2100),
-                              );
-                              if (sel != null) {
-                                setState(() => _proximaFecha = sel);
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                      if (_proximaFecha == null)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 4),
-                          child: Text(
-                            'Debes elegir una fecha de pago',
-                            style: TextStyle(
-                              color: Color(0xFFEF4444),
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 58,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2458D6),
-                      foregroundColor: Colors.white,
-                      elevation: 6,
-                      shadowColor: Colors.black.withOpacity(0.3),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    onPressed: _guardando ? null : _guardar,
-                    child: _guardando
-                        ? const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            )),
-                        SizedBox(width: 10),
-                        Text('Guardando...'),
-                      ],
-                    )
-                        : const Text('Guardar'),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _formContainer(),
         ],
       ),
     );
   }
+
+  Widget _formContainer() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: _formFields(),
+    );
+  }
+
+  Widget _formFields() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: _nombreCtrl,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: _deco('Nombre', icon: Icons.person),
+                textInputAction: TextInputAction.next,
+                validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Obligatorio' : null,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextFormField(
+                controller: _apellidoCtrl,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: _deco('Apellido', icon: Icons.badge),
+                textInputAction: TextInputAction.next,
+                validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Obligatorio' : null,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _telefonoCtrl,
+          keyboardType: TextInputType.phone,
+          inputFormatters: [TelefonoInputFormatter()],
+          decoration: _deco('Teléfono', icon: Icons.call),
+          textInputAction: TextInputAction.next,
+          validator: (v) {
+            if (v == null || v.trim().isEmpty) return 'Obligatorio';
+            return _isValidPhone(v.trim()) ? null : 'Número inválido';
+          },
+        ),
+
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _direccionCtrl,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: _deco('Dirección (opcional)', icon: Icons.home),
+        ),
+
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _notaCtrl,
+          textCapitalization: TextCapitalization.sentences,
+          maxLines: 3,
+          decoration: _deco('Nota (opcional)', icon: Icons.note_alt_outlined),
+        ),
+
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _capitalCtrl,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: _deco('Monto del préstamo (\$)', icon: Icons.payments),
+          validator: (v) =>
+          (v == null || v.isEmpty) ? 'Obligatorio' : null,
+        ),
+
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _tasaCtrl,
+          keyboardType:
+          const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))
+          ],
+          decoration: _deco('% Interés', icon: Icons.percent),
+          validator: (v) {
+            if (v == null || v.isEmpty) return 'Obligatorio';
+            final x = double.tryParse(v.replaceAll(',', '.'));
+            if (x == null) return 'Número inválido';
+            if (x < 0 || x > 100) return 'Debe ser entre 0 y 100';
+            return null;
+          },
+        ),
+
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            const Text('Período:',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(width: 12),
+            ChoiceChip(
+              label: const Text('Mensual'),
+              selected: _periodo == 'Mensual',
+              onSelected: (_) => setState(() => _periodo = 'Mensual'),
+            ),
+            const SizedBox(width: 8),
+            ChoiceChip(
+              label: const Text('Quincenal'),
+              selected: _periodo == 'Quincenal',
+              onSelected: (_) => setState(() => _periodo = 'Quincenal'),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+        _fechaSelector(),
+
+        const SizedBox(height: 20),
+        _btnGuardar(),
+      ],
+    );
+  }
+
+  Widget _fechaSelector() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: _proximaFecha == null
+              ? const Color(0xFFEF4444)
+              : const Color(0xFFE5E7EB),
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _proximaFecha == null
+                      ? 'Próxima fecha: (selecciona)'
+                      : 'Próxima fecha: ${_fmtFecha(_proximaFecha!)}',
+                  style: TextStyle(
+                    color: _proximaFecha == null
+                        ? const Color(0xFFEF4444)
+                        : const Color(0xFF374151),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                icon: const Icon(Icons.date_range),
+                label: const Text('Elegir'),
+                onPressed: () async {
+                  final sel = await showDatePicker(
+                    context: context,
+                    initialDate: _proximaFecha ?? DateTime.now(),
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime(2100),
+                  );
+                  if (sel != null) {
+                    setState(() => _proximaFecha = sel);
+                  }
+                },
+              ),
+            ],
+          ),
+          if (_proximaFecha == null)
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text(
+                'Debes elegir una fecha de pago',
+                style: TextStyle(
+                  color: Color(0xFFEF4444),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _btnGuardar() {
+    return SizedBox(
+      width: double.infinity,
+      height: 58,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF2458D6),
+          foregroundColor: Colors.white,
+          elevation: 6,
+          shadowColor: Colors.black.withOpacity(0.3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
+        ),
+        onPressed: _guardando ? null : _guardar,
+        child: _guardando
+            ? const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                )),
+            SizedBox(width: 10),
+            Text('Guardando...'),
+          ],
+        )
+            : const Text('Guardar'),
+      ),
+    );
+  }
+
+  // ============================================================
+  //                     MÉTODO _guardar BLINDADO
+  // ============================================================
 
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
@@ -519,10 +523,24 @@ class _AgregarClientePrestamoScreenState
     final telefono = _telefonoCtrl.text.trim();
     final direccion = _direccionCtrl.text.trim();
     final nota = _notaCtrl.text.trim();
-    final capital =
-        int.tryParse(_capitalCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-    final tasa =
-        double.tryParse(_tasaCtrl.text.replaceAll(',', '.')) ?? 0.0;
+
+    // --- BLINDAJE: parse seguro ---
+    int _safeParseInt(String v) {
+      if (v.isEmpty) return 0;
+      final cleaned = v.replaceAll(RegExp(r'[^0-9]'), '');
+      return int.tryParse(cleaned) ?? 0;
+    }
+
+    double _safeParseDouble(String v) {
+      if (v.isEmpty) return 0.0;
+      final cleaned = v.replaceAll(',', '.');
+      return double.tryParse(cleaned) ?? 0.0;
+    }
+
+    final capital = _safeParseInt(_capitalCtrl.text);
+    final tasa = _safeParseDouble(_tasaCtrl.text);
+
+    final fechaProxima = _proximaFecha ?? DateTime.now();
 
     final data = {
       'nombre': nombre,
@@ -530,27 +548,23 @@ class _AgregarClientePrestamoScreenState
       'telefono': telefono,
       'direccion': direccion.isEmpty ? null : direccion,
       'nota': nota.isEmpty ? null : nota,
+
       'capitalInicial': capital,
       'saldoActual': capital,
       'tasaInteres': tasa,
+
       'periodo': _periodo,
 
+      'proximaFecha': Timestamp.fromDate(_atNoon(fechaProxima)),
+      'venceEl':
+      "${fechaProxima.year}-${fechaProxima.month.toString().padLeft(2, '0')}-${fechaProxima.day.toString().padLeft(2, '0')}",
 
-
-      // 🔹 Fechas //
-      'proximaFecha': Timestamp.fromDate(_atNoon(_proximaFecha!)),
-      'venceEl': _proximaFecha != null
-          ? "${_proximaFecha!.year}-${_proximaFecha!.month.toString().padLeft(2, '0')}-${_proximaFecha!.day.toString().padLeft(2, '0')}"
-          : null,
-
-
-      // 🔹 Estado & Metadata
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
       'tipo': 'prestamo',
+      'estado': 'al_dia',
+
     };
-
-
 
     try {
       final metricRef = FirebaseFirestore.instance
@@ -559,53 +573,68 @@ class _AgregarClientePrestamoScreenState
           .collection('metrics')
           .doc('summary');
 
+      // ============================================================
+      //                     MODO EDITAR
+      // ============================================================
       if (_isEdit && widget.id != null) {
-        // 🔹 Obtener datos anteriores del cliente
         final docAnterior = await clientesRef.doc(widget.id).get();
-        final dataAnterior = docAnterior.data() ?? {};
-        final estadoAnterior = (dataAnterior['estado'] ?? '').toString().toLowerCase();
-        final capitalAnterior = (dataAnterior['capitalInicial'] ?? 0).toDouble();
+        final old = docAnterior.data() ?? {};
 
-        // 🔹 Actualizar cliente
-        await clientesRef.doc(widget.id).update(data);
+        final double capitalAnterior = (() {
+          final raw = old['capitalInicial'];
+          if (raw == null) return 0.0;
+          if (raw is int) return raw.toDouble();
+          if (raw is double) return raw;
+          if (raw is String) return double.tryParse(raw) ?? 0.0;
+          return 0.0;
+        })();
 
-        final capitalNuevo = capital.toDouble();
-        final diferencia = capitalNuevo - capitalAnterior;
+        final estadoAnterior =
+        (old['estado'] ?? '').toString().toLowerCase();
 
-        // ✅ Actualizar resumen de métricas según la diferencia
+        await clientesRef.doc(widget.id).set(data, SetOptions(merge: true));
+
+        final double capitalNuevo = capital.toDouble();
+        final double diferencia = capitalNuevo - capitalAnterior;
+
         if (diferencia != 0) {
           await metricRef.set({
             'totalCapitalPrestado': FieldValue.increment(diferencia),
             'ultimaActualizacion': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
-
-          debugPrint("✅ Capital actualizado. Diferencia aplicada: $diferencia");
         }
 
-        // ✅ Si estaba saldado y ahora tiene nuevo préstamo
         if (estadoAnterior.contains('saldado') && capitalNuevo > 0) {
           await metricRef.set({
             'totalCapitalPrestado': FieldValue.increment(capitalNuevo),
             'ultimaActualizacion': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
-
-          debugPrint("✅ Cliente reactivado: +$capitalNuevo");
         }
       }
+
+      // ============================================================
+      //                    MODO NUEVO CLIENTE
+      // ============================================================
       else {
-        // 🔹 Nuevo cliente: suma al total prestado
         await clientesRef.add(data);
 
         await metricRef.set({
           'totalCapitalPrestado': FieldValue.increment(capital.toDouble()),
           'ultimaActualizacion': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
-
-        debugPrint("✅ Nuevo cliente agregado: +$capital");
       }
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
 
-      if (!mounted) return;
+    // ============================================================
+    //           NAVEGACIÓN + FINALIZACIÓN BLINDADA
+    // ============================================================
 
+    if (!mounted) return;
+
+    try {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (_) => const ClientesScreen(initFiltro: 'prestamos'),
@@ -613,13 +642,11 @@ class _AgregarClientePrestamoScreenState
             (r) => false,
       );
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
+      debugPrint("Navigator error: $e");
     }
 
-    if (mounted) setState(() => _guardando = false);
-
-
-
+    if (mounted) {
+      setState(() => _guardando = false);
+    }
   }
 }
