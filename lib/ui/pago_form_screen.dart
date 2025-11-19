@@ -288,7 +288,8 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
     final glassWhite = Colors.white.withOpacity(0.12);
 
     final String tipoLabel =
-    widget.esPrestamo ? 'Préstamo' : (esArriendo ? 'Arriendo' : 'Producto');
+    widget.esPrestamo ? 'Préstamo' : (esArriendo ? 'Alquiler' : 'Producto');
+
 
     // === Configuración de color dinámico de la tarjeta de cliente ===
     final tipo = tipoLabel.toLowerCase();
@@ -595,11 +596,12 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                           ...[
                                             _campoValidado(
                                               label: esArriendo
-                                                  ? 'Pago del alquiler'
+                                                  ? 'Pago del arriendo'
                                                   : 'Pago del producto',
                                               controller: _capitalCtrl,
                                               errorText: _errorCapital,
                                             ),
+
                                           ],
                                         const SizedBox(
                                             height: 12),

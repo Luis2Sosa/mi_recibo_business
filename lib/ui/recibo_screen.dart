@@ -946,7 +946,7 @@ class _ReceiptContent extends StatelessWidget {
     // Títulos bonitos según tipo
     String tituloPrincipal;
     if (esArriendo && pagoFinalizado) {
-      tituloPrincipal = 'Arriendo saldado';
+      tituloPrincipal = 'Alquiler saldado';
     } else if (esArriendo && !pagoFinalizado) {
       tituloPrincipal = 'Pago de arriendo recibido';
     } else if (esProducto && !pagoFinalizado) {
@@ -1187,7 +1187,7 @@ class _ReceiptContent extends StatelessWidget {
                             const SizedBox(height: 8),
                             Text(
                               esArriendo
-                                  ? 'Arriendo saldado'
+                                  ? 'Alquiler saldado'
                                   : esProducto
                                   ? 'Producto pagado por completo'
                                   : 'Préstamo saldado',
@@ -1291,7 +1291,7 @@ class _ReceiptContent extends StatelessWidget {
                             if (esArriendo) ...[
                               _rowIcon(
                                 Icons.home_rounded,
-                                'Pago mensual de arriendo',
+                                'Pago mensual de alquiler',
                                 pesoSolo(totalPagado),
                                 iconBg: const Color(0xFFFFFAE6),
                                 iconColor: const Color(0xFF92400E),
