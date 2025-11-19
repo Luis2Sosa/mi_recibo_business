@@ -1,5 +1,6 @@
 // 📂 lib/core/ads/ads_manager.dart
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../premium_service.dart';
@@ -22,17 +23,31 @@ class AdsManager {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return false;
 
+      // 👉 Verificar si el usuario está REGISTRADO en Firestore
+      final snap = await FirebaseFirestore.instance
+          .collection('prestamistas')
+          .doc(user.uid)
+          .get();
+
+      if (!snap.exists) {
+        // ❌ El usuario NO está registrado todavía
+        debugPrint("⛔ Usuario sin registro — No mostrar anuncios");
+        return true; // Tratamos como PREMIUM para BLOQUEAR anuncios
+      }
+
+      // 👉 Luego verificar si es Premium
       final premiumService = PremiumService();
       final activo = await premiumService.esPremiumActivo(user.uid);
 
-      debugPrint("💎 Premium activo?: $activo"); // 👈 VERIFICACIÓN REAL
+      debugPrint("💎 Premium activo?: $activo");
 
       return activo;
     } catch (e) {
-      debugPrint("❌ Error Premium: $e");
+      debugPrint("❌ Error Premium/Registro: $e");
       return false;
     }
   }
+
 
 
   /// 👉 Función MAESTRA

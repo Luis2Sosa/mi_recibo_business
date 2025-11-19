@@ -6,6 +6,34 @@ import 'package:flutter/services.dart';                // 👈 input formatters
 import 'clientes/clientes_screen.dart';
 import 'package:mi_recibo/ui/theme/currency_utils.dart'; // 🌍 util de moneda automática
 
+// =====================
+// FORMATTER: Teléfono con guiones
+// =====================
+class TelefonoFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue,
+      TextEditingValue newValue,
+      ) {
+    String numbers = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+    // Formato: 000-000-0000
+    String formatted = '';
+    for (int i = 0; i < numbers.length; i++) {
+      formatted += numbers[i];
+      if (i == 2 || i == 5) {
+        if (i != numbers.length - 1) formatted += '-';
+      }
+    }
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+
 
 class PrestamistaRegistroScreen extends StatefulWidget {
   const PrestamistaRegistroScreen({super.key});
@@ -19,7 +47,7 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
   // Logo independiente (no empuja el contenido)
   static const double _logoTop = -80;
   static const double _logoHeight = 400;
-  static const double _gapBelowLogo = -60; // ⬅️ marco un poco más abajo (no tapa)
+  static const double _gapBelowLogo = -10; // ⬅️ marco un poco más abajo (no tapa)
 
   final _formKey = GlobalKey<FormState>();
 
@@ -181,8 +209,8 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                 padding: const EdgeInsets.only(bottom: 12),
                                 child: Center(
                                   child: Text(
-                                    'Registro Prestamista',
-                                    style: GoogleFonts.playfairDisplay( // ✅ corregido
+                                    'Registro',
+                                    style: GoogleFonts.playfairDisplay(
                                       textStyle: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 28,
@@ -193,6 +221,7 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                     ),
                                   ),
                                 ),
+
                               ),
 
                               // Tarjeta blanca con íconos y estética pro
@@ -244,10 +273,9 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                                         textInputAction: TextInputAction.next,
                                         // 👇 Permitir números y guion (antes bloqueaba el guion)
                                         inputFormatters: [
-                                          FilteringTextInputFormatter.allow(
-                                            RegExp(r'[0-9\-]'),
-                                          ),
+                                          TelefonoFormatter(), // ← aquí
                                         ],
+
                                         validator: (v) {
                                           if (v == null || v.trim().isEmpty) {
                                             return 'Obligatorio';
