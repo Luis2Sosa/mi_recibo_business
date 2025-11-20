@@ -16,16 +16,22 @@ class SyncOfflineService {
 
   void start() {
     // Escucha cambios de sesión
-    _authSub ??= FirebaseAuth.instance.authStateChanges().listen((_) async {
-      // Cada vez que cambia la sesión, intenta una pasada de sync si hay internet.
-      final hasNet = await _hasConnectivity();
-      if (hasNet) _trySync();
-    });
+    _authSub ??=
+        FirebaseAuth.instance.authStateChanges().listen((_) async {
+          final hasNet = await _hasConnectivity();
+          if (hasNet) _trySync();
+        });
 
-    // Escucha conectividad (wifi/datos)
-    _connSub ??= Connectivity()
-        .onConnectivityChanged
-        .listen((_) => _trySync());
+    // 🔥 NUEVO MANEJO DE CONECTIVIDAD (compatibilidad 2024+)
+    _connSub ??= Connectivity().onConnectivityChanged.listen(
+          (List<ConnectivityResult> results) {
+        if (results.isNotEmpty &&
+            (results.contains(ConnectivityResult.mobile) ||
+                results.contains(ConnectivityResult.wifi))) {
+          _trySync();
+        }
+      },
+    );
 
     // Primer intento al arrancar
     _trySync();
@@ -33,9 +39,11 @@ class SyncOfflineService {
 
   Future<bool> _hasConnectivity() async {
     final results = await Connectivity().checkConnectivity();
-    // Si hay al menos un medio conectado
-    return results.any((r) =>
-    r == ConnectivityResult.mobile || r == ConnectivityResult.wifi);
+    return results.any(
+          (r) =>
+      r == ConnectivityResult.mobile ||
+          r == ConnectivityResult.wifi,
+    );
   }
 
   Future<void> _trySync() async {
@@ -54,12 +62,10 @@ class SyncOfflineService {
     }
   }
 
-  /// Busca en cache/local los pagos con pendienteSync=true
-  /// y los aplica al documento del cliente + marca pendienteSync=false.
   Future<void> _syncPending(String uid) async {
     final db = FirebaseFirestore.instance;
 
-    // 1) Traer clientes del usuario (desde cache si es posible)
+    // 1) Traer clientes del usuario desde cache
     final clientesSnap = await db
         .collection('prestamistas')
         .doc(uid)
@@ -69,7 +75,7 @@ class SyncOfflineService {
     for (final clienteDoc in clientesSnap.docs) {
       final clienteRef = clienteDoc.reference;
 
-      // 2) Buscar pagos pendientes de sync en este cliente
+      // 2) Pagos pendientes
       final pagosPendSnap = await clienteRef
           .collection('pagos')
           .where('pendienteSync', isEqualTo: true)
@@ -80,7 +86,6 @@ class SyncOfflineService {
       for (final p in pagosPendSnap.docs) {
         final data = p.data();
 
-        // Datos necesarios para aplicar el pago al cliente
         final int saldoNuevo = (data['saldoNuevo'] ?? 0) is int
             ? data['saldoNuevo'] as int
             : 0;
@@ -90,15 +95,16 @@ class SyncOfflineService {
         final int pagoInteres = (data['pagoInteres'] ?? 0) is int
             ? data['pagoInteres'] as int
             : 0;
+
         final Timestamp? proxTs = data['proximaFecha'] as Timestamp?;
-        // Si no guardaste proximaFecha en el pago, usamos ahora para no fallar
         final DateTime proximaFecha =
             proxTs?.toDate() ?? DateTime.now();
 
-        // 3) Aplicar cambios al cliente en el servidor
+        // 3) Aplicar cambios con transacción
         await FirebaseFirestore.instance.runTransaction((tx) async {
           final snap = await tx.get(clienteRef);
-          final current = (snap.data()?['nextReciboCliente'] ?? 0) as int;
+          final current =
+          (snap.data()?['nextReciboCliente'] ?? 0) as int;
           final next = current + 1;
 
           final updates = <String, dynamic>{
@@ -107,7 +113,8 @@ class SyncOfflineService {
             'updatedAt': FieldValue.serverTimestamp(),
             'nextReciboCliente': next,
             'saldado': saldoNuevo <= 0,
-            'estado': saldoNuevo <= 0 ? 'saldado' : 'al_dia',
+            'estado':
+            saldoNuevo <= 0 ? 'saldado' : 'al_dia',
             'venceEl': (saldoNuevo <= 0)
                 ? FieldValue.delete()
                 : Timestamp.fromDate(proximaFecha),
@@ -115,11 +122,10 @@ class SyncOfflineService {
 
           tx.set(clienteRef, updates, SetOptions(merge: true));
 
-          // Marca el pago como sincronizado
           tx.update(p.reference, {'pendienteSync': false});
         });
 
-        // 4) (Opcional) actualizar métricas globales de forma incremental
+        // 4) Métricas globales
         try {
           final metricsRef = db
               .collection('prestamistas')
@@ -128,15 +134,19 @@ class SyncOfflineService {
               .doc('summary');
 
           await metricsRef.set({
-            'lifetimeRecuperado': FieldValue.increment(pagoCapital),
-            'lifetimeGanancia': FieldValue.increment(pagoInteres),
-            'lifetimePagosSum':
-            FieldValue.increment((data['totalPagado'] ?? 0) as int),
-            'lifetimePagosCount': FieldValue.increment(1),
+            'lifetimeRecuperado':
+            FieldValue.increment(pagoCapital),
+            'lifetimeGanancia':
+            FieldValue.increment(pagoInteres),
+            'lifetimePagosSum': FieldValue.increment(
+              (data['totalPagado'] ?? 0) as int,
+            ),
+            'lifetimePagosCount':
+            FieldValue.increment(1),
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
         } catch (_) {
-          // no interrumpir la sincronización por métricas
+          // no interrumpir sync
         }
       }
     }

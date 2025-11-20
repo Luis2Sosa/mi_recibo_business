@@ -24,8 +24,8 @@ class _PinScreenState extends State<PinScreen> {
   DateTime? _lastBack;
 
   // Estética
-  static const double _logoTop = -70;
-  static const double _logoHeight = 300;
+  static const double _logoTop = -30;
+  static const double _logoHeight = 400;
 
   @override
   void initState() {
@@ -227,7 +227,9 @@ class _PinScreenState extends State<PinScreen> {
     final String title = _loading ? 'Cargando…' : 'Verifica tu identidad';
 
     // Posición del panel más arriba (y ajusta si aparece el teclado)
-    final double panelAlignY = tecladoAbierto ? 0.80 : 0.20; // -1 top, 1 bottom
+    final double panelAlignY = tecladoAbierto ? 0.70 : 0.90;
+// 🔥 Ya no estará arriba — queda centrado visualmente
+
 
     return WillPopScope(
       onWillPop: _onWillPop,
@@ -290,7 +292,8 @@ class _PinScreenState extends State<PinScreen> {
                     ),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
+                        color: Colors.white.withOpacity(0.18),  // 🔥 cristal más marcado
+
                         borderRadius: BorderRadius.circular(28),
                         boxShadow: [
                           BoxShadow(
@@ -304,7 +307,8 @@ class _PinScreenState extends State<PinScreen> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(28),
                         child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),  // 🔥 premium
+
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
                             child: SingleChildScrollView(

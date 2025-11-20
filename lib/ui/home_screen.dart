@@ -206,10 +206,17 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      AdsManager.handleDailyAd(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final user = FirebaseAuth.instance.currentUser;
+
+      // ❌ Si NO hay usuario → no mostrar anuncios
+      if (user == null) return;
+
+      // ✔️ Solo mostrar si el usuario YA está registrado
+      await AdsManager.handleDailyAd(context);
     });
   }
+
 
   @override
   Widget build(BuildContext context) {

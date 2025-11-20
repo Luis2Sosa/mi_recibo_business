@@ -16,6 +16,8 @@ import 'core/notifications_plus.dart';
 
 // ⬇️ IMPORTANTE: importa tu servicio de auto filtro (ajusta la ruta si lo guardaste en otro lugar/nombre)
 import 'ui/clientes/auto_filtro_service.dart';
+import 'package:media_store_plus/media_store_plus.dart';
+
 
 /// 🔔 Handler de mensajes en background/terminated
 @pragma('vm:entry-point')
@@ -26,6 +28,11 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await MediaStore.ensureInitialized();  // 👈 FALTA ESTO
+  // Carpeta donde se guardarán los PDF
+  MediaStore.appFolder = "MiReciboBusiness";
+
+
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -47,7 +54,6 @@ Future<void> main() async {
 
   // 🔧 Configura FCM y la sync offline DESPUÉS, sin bloquear el arranque
   Future.microtask(_setupFCM);
-  Future.microtask(SyncOfflinePagos.iniciar);
 }
 
 class MiReciboApp extends StatelessWidget {
@@ -419,60 +425,4 @@ Future<void> _setupFCM() async {
       _writeFcmToken(u.uid);
     }
   });
-}
-
-// ===================================================
-// 🔄 SINCRONIZACIÓN AUTOMÁTICA DE PAGOS OFFLINE
-// ===================================================
-class SyncOfflinePagos {
-  static StreamSubscription<ConnectivityResult>? _sub;
-
-  static void iniciar() {
-    // Se ejecuta cada vez que cambia el estado de red
-    final subscription = Connectivity().onConnectivityChanged.listen((result) async {
-      if (result != ConnectivityResult.none) {
-        await _sincronizarPendientes();
-      }
-    });
-
-    _sub = subscription as StreamSubscription<ConnectivityResult>;
-  }
-
-  static Future<void> _sincronizarPendientes() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final db = FirebaseFirestore.instance;
-
-    try {
-      final clientesSnap = await db
-          .collection('prestamistas')
-          .doc(user.uid)
-          .collection('clientes')
-          .get();
-
-      for (final clienteDoc in clientesSnap.docs) {
-        final pagosSnap = await clienteDoc.reference
-            .collection('pagos')
-            .where('pendienteSync', isEqualTo: true)
-            .get();
-
-        for (final pago in pagosSnap.docs) {
-          // Marca el pago como sincronizado
-          await pago.reference.update({
-            'pendienteSync': false,
-            'fecha': FieldValue.serverTimestamp(),
-          });
-        }
-      }
-
-      debugPrint('✅ Pagos offline sincronizados correctamente');
-    } catch (e) {
-      debugPrint('⚠️ Error sincronizando pagos offline: $e');
-    }
-  }
-
-  static void detener() {
-    _sub?.cancel();
-  }
 }
