@@ -10,7 +10,7 @@ try { admin.app(); } catch { admin.initializeApp(); }
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onRequest } = require("firebase-functions/v2/https");
 
-const TICK_CRON = "*/5 * * * *";
+const TICK_CRON = "*/5 * * * *"; // cada 5 minutos
 const DEFAULT_OFFSET_MIN = -240;
 const db = admin.firestore();
 
@@ -38,14 +38,6 @@ function ymdByOffset(offsetMin) {
   const m = String(d.getUTCMonth() + 1).padStart(2, "0");
   const day = String(d.getUTCDate()).padStart(2, "0");
   return Number(`${y}${m}${day}`);
-}
-
-function isWithinSlot(hhmmNow, targetHHMM, windowMin = 2) {
-  const toMin = (s) => {
-    const [hh, mm] = s.split(":").map(Number);
-    return hh * 60 + mm;
-  };
-  return Math.abs(toMin(hhmmNow) - toMin(targetHHMM)) <= windowMin;
 }
 
 /* ====================== Plantillas ====================== */
@@ -152,8 +144,8 @@ exports.pushTick = onSchedule(
       const nowHHMM = nowHHMMByOffset(offsetMin);
       const todayYMD = ymdByOffset(offsetMin);
 
-      // ======= SOLO 09:00 DIARIA =======
-      if (isWithinSlot(nowHHMM, "09:00", 2)) {
+      // ======= SOLO 09:00 EXACTO =======
+      if (nowHHMM === "09:00") {
 
         // --- LOCK DEL DÍA ---
         const lock = await getUserLock(uid);
@@ -186,9 +178,8 @@ exports.pushTick = onSchedule(
   }
 );
 
-
 /* ====================== ENDPOINT DE TEST ====================== */
-
+// .
 exports.testLocal = onRequest(async (req, res) => {
   try {
     const uid = (req.query.uid || "").toString().trim();
