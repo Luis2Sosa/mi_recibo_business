@@ -123,6 +123,34 @@ class _SobreMiReciboScreenState extends State<SobreMiReciboScreen>
                   ),
 
                   const SizedBox(height: 50),
+                  // ⭐ SELLO DE AUTOR – SOSA TECH LAB
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 25, top: 10),
+                      child: Column(
+                        children: [
+                          Text(
+                            "Sosa Tech Lab",
+                            style: GoogleFonts.poppins(
+                              color: Colors.white.withOpacity(0.85),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "© 2025",
+                            style: GoogleFonts.inter(
+                              color: Colors.white54,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
                 ],
               ),
             ),

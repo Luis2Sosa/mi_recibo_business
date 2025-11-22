@@ -1,9 +1,11 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")      // ← nombre correcto del plugin
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
-    id("com.google.gms.google-services")    // Firebase Services
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -15,7 +17,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions { jvmTarget = JavaVersion.VERSION_11.toString() }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_11.toString()
+    }
 
     defaultConfig {
         applicationId = "com.example.mi_recibo"
@@ -25,20 +30,44 @@ android {
         versionName = flutter.versionName
     }
 
+    // =====================================================
+    //   CARGAR key.properties
+    // =====================================================
+    val keystoreProperties = Properties()
+    val keystoreFile = rootProject.file("key.properties")
+
+    if (keystoreFile.exists()) {
+        keystoreProperties.load(FileInputStream(keystoreFile))
+    }
+
+    // =====================================================
+    //         FIRMA RELEASE
+    // =====================================================
+    signingConfigs {
+        create("release") {
+            storeFile = file(keystoreProperties["storeFile"] ?: "")
+            storePassword = keystoreProperties["storePassword"] as String?
+            keyAlias = keystoreProperties["keyAlias"] as String?
+            keyPassword = keystoreProperties["keyPassword"] as String?
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
-            // isMinifyEnabled = true
-            // proguardFiles(
-            //     getDefaultProguardFile("proguard-android-optimize.txt"),
-            //     "proguard-rules.pro"
-            // )
+            signingConfig = signingConfigs.getByName("release")
+
+            // 🔥 SOLUCIÓN FINAL AL ERROR
+            isMinifyEnabled = true
+            isShrinkResources = false
         }
+
         debug { }
     }
 }
 
-flutter { source = "../.." }
+flutter {
+    source = "../.."
+}
 
 dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
