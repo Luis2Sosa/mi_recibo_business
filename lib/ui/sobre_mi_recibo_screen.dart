@@ -430,7 +430,7 @@ class _FooterQuote extends StatelessWidget {
   }
 }
 
-// =================== BLOQUE PREMIUM ===================
+// =================== BLOQUE PREMIUM =================== p
 class _PremiumPanel extends StatelessWidget {
   const _PremiumPanel();
 
