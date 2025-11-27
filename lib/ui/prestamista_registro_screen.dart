@@ -59,11 +59,12 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
   bool _guardando = false; // ⬅️ evita doble envío
 
   @override
-  void initState() {
-    super.initState();
-    // 👇 Leemos los argumentos después del primer frame para tener ModalRoute disponible.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_servidorCtrl.text.isEmpty) {
       final args = ModalRoute.of(context)?.settings.arguments;
+
       if (args is Map) {
         final nombreCompleto = (args['nombreCompleto'] as String?)?.trim();
         final nombre = (args['nombre'] as String?)?.trim();
@@ -76,12 +77,12 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
           if (apellido?.isNotEmpty ?? false) apellido!,
         ].join(' ').trim();
 
-        if (prefill.isNotEmpty && _servidorCtrl.text.trim().isEmpty) {
-          _servidorCtrl.text = _colapsarEspacios(prefill);
-        }
+        _servidorCtrl.text = _colapsarEspacios(prefill);
       }
-    });
+    }
   }
+
+
 
   @override
   void dispose() {
