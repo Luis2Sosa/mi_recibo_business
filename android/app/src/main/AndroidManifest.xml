@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Permisos -->
     <uses-permission android:name="android.permission.INTERNET"/>
@@ -63,16 +64,16 @@
                 android:resource="@xml/file_paths"/>
         </provider>
 
-        <!-- ===== BIBLIOTECA DE COMPRAS INTERNAS ===== -->
-        <!-- Habilita API Wallet -->
+        <!-- ===== API WALLET ===== -->
         <meta-data
             android:name="com.google.android.gms.wallet.api.enabled"
             android:value="true"/>
 
-        <!-- GOOGLE BILLING (OBLIGATORIO PARA SUSCRIPCIONES) -->
+        <!-- ===== GOOGLE PLAY BILLING ===== -->
         <meta-data
             android:name="com.google.android.play.billingclient.version"
-            android:value="6.0.1"/>
+            android:value="7.1.1"
+            tools:replace="android:value" />
 
     </application>
 
