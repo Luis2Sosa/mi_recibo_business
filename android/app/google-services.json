@@ -7,18 +7,34 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:476663936983:android:4116d1a6036d27da773d92",
+        "mobilesdk_app_id": "1:476663936983:android:0a930c18fea7e312773d92",
         "android_client_info": {
-          "package_name": "com.example.mi_recibo"
+          "package_name": "lab.sosatech.mi_recibo_business"
         }
       },
       "oauth_client": [
         {
-          "client_id": "476663936983-ervo4pfbuo6lmdvgls84b2636q9ujchj.apps.googleusercontent.com",
+          "client_id": "476663936983-1u26kbh7buocqj3o2854b9qqbdtsnd8f.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.mi_recibo",
+            "package_name": "lab.sosatech.mi_recibo_business",
             "certificate_hash": "f1b68a97341d8da71b5d718fb34358ced1cb0995"
+          }
+        },
+        {
+          "client_id": "476663936983-l3lh5jbn5r9mgqe15m81qh8nso99g872.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "lab.sosatech.mi_recibo_business",
+            "certificate_hash": "59fb459fe775a939373dd363d4346216df71d80e"
+          }
+        },
+        {
+          "client_id": "476663936983-lj3n8gto1gqnl8tan3fmori825ns7ebv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "lab.sosatech.mi_recibo_business",
+            "certificate_hash": "b0666003b2ec32e20573cc3c383f4174e519c29c"
           }
         },
         {

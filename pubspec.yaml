@@ -2,7 +2,7 @@ name: mi_recibo
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+3
 
 environment:
   sdk: ^3.9.0
@@ -13,7 +13,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
-  # UI / fuentes / íconos
+  # UI / fuentes / iconos
   cupertino_icons: ^1.0.8
   google_fonts: ^6.2.1
   animate_do: ^3.3.4
@@ -23,40 +23,49 @@ dependencies:
   firebase_core: ^3.5.0
   firebase_auth: ^5.1.4
   cloud_firestore: ^5.4.4
-  firebase_messaging: ^15.0.3     # 🔔 Notificaciones PUSH
+  firebase_messaging: ^15.0.3
 
-  # Archivos / guardado / permisos
+  # 🟢 COMPRAS INTERNAS / SUSCRIPCIONES (REQUERIDO POR GOOGLE PLAY)
+  in_app_purchase: ^3.0.9
+
+  # Archivos / permisos
   path_provider: ^2.1.4
   permission_handler: ^11.3.1
   media_store_plus: ^0.1.3
 
-  # Compartir / PDF / enlaces
+  # Compartir / PDF
   url_launcher: ^6.3.0
   share_plus: ^10.0.2
   pdf: ^3.11.0
   printing: ^5.13.4
 
-  # 🔐 Autenticación biométrica
+  # Biométricos
   local_auth: ^2.3.0
 
-  # 📦 Preferencias locales
+  # Preferencias
   shared_preferences: ^2.2.2
 
-  # 🌍 Formato de moneda y localización automática
+  # Moneda
   intl: any
 
-  # 🔄 Detección de conexión a internet
+  # Internet
   connectivity_plus: ^6.0.3
 
-  # 📈 Gráficos modernos
+  # Gráficos
   fl_chart: ^0.68.0
-
-
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
+
+# CONFIGURACIÓN DEL ICONO
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/logor.png"
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true
@@ -66,3 +75,4 @@ flutter:
     - assets/images/google_logo.png
     - assets/images/logo_whatsapp.png
     - assets/images/logo_pdf.png
+    - assets/icon/logor.png

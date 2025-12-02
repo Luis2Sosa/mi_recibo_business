@@ -202,30 +202,29 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
         nextMonth.year, nextMonth.month, day, 12); // anclado a 12:00
   }
 
-  /// ✅ Nuevo comportamiento real:
-  /// - Arriendo → siempre +30 días desde la fecha guardada.
-  /// - Producto → 15 o 30 días según periodo.
-  /// - Préstamo → 15 o 30 días según periodo.
-  /// Todo parte desde la fecha base (no desde hoy).
   DateTime _calcNextDate(DateTime base) {
     final esArriendo = _esArriendoDesdeTexto(widget.producto);
 
-    int deltaDias;
+    // 🟧 ALQUILER: sumar 1 mes conservando el mismo día
     if (esArriendo) {
-      deltaDias = 30;
-    } else if (widget.esPrestamo) {
-      deltaDias = widget.periodo.toLowerCase() == 'quincenal' ? 15 : 30;
-    } else {
-      deltaDias = widget.periodo.toLowerCase().contains('15') ||
-          widget.periodo.toLowerCase().contains('quin')
-          ? 15
-          : 30;
+      return _addOneMonthSameDay(base);
     }
 
-    // Suma desde la fecha base guardada (no desde hoy)
-    final next = _atNoon(base.add(Duration(days: deltaDias)));
-    return next;
+    // 🟦 PRÉSTAMO: 15 o 30 días
+    if (widget.esPrestamo) {
+      final deltaDias = widget.periodo.toLowerCase() == 'quincenal' ? 15 : 30;
+      return _atNoon(base.add(Duration(days: deltaDias)));
+    }
+
+    // 🟩 PRODUCTO: 15 o 30 días según texto
+    final deltaDias = widget.periodo.toLowerCase().contains('15') ||
+        widget.periodo.toLowerCase().contains('quin')
+        ? 15
+        : 30;
+
+    return _atNoon(base.add(Duration(days: deltaDias)));
   }
+
 
   // === Helper para detectar ARRIENDO por texto ===
   bool _esArriendoDesdeTexto(String? p) {
@@ -839,14 +838,15 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                                     _formatCurrency(
                                                         _totalPagado)),
 
-                                                // 📆 Mes pagado (mes actual)
+                                                // 📆 Mes pagado (fecha del pago actual, local)
                                                 _filaResumen(
                                                   'Mes pagado',
-                                                  DateFormat(
-                                                      'MMMM yyyy', 'es_ES')
-                                                      .format(DateTime.now())
+                                                  DateFormat('MMMM yyyy', 'es_ES')
+                                                      .format(DateTime.now().toLocal())
                                                       .capitalize(),
                                                 ),
+
+
 
                                                 // 🗓️ Próximo pago (calculado automáticamente)
                                                 _filaResumen('Próximo pago',

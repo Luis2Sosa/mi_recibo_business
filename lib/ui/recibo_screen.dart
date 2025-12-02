@@ -678,34 +678,41 @@ class _ReciboScreenState extends State<ReciboScreen> {
 
 
               // ===== BOTÓN flotante (NO capturable) =====
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: padding.bottom + 16,
-                child: ElevatedButton.icon(
-                  icon: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Image.asset('assets/images/logo_whatsapp.png', fit: BoxFit.contain),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: SafeArea(
+                  minimum: const EdgeInsets.only(bottom: 20),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Image.asset('assets/images/logo_whatsapp.png', fit: BoxFit.contain),
+                          ),
+                        ),
+                        label: const Text('Enviar recibo por WhatsApp'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: cfg.btnPdf,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: const StadiumBorder(),
+                        ),
+                        onPressed: () async {
+                          await AdsManager.showAfterWhatsApp(context, "enviar recibo");
+                          await _compartirWhatsApp();
+                        },
+                      ),
                     ),
                   ),
-                  label: const Text('Enviar recibo por WhatsApp'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: cfg.btnPdf,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: const StadiumBorder(),
-                  ),
-                  onPressed: () async {
-                    await AdsManager.showAfterWhatsApp(context, "enviar recibo");
-                    await _compartirWhatsApp();
-                  },
-
                 ),
-              ),
+              )
+
             ],
           ),
         ),

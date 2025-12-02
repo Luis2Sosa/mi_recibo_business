@@ -9,40 +9,24 @@ plugins {
 }
 
 android {
-    namespace = "com.example.mi_recibo"
-    compileSdk = 36
+    namespace = "lab.sosatech.mi_recibo_business"
+    compileSdk = 36       // ← OBLIGATORIO POR LOS PLUGINS
     ndkVersion = flutter.ndkVersion
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
-    }
-
     defaultConfig {
-        applicationId = "com.example.mi_recibo"
-        minSdk = 29
-        targetSdk = 34
+        applicationId = "lab.sosatech.mi_recibo_business"
+        minSdk = flutter.minSdkVersion
+        targetSdk = 36    // ← MATCH CON compileSdk
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
-    // =====================================================
-    //   CARGAR key.properties
-    // =====================================================
     val keystoreProperties = Properties()
     val keystoreFile = rootProject.file("key.properties")
-
     if (keystoreFile.exists()) {
         keystoreProperties.load(FileInputStream(keystoreFile))
     }
 
-    // =====================================================
-    //         FIRMA RELEASE
-    // =====================================================
     signingConfigs {
         create("release") {
             storeFile = file(keystoreProperties["storeFile"] ?: "")
@@ -55,13 +39,22 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
-
-            // 🔥 SOLUCIÓN FINAL AL ERROR
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             isShrinkResources = false
         }
 
-        debug { }
+        debug {
+            // firma debug automática
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_11.toString()
     }
 }
 
