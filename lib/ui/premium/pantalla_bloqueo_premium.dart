@@ -22,10 +22,16 @@ class PantallaBloqueoPremium extends StatefulWidget {
 
 class _PantallaBloqueoPremiumState extends State<PantallaBloqueoPremium> {
   bool _cargando = true;
+  final PremiumService _premiumService = PremiumService();
 
   @override
   void initState() {
     super.initState();
+
+    // ✅ 1) INICIAR LISTENER DE COMPRAS (OBLIGATORIO)
+    _premiumService.iniciarListenerCompras(context);
+
+    // ✅ 2) VERIFICAR SI YA ES PREMIUM
     _verificarPremium();
   }
 
@@ -34,7 +40,7 @@ class _PantallaBloqueoPremiumState extends State<PantallaBloqueoPremium> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    final activo = await PremiumService().esPremiumActivo(uid);
+    final activo = await _premiumService.esPremiumActivo(uid);
     if (!mounted) return;
 
     if (activo) {
@@ -73,7 +79,8 @@ class _PantallaBloqueoPremiumState extends State<PantallaBloqueoPremium> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              color: Colors.white70),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -191,11 +198,15 @@ class _PantallaBloqueoPremiumState extends State<PantallaBloqueoPremium> {
                 // 🔘 Botón Premium
                 GestureDetector(
                   onTap: () async {
-                    await Future.delayed(const Duration(milliseconds: 500));
-                    final uid = FirebaseAuth.instance.currentUser!.uid;
+                    await Future.delayed(
+                        const Duration(milliseconds: 300));
+                    final uid =
+                        FirebaseAuth.instance.currentUser?.uid;
+                    if (uid == null) return;
 
                     // 🔹 Verifica si ya es Premium
-                    final yaPremium = await PremiumService().esPremiumActivo(uid);
+                    final yaPremium =
+                    await _premiumService.esPremiumActivo(uid);
 
                     if (yaPremium) {
                       final docRef = FirebaseFirestore.instance
@@ -205,28 +216,16 @@ class _PantallaBloqueoPremiumState extends State<PantallaBloqueoPremium> {
                       Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => GananciasScreen(docPrest: docRef),
+                          builder: (_) =>
+                              GananciasScreen(docPrest: docRef),
                         ),
                       );
                       return;
                     }
 
-                    // 🟡 Activar Premium
-                    await PremiumService().activarPremium(context);
-
-                    final docRef = FirebaseFirestore.instance
-                        .collection('prestamistas')
-                        .doc(uid);
-
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PantallaBienvenidaPremium(
-                          docPrest: docRef,
-                          destino: widget.destino,
-                        ),
-                      ),
-                    );
+                    // ✅ AQUÍ SOLO SE INICIA EL PAGO REAL
+                    await _premiumService.activarPremium(context);
+                    // ✅ NO navegamos aquí. Navega solo cuando Google confirme.
                   },
                   child: Container(
                     width: double.infinity,
@@ -234,7 +233,10 @@ class _PantallaBloqueoPremiumState extends State<PantallaBloqueoPremium> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(45),
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+                        colors: [
+                          Color(0xFF3B82F6),
+                          Color(0xFF2563EB)
+                        ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),

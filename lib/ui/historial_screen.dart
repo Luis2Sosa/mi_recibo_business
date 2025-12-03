@@ -331,6 +331,7 @@ class HistorialScreen extends StatelessWidget {
                                                 stream: premiumService.streamEstadoPremium(uid),
 
 
+
                                                 builder: (context, premiumSnap) {
                                                   if (!premiumSnap.hasData) {
                                                     return const Center(

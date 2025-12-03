@@ -1,13 +1,38 @@
 // 📂 lib/core/premium_service.dart
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
+import 'package:in_app_purchase/in_app_purchase.dart';
 
 class PremiumService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final InAppPurchase _iap = InAppPurchase.instance;
 
-  /// 🔹 Verifica si el usuario tiene Premium activo (una sola vez)
+  static const String _productId = 'mi_recibo_premium';
+
+  late StreamSubscription<List<PurchaseDetails>> _subscription;
+
+  /// ===============================
+  /// ✅ INICIALIZAR ESCUCHA DE COMPRAS
+  /// ===============================
+  void iniciarListenerCompras(BuildContext context) {
+    _subscription = _iap.purchaseStream.listen(
+          (List<PurchaseDetails> purchases) {
+        for (final purchase in purchases) {
+          _procesarCompra(context, purchase);
+        }
+      },
+      onDone: () => _subscription.cancel(),
+      onError: (error) {
+        print('❌ Error compra: $error');
+      },
+    );
+  }
+
+  /// ===============================
+  /// ✅ VERIFICAR PREMIUM (una sola vez)
+  /// ===============================
   Future<bool> esPremiumActivo(String uid) async {
     try {
       final doc = await _db
@@ -27,15 +52,15 @@ class PremiumService {
 
       if (fechaFin == null) return activo;
 
-      final ahora = DateTime.now();
-      return activo && fechaFin.isAfter(ahora);
+      return activo && fechaFin.isAfter(DateTime.now());
     } catch (e) {
-      print('⚠️ Error verificando Premium: $e');
       return false;
     }
   }
 
-  /// 🔹 Escucha cambios del estado Premium en tiempo real
+  /// ===============================
+  /// ✅ STREAM EN TIEMPO REAL DEL ESTADO PREMIUM  ✅ (ESTE FALTABA)
+  /// ===============================
   Stream<bool> streamEstadoPremium(String uid) {
     return _db
         .collection('prestamistas')
@@ -54,19 +79,59 @@ class PremiumService {
 
       if (fechaFin == null) return activo;
 
-      final ahora = DateTime.now();
-      return activo && fechaFin.isAfter(ahora);
+      return activo && fechaFin.isAfter(DateTime.now());
     });
   }
 
-  /// 🔹 Activar Premium (ejecutado al pulsar “Desbloquear”)
+  /// ===============================
+  /// ✅ ACTIVAR PREMIUM REAL (GOOGLE)
+  /// ===============================
   Future<void> activarPremium(BuildContext context) async {
-    try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      final premiumService = PremiumService(); // ✅ una sola instancia compartida
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
 
-      if (uid == null) throw Exception('Usuario no autenticado.');
+    final bool disponible = await _iap.isAvailable();
+    if (!disponible) {
+      _mostrarBanner(
+        context,
+        texto: 'Google Play no disponible',
+        color: const Color(0xFFE11D48),
+      );
+      return;
+    }
 
+    final ProductDetailsResponse response =
+    await _iap.queryProductDetails({_productId});
+
+    if (response.productDetails.isEmpty) {
+      _mostrarBanner(
+        context,
+        texto: 'Producto no encontrado en Google Play',
+        color: const Color(0xFFE11D48),
+      );
+      return;
+    }
+
+    final ProductDetails product = response.productDetails.first;
+
+    final PurchaseParam purchaseParam =
+    PurchaseParam(productDetails: product);
+
+    _iap.buyNonConsumable(purchaseParam: purchaseParam);
+  }
+
+  /// ===============================
+  /// ✅ PROCESAR COMPRA CONFIRMADA
+  /// ===============================
+  Future<void> _procesarCompra(
+      BuildContext context,
+      PurchaseDetails purchase,
+      ) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    if (purchase.status == PurchaseStatus.purchased ||
+        purchase.status == PurchaseStatus.restored) {
       final fechaInicio = DateTime.now();
       final fechaFin = fechaInicio.add(const Duration(days: 30));
 
@@ -79,61 +144,60 @@ class PremiumService {
         'activo': true,
         'fechaInicio': Timestamp.fromDate(fechaInicio),
         'fechaFin': Timestamp.fromDate(fechaFin),
+        'producto': _productId,
+        'metodo': 'google_play',
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // ✅ Guardar en historial Premium
-      await _db
-          .collection('prestamistas')
-          .doc(uid)
-          .collection('premium')
-          .doc('historial')
-          .collection('activaciones')
-          .add({
-        'fechaInicio': Timestamp.fromDate(fechaInicio),
-        'fechaFin': Timestamp.fromDate(fechaFin),
-        'monto': 0.99,
-        'moneda': 'USD',
-        'metodo': 'manual',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await _iap.completePurchase(purchase);
 
-      // ✅ Mostrar confirmación visual
-      _mostrarBanner(context,
-          texto: '✅ Premium activado correctamente.',
-          color: const Color(0xFF34D399)); // Verde esmeralda
+      _mostrarBanner(
+        context,
+        texto: '✅ Premium activado correctamente',
+        color: const Color(0xFF34D399),
+      );
+    }
 
-      print('✅ Premium activado correctamente.');
-    } catch (e) {
-      _mostrarBanner(context,
-          texto: 'Error al activar Premium: $e',
-          color: const Color(0xFFE11D48)); // Rojo
-      print('⚠️ Error al activar Premium: $e');
+    if (purchase.status == PurchaseStatus.error) {
+      _mostrarBanner(
+        context,
+        texto: '❌ Error en la compra',
+        color: const Color(0xFFE11D48),
+      );
+    }
+
+    if (purchase.status == PurchaseStatus.canceled) {
+      _mostrarBanner(
+        context,
+        texto: '⚠️ Compra cancelada',
+        color: Colors.orange,
+      );
     }
   }
 
-  /// 🔹 Desactivar Premium
+  /// ===============================
+  /// ✅ DESACTIVAR PREMIUM
+  /// ===============================
   Future<void> desactivarPremium(String uid) async {
-    try {
-      await _db
-          .collection('prestamistas')
-          .doc(uid)
-          .collection('premium')
-          .doc('status')
-          .set({
-        'activo': false,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      print('🔒 Premium desactivado correctamente.');
-    } catch (e) {
-      print('⚠️ Error al desactivar Premium: $e');
-    }
+    await _db
+        .collection('prestamistas')
+        .doc(uid)
+        .collection('premium')
+        .doc('status')
+        .set({
+      'activo': false,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
-  /// 🌈 Banner profesional reutilizable
-  void _mostrarBanner(BuildContext context,
-      {required String texto, required Color color}) {
+  /// ===============================
+  /// ✅ BANNER PROFESIONAL
+  /// ===============================
+  void _mostrarBanner(
+      BuildContext context, {
+        required String texto,
+        required Color color,
+      }) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -152,5 +216,12 @@ class PremiumService {
         duration: const Duration(seconds: 3),
       ),
     );
+  }
+
+  /// ===============================
+  /// ✅ CERRAR LISTENER
+  /// ===============================
+  void cerrarListener() {
+    _subscription.cancel();
   }
 }
