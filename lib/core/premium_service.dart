@@ -9,13 +9,14 @@ class PremiumService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final InAppPurchase _iap = InAppPurchase.instance;
 
-  static const String _productId = 'mi_recibo_premium';
+  // ✅ ID REAL DEL PLAN EN GOOGLE PLAY
+  static const String _productId = 'premium-mensual';
 
   late StreamSubscription<List<PurchaseDetails>> _subscription;
 
-  /// ===============================
-  /// ✅ INICIALIZAR ESCUCHA DE COMPRAS
-  /// ===============================
+  // ===============================
+  // ✅ INICIAR ESCUCHA DE COMPRAS
+  // ===============================
   void iniciarListenerCompras(BuildContext context) {
     _subscription = _iap.purchaseStream.listen(
           (List<PurchaseDetails> purchases) {
@@ -30,9 +31,9 @@ class PremiumService {
     );
   }
 
-  /// ===============================
-  /// ✅ VERIFICAR PREMIUM (una sola vez)
-  /// ===============================
+  // ===============================
+  // ✅ VERIFICAR PREMIUM (una sola vez)
+  // ===============================
   Future<bool> esPremiumActivo(String uid) async {
     try {
       final doc = await _db
@@ -58,9 +59,9 @@ class PremiumService {
     }
   }
 
-  /// ===============================
-  /// ✅ STREAM EN TIEMPO REAL DEL ESTADO PREMIUM  ✅ (ESTE FALTABA)
-  /// ===============================
+  // ===============================
+  // ✅ STREAM EN TIEMPO REAL DEL ESTADO PREMIUM
+  // ===============================
   Stream<bool> streamEstadoPremium(String uid) {
     return _db
         .collection('prestamistas')
@@ -83,9 +84,9 @@ class PremiumService {
     });
   }
 
-  /// ===============================
-  /// ✅ ACTIVAR PREMIUM REAL (GOOGLE)
-  /// ===============================
+  // ===============================
+  // ✅ ACTIVAR PREMUM REAL (GOOGLE PLAY)
+  // ===============================
   Future<void> activarPremium(BuildContext context) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -117,12 +118,13 @@ class PremiumService {
     final PurchaseParam purchaseParam =
     PurchaseParam(productDetails: product);
 
+    // ✅ LANZA EL POPUP REAL DE GOOGLE
     _iap.buyNonConsumable(purchaseParam: purchaseParam);
   }
 
-  /// ===============================
-  /// ✅ PROCESAR COMPRA CONFIRMADA
-  /// ===============================
+  // ===============================
+  // ✅ PROCESAR COMPRA CONFIRMADA POR GOOGLE
+  // ===============================
   Future<void> _procesarCompra(
       BuildContext context,
       PurchaseDetails purchase,
@@ -175,9 +177,9 @@ class PremiumService {
     }
   }
 
-  /// ===============================
-  /// ✅ DESACTIVAR PREMIUM
-  /// ===============================
+  // ===============================
+  // ✅ DESACTIVAR PREMIUM
+  // ===============================
   Future<void> desactivarPremium(String uid) async {
     await _db
         .collection('prestamistas')
@@ -190,9 +192,9 @@ class PremiumService {
     }, SetOptions(merge: true));
   }
 
-  /// ===============================
-  /// ✅ BANNER PROFESIONAL
-  /// ===============================
+  // ===============================
+  // ✅ BANNER PROFESIONAL
+  // ===============================
   void _mostrarBanner(
       BuildContext context, {
         required String texto,
@@ -218,9 +220,9 @@ class PremiumService {
     );
   }
 
-  /// ===============================
-  /// ✅ CERRAR LISTENER
-  /// ===============================
+  // ===============================
+  // ✅ CERRAR LISTENER
+  // ===============================
   void cerrarListener() {
     _subscription.cancel();
   }

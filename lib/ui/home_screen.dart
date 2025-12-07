@@ -319,7 +319,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               textAlign: TextAlign.center,
                             ),
 
-                            const SizedBox(height: 200),
+                            SizedBox(height: isSmall ? 70 : 160),
+
 
                             _aboutButton(context),
                           ],

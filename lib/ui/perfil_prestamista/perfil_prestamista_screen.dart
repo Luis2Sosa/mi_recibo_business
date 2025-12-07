@@ -596,94 +596,95 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
-
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [_Brand.gradTop, _Brand.gradBottom]),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [_Brand.gradTop, _Brand.gradBottom],
+          ),
         ),
         child: SafeArea(
-          child: Stack(
-            children: [
-              Padding(
-                padding: EdgeInsets.only(top: contentTop),
-                child: Center(
-                  child: Material(
-                    color: Colors.white.withOpacity(_Brand.glassAlpha),
-                    borderRadius: BorderRadius.circular(28),
-                    clipBehavior: Clip.antiAlias,
-                    elevation: 0,
-                    child: ClipRRect(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+
+              final contenido = Stack(
+                children: [
+                  Padding(
+                    // ✅ SOLO margen vertical (el marco llega a los bordes)
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Material(
+                      // ✅ EL MARCO TRANSPARENTE OCUPA TODO EL ANCHO
+                      color: Colors.white.withOpacity(_Brand.glassAlpha),
                       borderRadius: BorderRadius.circular(28),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 250),
-                        child: _tab == 0
-                            ? Container(
-                          key: const ValueKey('perfil-fijo'),
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _tabs(),
-                              const SizedBox(height: 12),
-                              Expanded(
-                                child: Align(
-                                  alignment: Alignment.topCenter,
-                                  child: LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      final tecladoArriba = MediaQuery.of(context).viewInsets.bottom > 0;
-                                      final alturaReal = constraints.maxHeight - MediaQuery.of(context).viewInsets.bottom;
-
-                                      return ConstrainedBox(
-                                        constraints: BoxConstraints(
-                                          minHeight: tecladoArriba ? alturaReal : constraints.maxHeight,
-                                        ),
-                                        child: IntrinsicHeight(
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.max,
-                                            children: [
-                                              _loadingProfile ? _skeleton() : _perfilContent(),
-
-                                              // ❗ El Spacer solo cuando el teclado está abajo
-                                              if (!tecladoArriba) const Spacer(flex: 2),
-
-                                              _accountActions(),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    },
+                      clipBehavior: Clip.antiAlias,
+                      child: Center(
+                        child: ConstrainedBox(
+                          // ✅ SOLO EL CONTENIDO SE LIMITA EN ANCHO
+                          constraints: const BoxConstraints(
+                            maxWidth: 520,
+                          ),
+                          child: Padding(
+                            // ✅ MARGEN INTERNO PARA CELULAR PEQUEÑO
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(28),
+                              child: _tab == 0
+                                  ? Column(
+                                children: [
+                                  _tabs(),
+                                  const SizedBox(height: 12),
+                                  Expanded(
+                                    child: SingleChildScrollView(
+                                      child: Column(
+                                        children: [
+                                          _loadingProfile
+                                              ? _skeleton()
+                                              : _perfilContent(),
+                                          const SizedBox(height: 12),
+                                          _accountActions(),
+                                        ],
+                                      ),
+                                    ),
                                   ),
+                                ],
+                              )
+                                  : SingleChildScrollView(
+                                child: Column(
+                                  children: [
+                                    _tabs(),
+                                    const SizedBox(height: 12),
+                                    _loadingStats
+                                        ? _skeleton()
+                                        : _generalContent(),
+                                  ],
                                 ),
                               ),
-
-
-                            ],
-                          ),
-                        )
-                            : SingleChildScrollView(
-                          key: const ValueKey('resumen-scroll'),
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _tabs(),
-                              const SizedBox(height: 12),
-                              _loadingStats ? _skeleton() : _generalContent(),
-                            ],
+                            ),
                           ),
                         ),
                       ),
-                    )
-
                     ),
+                  ),
+                ],
+              );
+
+
+              // ✅ SCROLL GLOBAL CONTROLADO (SIN OVERFLOW)
+              return SingleChildScrollView(
+                child: SizedBox(
+                  height: constraints.maxHeight,
+                  child: contenido,
                 ),
-              ),
-            ],
+              );
+            },
           ),
         ),
       ),
     );
   }
+
+
 
   Widget _tabs() {
     return Padding(
@@ -1475,9 +1476,11 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       ),
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return ListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       children: [
+
         filtrosRow,
         const SizedBox(height: 10),
 

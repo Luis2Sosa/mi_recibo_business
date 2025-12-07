@@ -47,7 +47,7 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
   // Logo independiente (no empuja el contenido)
   static const double _logoTop = -80;
   static const double _logoHeight = 400;
-  static const double _gapBelowLogo = -10; // ⬅️ marco un poco más abajo (no tapa)
+  static const double _gapBelowLogo = -70; // ⬅️ marco un poco más abajo (no tapa)
 
   final _formKey = GlobalKey<FormState>();
 

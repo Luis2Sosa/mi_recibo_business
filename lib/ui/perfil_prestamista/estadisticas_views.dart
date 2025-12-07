@@ -737,12 +737,6 @@ class _KPIPremiumCardState extends State<KPIPremiumCard>
       duration: const Duration(seconds: 5), // 💎 brillo lento, elegante y fluido
     );
 
-    // 🔁 Cada 10 s lanza el brillo una vez (efecto premium sutil)
-    Timer.periodic(const Duration(seconds: 5), (_) {
-      if (mounted && !_shineCtrl.isAnimating) {
-        _shineCtrl.forward(from: 0);
-      }
-    });
   }
 
 
@@ -1073,17 +1067,19 @@ class _KPIFintechPremiumState extends State<_KPIFintechPremium>
   @override
   void initState() {
     super.initState();
+
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 8), // 🔹 animación lenta, elegante
-    )..repeat();
+      duration: const Duration(seconds: 3), // ✅ velocidad fija y estable
+    )..repeat(); // ✅ sin Timer, sin saltos, sin diferencias entre celulares
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _ctrl.dispose(); // ✅ se elimina el MISMO controller que se crea
     super.dispose();
   }
+
 
   @override
   Widget build(BuildContext context) {
