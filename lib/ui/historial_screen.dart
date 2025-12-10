@@ -821,7 +821,7 @@ class _PagoCardPremium extends StatelessWidget {
                     Icon(Icons.lock, color: azulCandado, size: 14),
                     SizedBox(width: 4),
                     Text(
-                      'Detalle Premium',
+                      'Premium',
                       style: TextStyle(
                         color: azulCandado,
                         fontWeight: FontWeight.w700,

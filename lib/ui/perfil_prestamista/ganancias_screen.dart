@@ -509,7 +509,8 @@ class _GananciasScreenState extends State<GananciasScreen>
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     return SingleChildScrollView(
-                      physics: const NeverScrollableScrollPhysics(),
+                      physics: const ClampingScrollPhysics(), // ✅ SCROLL PROFESIONAL ANDROID
+
                       child: ConstrainedBox(
                         constraints: BoxConstraints(minHeight: constraints.maxHeight),
                         child: Padding(
@@ -644,23 +645,34 @@ class _GananciasScreenState extends State<GananciasScreen>
                               const SizedBox(height: 35),
 
                               // BOTÓN DISCRETO PREMIUM
-                              ElevatedButton.icon(
-                                onPressed: _mostrarBannerConfirmacion,
-                                icon: const Icon(Icons.delete_outline_rounded,
-                                    color: Colors.white70, size: 18),
-                                label: const Text('Borrar ganancias totales'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white.withOpacity(0.08),
-                                  foregroundColor: Colors.white70,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(18)),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 20, vertical: 12),
-                                  textStyle: const TextStyle(
-                                      fontWeight: FontWeight.w600, fontSize: 13),
-                                  elevation: 0,
-                                ),
+                              Builder(
+                                builder: (context) {
+                                  final h = MediaQuery.of(context).size.height;
+                                  final esPequeno = h < 750; // 👈 mismo criterio que usas arriba
+
+                                  return Transform.translate(
+                                    offset: Offset(0, esPequeno ? -22 : 0), // ✅ SUBE SOLO EN PEQUEÑOS
+                                    child: ElevatedButton.icon(
+                                      onPressed: _mostrarBannerConfirmacion,
+                                      icon: const Icon(Icons.delete_outline_rounded,
+                                          color: Colors.white70, size: 18),
+                                      label: const Text('Borrar ganancias totales'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.white.withOpacity(0.08),
+                                        foregroundColor: Colors.white70,
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(18)),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 20, vertical: 12),
+                                        textStyle: const TextStyle(
+                                            fontWeight: FontWeight.w600, fontSize: 13),
+                                        elevation: 0,
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
+
                               const SizedBox(height: 8),
                               Center(
                                 child: Text(

@@ -234,27 +234,7 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
             ),
           ],
         ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: _accent.withOpacity(0.9),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: _accent.withOpacity(0.4),
-                blurRadius: 10,
-              )
-            ],
-          ),
-          child: const Text(
-            "LIVE",
-            style: TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-            ),
-          ),
-        ),
+
       ],
     );
   }

@@ -272,10 +272,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
         .of(context)
         .size;
     final double usableH = size.height - (tecladoAbierto ? kb : 0.0) - 8.0;
-    final double maxCardH = tecladoAbierto ? 500.0 : 580.0;
-    final double availableHeight = usableH.clamp(260.0, maxCardH);
-    final double adjustedHeight =
-    widget.esPrestamo ? availableHeight + 30.0 : availableHeight;
+
     final double bottomPad = tecladoAbierto ? 12.0 : 0.0;
 
     final scrollPhysics = tecladoAbierto
@@ -1114,34 +1111,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
                                         ),
 
 
-                                        const SizedBox(height: 12),
-                                        SizedBox(
-                                          width: double.infinity,
-                                          height: 54,
-                                          child: OutlinedButton(
-                                            onPressed: () =>
-                                                Navigator.pop(
-                                                    context),
-                                            style: OutlinedButton
-                                                .styleFrom(
-                                              side: const BorderSide(
-                                                  color: Color(
-                                                      0xFF2563EB)),
-                                              foregroundColor:
-                                              const Color(
-                                                  0xFF2563EB),
-                                              shape:
-                                              const StadiumBorder(),
-                                              textStyle:
-                                              const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight:
-                                                FontWeight.w800,
-                                              ),
-                                            ),
-                                            child: const Text('Atrás'),
-                                          ),
-                                        ),
+
                                       ],
                                     ),
                                   ),
@@ -1248,33 +1218,34 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
       ],
     );
   }
-}
 
   Widget _filaResumen(String titulo, String valor) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          titulo,
-          style: const TextStyle(
-            fontSize: 15,
-            color: Color(0xFF374151),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            titulo,
+            style: const TextStyle(
+              fontSize: 15,
+              color: Color(0xFF374151),
+            ),
           ),
-        ),
-        Text(
-          valor,
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF111827),
+          Text(
+            valor,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF111827),
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
+
 
 extension StringCasing on String {
   String capitalize() {

@@ -616,7 +616,11 @@ class _ReciboScreenState extends State<ReciboScreen> {
                   child: Center(
                     child: _PlainCardShell(
                       radius: cfg.cardRadius,
-                      height: cfg.cardHeight.clamp(520.0, 760.0).toDouble(),
+                      height: (widget.producto.toLowerCase().contains('alquiler') ||
+                          widget.producto.toLowerCase().contains('arriendo'))
+                          ? (cfg.cardHeight - 70).clamp(500.0, 700.0)
+                          : cfg.cardHeight.clamp(520.0, 760.0),
+
                       padding: cfg.cardPadding,
                       child: FittedBox(
                         fit: BoxFit.contain,
