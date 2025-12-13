@@ -1,95 +1,93 @@
-📱 Mi Recibo Business
+# 📱 Mi Recibo Business
 
-Mi Recibo Business es una aplicación móvil desarrollada en Flutter con Firebase, creada para ayudar a pequeños negocios y emprendedores a gestionar clientes, pagos y recibos de forma sencilla y organizada.
+**Mi Recibo Business** es una aplicación móvil desarrollada en **Flutter** con **Firebase**, creada para ayudar a pequeños negocios y emprendedores a gestionar clientes, pagos y recibos de forma sencilla, clara y organizada.
 
-La aplicación está publicada en Google Play (testing) y continúa en desarrollo activo.
+La aplicación está publicada en **Google Play (testing)** y se encuentra en desarrollo activo con mejoras continuas.
 
-🚀 Funcionalidades principales
+---
 
-Gestión de clientes
+## 🚀 Funcionalidades principales
 
-Registro de pagos y recibos
+- Gestión de clientes  
+- Registro de pagos y recibos  
+- Generación de recibos  
+- Autenticación de usuarios  
+- Manejo de datos en tiempo real con Firebase  
+- Modelo **freemium** (base gratuita + funciones premium)  
+- Interfaz adaptada a celulares pequeños y grandes  
 
-Generación de recibos
+---
 
-Autenticación de usuarios
+## 🛠️ Tecnologías utilizadas
 
-Manejo de datos en tiempo real con Firebase
+- **Flutter (Dart)** – Desarrollo móvil multiplataforma  
+- **Firebase**
+  - Authentication  
+  - Firestore  
+  - Cloud Functions  
+- **Git & GitHub** – Control de versiones  
+- **Google Play Console** – Publicación y testing  
 
-Modelo freemium (base gratuita + funciones premium)
+---
 
-Interfaz adaptada a celulares pequeños y grandes
+## 🧠 Enfoque de desarrollo
 
-🛠️ Tecnologías utilizadas
+Este proyecto fue construido **desde cero**, aplicando:
 
-Flutter (Dart) – Desarrollo móvil multiplataforma
+- Lógica de programación clara  
+- Separación de responsabilidades  
+- Buenas prácticas de código  
+- Manejo de estados y validaciones  
+- Iteraciones constantes basadas en pruebas reales en dispositivos físicos  
 
-Firebase
+---
 
-Authentication
+## 🤖 Uso de Inteligencia Artificial
 
-Firestore
+La **inteligencia artificial** fue utilizada como **herramienta de apoyo** durante el desarrollo para:
 
-Cloud Functions
+- Analizar y mejorar fragmentos de código  
+- Comprender mejores prácticas  
+- Detectar errores y optimizar soluciones  
+- Aprender nuevas formas de estructurar funcionalidades  
 
-Git & GitHub – Control de versiones
+Siempre priorizando la **comprensión real del código** y la **escritura propia**, utilizando la IA como guía y **no como reemplazo**.
 
-Google Play Console – Publicación y testing
+---
 
-🧠 Enfoque de desarrollo
-
-Este proyecto fue construido desde cero, aplicando:
-
-Lógica de programación clara
-
-Separación de responsabilidades
-
-Buenas prácticas de código
-
-Manejo de estados y validaciones
-
-Iteraciones constantes basadas en pruebas reales en dispositivos físicos
-
-🤖 Uso de Inteligencia Artificial
-
-La inteligencia artificial fue utilizada como herramienta de apoyo durante el desarrollo para:
-
-Analizar y mejorar fragmentos de código
-
-Comprender mejores prácticas
-
-Detectar errores y optimizar soluciones
-
-Aprender nuevas formas de estructurar funcionalidades
-
-Siempre priorizando la comprensión real del código y la escritura propia, usando la IA como guía y no como reemplazo.
-
-📸 Capturas de la aplicación
+## 📸 Capturas de la aplicación
 
 Las capturas de pantalla se encuentran en la carpeta:
+
+
 
 /screenshots
 
 
-(Incluyen pantallas reales de la aplicación en funcionamiento)
 
-📦 Estado del proyecto
+Incluyen pantallas reales de la aplicación en funcionamiento.
 
-✅ Funcional
+---
 
-🔄 En mejora continua
+## 📌 Estado del proyecto
 
-🧪 Publicado en Google Play (testing)
+- ✅ Funcional  
+- 🔄 En mejora continua  
+- 🧪 Publicado en Google Play (testing)  
+- 📱 Probado en múltiples dispositivos  
 
-📱 Probado en múltiples dispositivos
+---
 
-👨‍💻 Autor
+## 👤 Autor
 
-Luis Sosa
-Desarrollador Python Junior / Desarrollo móvil en formación
+**Luis Sosa**  
+Desarrollador Python Junior | Desarrollo móvil en formación  
 Autodidacta, disciplinado y enfocado en proyectos reales.
 
-🔗 GitHub: https://github.com/Luis2Sosa
+🔗 🔗 LinkedIn – Perfil profesional:
+https://www.linkedin.com/in/luis2sosa
+
+
 
 📌 Nota final
 
