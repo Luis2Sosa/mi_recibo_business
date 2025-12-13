@@ -769,7 +769,7 @@ class _PlainCardShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: height,
-      constraints: const BoxConstraints(minHeight: 650), // fuerza altura mínima
+      constraints: const BoxConstraints(minHeight: 560), // fuerza altura mínima
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: radius,

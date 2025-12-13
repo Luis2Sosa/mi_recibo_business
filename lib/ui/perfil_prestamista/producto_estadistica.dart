@@ -233,9 +233,9 @@ class _ProductoEstadisticaScreenState
 
                 // ======== ENCABEZADO ========
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: const [
+                    Text(
                       "📦 Rendimiento productos",
                       style: TextStyle(
                         color: Colors.white,
@@ -243,28 +243,9 @@ class _ProductoEstadisticaScreenState
                         fontSize: 22,
                       ),
                     ),
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFF22C55E),
-                            Color(0xFF16A34A),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      child: const Text(
-                        "LIVE",
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
+
 
                 const SizedBox(height: 10),
 

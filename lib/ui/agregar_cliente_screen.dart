@@ -251,8 +251,14 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
               return SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.only(bottom: 60),
-                child: contenido,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight,
+                  ),
+                  child: contenido,
+                ),
               );
+
 
             },
           ),

@@ -241,9 +241,9 @@ class _AlquilerEstadisticaScreenState
 
                 // ======== ENCABEZADO ========
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: const [
+                    Text(
                       "🏠 Rendimiento alquiler",
                       style: TextStyle(
                         color: Colors.white,
@@ -251,28 +251,9 @@ class _AlquilerEstadisticaScreenState
                         fontSize: 22,
                       ),
                     ),
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFFFFD700),
-                            Color(0xFFF59E0B),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      child: const Text(
-                        "LIVE",
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
+
 
                 const SizedBox(height: 10),
 

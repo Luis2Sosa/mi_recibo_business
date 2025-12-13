@@ -238,9 +238,9 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
 
                 // ======== ENCABEZADO ========
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: const [
+                    Text(
                       "📊 Rendimiento préstamo",
                       style: TextStyle(
                         color: Colors.white,
@@ -248,25 +248,9 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
                         fontSize: 22,
                       ),
                     ),
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF00FFFF), Color(0xFF007CF0)],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      child: const Text(
-                        "LIVE",
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
+
 
                 const SizedBox(height: 10),
 
