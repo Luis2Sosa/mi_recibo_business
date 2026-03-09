@@ -220,13 +220,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final bool isSmall = size.height < 700;
+
     return PopScope(
       canPop: !_cargando,
       onPopInvoked: (_) {},
       child: Scaffold(
         body: Stack(
           children: [
-            // Fondo
+            // 1. FONDO
             Container(
               width: double.infinity,
               height: double.infinity,
@@ -239,112 +242,96 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // CONTENIDO PRINCIPAL
+            // 2. CONTENIDO ADAPTABLE
             SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isSmall = constraints.maxHeight < 700;
-                  final topLogo = isSmall ? -40.0 : logoTop;
-                  final topSlogan = isSmall ? 220.0 : sloganTop;
-                  final topButtons = isSmall ? 420.0 : buttonsTop;
-
-                  return Stack(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Column(
                     children: [
                       // LOGO
-                      Positioned(
-                        top: topLogo,
-                        left: 0,
-                        right: 0,
-                        child: const IgnorePointer(
-                          child: Center(
-                            child: Image(
-                              image: AssetImage('assets/images/logoB.png'),
-                              height: logoSize,
-                              fit: BoxFit.contain,
-                            ),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: isSmall ? size.height * 0.30 : 280,
+                        ),
+                        child: const Center(
+                          child: Image(
+                            image: AssetImage('assets/images/logoB.png'),
+                            fit: BoxFit.contain,
                           ),
                         ),
                       ),
 
-                      // ESLOGAN
-                      Positioned(
-                        top: topSlogan,
-                        left: 0,
-                        right: 0,
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 340),
-                            child: Text(
-                              'Más que un recibo, la gestión que tu negocio merece',
-                              style: GoogleFonts.playfairDisplay(
-                                textStyle: const TextStyle(
-                                  fontSize: 25,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                  fontStyle: FontStyle.italic,
-                                ),
+                      // Usamos un offset negativo para subir SOLO las letras del eslogan
+                      Transform.translate(
+                        offset: const Offset(0, -35), // 👈 Esto sube el eslogan. Si lo quieres más arriba, pon -45
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 340),
+                          child: Text(
+                            'Más que un recibo, la gestión que tu negocio merece',
+                            style: GoogleFonts.playfairDisplay(
+                              textStyle: TextStyle(
+                                fontSize: size.width * 0.065,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                fontStyle: FontStyle.italic,
                               ),
-                              textAlign: TextAlign.center,
                             ),
+                            textAlign: TextAlign.center,
                           ),
                         ),
                       ),
 
-                      // BOTONES
-                      Positioned(
-                        top: topButtons,
-                        left: 24,
-                        right: 24,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _googleButton(
-                              labelIdle: 'Continuar con Google',
-                              loading: _cargando,
-                              onTap: _cargando ? null : _manejarLoginPrestamista,
-                            ),
+                      // Espacio entre eslogan y botón de Google (ajustado para compensar la subida)
+                      SizedBox(height: size.height * 0.04),
 
-                            const SizedBox(height: 28),
-
-                            Text(
-                              'Gestión inteligente para tu negocio',
-                              style: GoogleFonts.playfairDisplay(
-                                textStyle: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.white,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-
-                            SizedBox(height: isSmall ? 70 : 160),
-
-
-                            _aboutButton(context),
-                          ],
-                        ),
+                      // BOTÓN GOOGLE
+                      _googleButton(
+                        labelIdle: 'Continuar con Google',
+                        loading: _cargando,
+                        onTap: _cargando ? null : _manejarLoginPrestamista,
                       ),
 
-                      // Overlay de carga
-                      if (_cargando)
-                        Positioned.fill(
-                          child: AbsorbPointer(
-                            absorbing: true,
-                            child: Container(
-                              color: Colors.black.withOpacity(0.25),
-                              child: const Center(
-                                child: CircularProgressIndicator(color: Colors.white),
-                              ),
-                            ),
+                      const SizedBox(height: 20),
+
+                      Text(
+                        'Gestión inteligente para tu negocio',
+                        style: GoogleFonts.playfairDisplay(
+                          textStyle: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white,
+                            fontStyle: FontStyle.italic,
                           ),
                         ),
+                        textAlign: TextAlign.center,
+                      ),
+
+                      SizedBox(height: size.height * (isSmall ? 0.05 : 0.10)),
+
+                      _aboutButton(context),
+
+                      const SizedBox(height: 30),
                     ],
-                  );
-                },
+                  ),
+                ),
               ),
             ),
+
+            // 3. OVERLAY DE CARGA
+            if (_cargando)
+              Positioned.fill(
+                child: AbsorbPointer(
+                  absorbing: true,
+                  child: Container(
+                    color: Colors.black.withOpacity(0.25),
+                    child: const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

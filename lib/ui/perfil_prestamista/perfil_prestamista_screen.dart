@@ -998,9 +998,17 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   }
 
   // ===== GENERAL =====
-  Widget _generalContent() {
+  // Agregar al inicio de _generalContent(), justo después de la firma del método:
 
-    // 🌟 Tarjeta Premium horizontal delgada — transparente, elegante y alineada con los KPI
+  Widget _generalContent() {
+    // ✅ Detectar ancho de pantalla para escalar proporcionalmente
+    final screenWidth = MediaQuery.of(context).size.width;
+    final scale = (screenWidth / 400).clamp(0.85, 1.15); // Factor de escala
+
+    // ✅ Función helper para escalar tamaños de texto
+    double _scaledSize(double baseSize) => baseSize * scale;
+
+    // 🌟 Tarjeta Premium horizontal delgada
     Widget _categoriaCard({
       required IconData icon,
       required String title,
@@ -1015,7 +1023,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
           highlightColor: Colors.white.withOpacity(0.05),
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 4),
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: EdgeInsets.symmetric(vertical: 8 * scale),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               color: Colors.white.withOpacity(0.05),
@@ -1024,10 +1032,9 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 🔹 Ícono circular colorido
                 Container(
-                  width: 32,
-                  height: 32,
+                  width: 32 * scale,
+                  height: 32 * scale,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
@@ -1039,28 +1046,22 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                       end: Alignment.bottomRight,
                     ),
                   ),
-                  child: Icon(icon, color: Colors.white, size: 18),
+                  child: Icon(icon, color: Colors.white, size: 18 * scale),
                 ),
-
-                const SizedBox(height: 5),
-
-                // 🔹 Título
+                SizedBox(height: 5 * scale),
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
-                    fontSize: 12.8,
+                    fontSize: _scaledSize(12.8),
                   ),
                 ),
-
-                const SizedBox(height: 3),
-
-                // 🔹 Ícono del dedo táctil
+                SizedBox(height: 3 * scale),
                 Icon(
                   Icons.touch_app_rounded,
                   color: Colors.white.withOpacity(0.85),
-                  size: 13.5,
+                  size: 13.5 * scale,
                 ),
               ],
             ),
@@ -1069,7 +1070,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       );
     }
 
-// 🔹 Fila de botones ajustada al ancho exacto de los KPI
     final filtrosRow = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
       child: Row(
@@ -1120,11 +1120,9 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       mayorSaldo: mayorSaldo,
     );
 
-
-
     final chartsCard = Container(
       margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(20 * scale),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFFEAF2FF), Color(0xFFDCE6F9)],
@@ -1143,22 +1141,19 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ==========================================
-          // 📊 PAGO MENSUAL (gráfico moderno)
-          // ==========================================
           Text(
             'Pagos recibidos por mes',
             style: GoogleFonts.inter(
-              textStyle: const TextStyle(
-                fontSize: 17,
+              textStyle: TextStyle(
+                fontSize: _scaledSize(17),
                 fontWeight: FontWeight.w900,
-                color: Color(0xFF1E293B),
+                color: const Color(0xFF1E293B),
               ),
             ),
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: 18 * scale),
           SizedBox(
-            height: 240,
+            height: 240 * scale,
             child: Container(
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
@@ -1175,12 +1170,11 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                   ),
                 ],
               ),
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+              padding: EdgeInsets.fromLTRB(16 * scale, 16 * scale, 16 * scale, 12 * scale),
               child: Column(
                 children: [
-                  // 💰 Monto central elegante con formato de miles
                   Container(
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 22),
+                    padding: EdgeInsets.symmetric(vertical: 6 * scale, horizontal: 22 * scale),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
@@ -1194,20 +1188,18 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                     ),
                     child: Text(
                       '\$${NumberFormat("#,###", "en_US").format(pagosMes.reduce((a, b) => a > b ? a : b))}',
-                      style: const TextStyle(
-                        fontSize: 22,
+                      style: TextStyle(
+                        fontSize: _scaledSize(22),
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF1E3A8A),
+                        color: const Color(0xFF1E3A8A),
                         letterSpacing: 0.3,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
-
-                  // 📊 Gráfico profesional sin curvatura
+                  SizedBox(height: 10 * scale),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: EdgeInsets.symmetric(horizontal: 8 * scale, vertical: 4 * scale),
                       child: LineChart(
                         LineChartData(
                           gridData: FlGridData(
@@ -1223,25 +1215,25 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                             leftTitles: AxisTitles(
                               sideTitles: SideTitles(
                                 showTitles: true,
-                                reservedSize: 40,
+                                reservedSize: 40 * scale,
                                 getTitlesWidget: (value, _) {
                                   final maxPago = pagosMes.reduce((a, b) => a > b ? a : b);
                                   final resto = maxPago % 1000;
-                                  final maxRedondeado = maxPago - resto; // 🔹 redondea hacia abajo
+                                  final maxRedondeado = maxPago - resto;
                                   if (value == 0) {
-                                    return const Text(
+                                    return Text(
                                       '0k',
                                       style: TextStyle(
                                         color: Colors.white70,
-                                        fontSize: 12,
+                                        fontSize: _scaledSize(12),
                                       ),
                                     );
                                   } else if (value == maxRedondeado.toDouble()) {
                                     return Text(
                                       '${(maxRedondeado / 1000).toStringAsFixed(0)}k',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         color: Colors.white,
-                                        fontSize: 12,
+                                        fontSize: _scaledSize(12),
                                         fontWeight: FontWeight.bold,
                                       ),
                                     );
@@ -1253,7 +1245,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                             bottomTitles: AxisTitles(
                               sideTitles: SideTitles(
                                 showTitles: true,
-                                reservedSize: 38,
+                                reservedSize: 38 * scale,
                                 getTitlesWidget: (value, _) {
                                   final idx = value.toInt();
                                   final start = pagosMesLabels.indexOf('Nov');
@@ -1263,13 +1255,12 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                                   ];
                                   if (idx < 6 && idx < rotado.length) {
                                     return Padding(
-                                      padding: EdgeInsets.only(
-                                          right: idx == 5 ? 6 : 0, top: 2),
+                                      padding: EdgeInsets.only(right: idx == 5 ? 6 : 0, top: 2),
                                       child: Text(
                                         rotado[idx],
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           color: Colors.white70,
-                                          fontSize: 12,
+                                          fontSize: _scaledSize(12),
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
@@ -1280,8 +1271,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                               ),
                             ),
                             topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            rightTitles:
-                            AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                           ),
                           borderData: FlBorderData(show: false),
                           minX: 0,
@@ -1290,21 +1280,21 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                           maxY: (() {
                             final maxPago = pagosMes.reduce((a, b) => a > b ? a : b);
                             final resto = maxPago % 1000;
-                            final maxRedondeado = maxPago - resto; // 🔹 redondea hacia abajo
+                            final maxRedondeado = maxPago - resto;
                             return maxRedondeado.toDouble();
                           })(),
                           lineBarsData: [
                             LineChartBarData(
-                              isCurved: false, // 🚫 Línea completamente recta
+                              isCurved: false,
                               color: Colors.white,
-                              barWidth: 3.2,
+                              barWidth: 3.2 * scale,
                               isStrokeCapRound: true,
                               dotData: FlDotData(
                                 show: true,
                                 getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(
-                                  radius: 4.5,
+                                  radius: 4.5 * scale,
                                   color: Colors.white,
-                                  strokeWidth: 2.5,
+                                  strokeWidth: 2.5 * scale,
                                   strokeColor: const Color(0xFF60A5FA),
                                 ),
                               ),
@@ -1333,33 +1323,20 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
               ),
             ),
           ),
-
-
-
-
-
-
-
-
-          const SizedBox(height: 28),
-
-          // =======================================
-          // 🟢 DISTRIBUCIÓN DE CLIENTES (moderna)
-          // =======================================
+          SizedBox(height: 28 * scale),
           Text(
             'Distribución de clientes',
             style: GoogleFonts.inter(
-              textStyle: const TextStyle(
-                fontSize: 17,
+              textStyle: TextStyle(
+                fontSize: _scaledSize(17),
                 fontWeight: FontWeight.w900,
-                color: Color(0xFF1E293B),
+                color: const Color(0xFF1E293B),
               ),
             ),
           ),
-          const SizedBox(height: 14),
-
+          SizedBox(height: 14 * scale),
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(20 * scale),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
@@ -1372,7 +1349,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             child: Column(
               children: [
                 _donutSection(),
-                const SizedBox(height: 12),
+                SizedBox(height: 12 * scale),
               ],
             ),
           ),
@@ -1380,12 +1357,8 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       ),
     );
 
-
-
-    // Card borrar histórico
-    // 📊 Card: Borrar histórico
     final borrarHistoricoCard = Container(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      padding: EdgeInsets.fromLTRB(18 * scale, 16 * scale, 18 * scale, 16 * scale),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
         gradient: LinearGradient(
@@ -1411,7 +1384,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: EdgeInsets.all(10 * scale),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white.withOpacity(.15),
@@ -1420,14 +1393,14 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                     width: 1.2,
                   ),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.delete_sweep_rounded,
                   color: Colors.white,
-                  size: 22,
+                  size: 22 * scale,
                 ),
               ),
-              const SizedBox(width: 10),
-              const Expanded(
+              SizedBox(width: 10 * scale),
+              Expanded(
                 child: Text(
                   'Borrar historial',
                   maxLines: 1,
@@ -1435,39 +1408,42 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
-                    fontSize: 16,
+                    fontSize: _scaledSize(16),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8 * scale),
           Text(
             'Reinicia tus estadísticas generales sin afectar tus clientes ni pagos. '
-            'Podrás confirmar antes de borrar.',
+                'Podrás confirmar antes de borrar.',
             style: TextStyle(
               color: Colors.white.withOpacity(.92),
               fontWeight: FontWeight.w700,
+              fontSize: _scaledSize(14),
               height: 1.35,
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14 * scale),
           Align(
             alignment: Alignment.centerRight,
             child: ElevatedButton.icon(
               onPressed: _confirmBorrarHistorial,
-              icon: const Icon(Icons.delete_sweep_rounded, size: 22),
-              label: const Text('Borrar historial'),
+              icon: Icon(Icons.delete_sweep_rounded, size: 22 * scale),
+              label: Text(
+                'Borrar historial',
+                style: TextStyle(fontSize: _scaledSize(16)),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFE11D48),
                 foregroundColor: Colors.white,
                 shape: const StadiumBorder(),
                 elevation: 6,
                 shadowColor: const Color(0xFFE11D48).withOpacity(0.4),
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                padding: EdgeInsets.symmetric(horizontal: 28 * scale, vertical: 14 * scale),
                 textStyle: const TextStyle(
                   fontWeight: FontWeight.w900,
-                  fontSize: 16,
                 ),
               ),
             ),
@@ -1480,23 +1456,15 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: [
-
         filtrosRow,
-        const SizedBox(height: 10),
-
-        // 🔹 Primero el bloque histórico (para mostrar los KPIs)
+        SizedBox(height: 10 * scale),
         bloqueHistorico,
-        const SizedBox(height: 12),
-
+        SizedBox(height: 12 * scale),
         chartsCard,
-        const SizedBox(height: 12),
-
-        // 🔹 Card de borrar historial
+        SizedBox(height: 12 * scale),
         borrarHistoricoCard,
       ],
     );
-
-
   }
 
   // ===== Dona

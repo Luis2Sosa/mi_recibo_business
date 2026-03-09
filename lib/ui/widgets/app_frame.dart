@@ -25,7 +25,7 @@ class AppGradientBackground extends StatelessWidget {
   }
 }
 
-// ===== Marco translúcido reutilizable =====
+// ===== Marco translúcido reutilizable ADAPTABLE =====
 class AppFrame extends StatelessWidget {
   final Widget child;
   final Widget? header;
@@ -34,12 +34,20 @@ class AppFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.expand( // ✅ ocupa todo el alto/ ancho
+    // Detectamos el tamaño para ajustar márgenes
+    final size = MediaQuery.of(context).size;
+    final bool isSmallHeight = size.height < 700;
+
+    return SizedBox.expand(
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            // Ajustamos el padding vertical según el tamaño del celular
+            padding: EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: isSmallHeight ? 8 : 12
+            ),
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.12),
@@ -57,7 +65,14 @@ class AppFrame extends StatelessWidget {
                         header!,
                         const SizedBox(height: 12),
                       ],
-                      Expanded(child: child),
+                      // CAMBIO CLAVE: Usamos Expanded con un SingleChildScrollView interno
+                      // para que si el contenido es mucho, el usuario pueda deslizar.
+                      Expanded(
+                        child: SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          child: child,
+                        ),
+                      ),
                     ],
                   ),
                 ),

@@ -1,7 +1,6 @@
 // 📂 lib/agregar_cliente_screen.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'clientes/agregar_cliente_prestamo.dart';
 import 'clientes/agregar_cliente_producto_screen.dart';
 import 'clientes/agregar_cliente_alquiler_screen.dart';
@@ -15,15 +14,9 @@ class AgregarClienteScreen extends StatefulWidget {
 
 class _AgregarClienteScreenState extends State<AgregarClienteScreen>
     with TickerProviderStateMixin {
-  late AnimationController _controller1;
-  late AnimationController _controller2;
-  late AnimationController _controller3;
-  late Animation<double> _fade1;
-  late Animation<double> _fade2;
-  late Animation<double> _fade3;
-  late Animation<Offset> _slide1;
-  late Animation<Offset> _slide2;
-  late Animation<Offset> _slide3;
+  late AnimationController _controller1, _controller2, _controller3;
+  late Animation<double> _fade1, _fade2, _fade3;
+  late Animation<Offset> _slide1, _slide2, _slide3;
 
   final List<String> _consejos = [
     "Confirma el número del cliente antes de registrarlo.",
@@ -60,44 +53,29 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
 
   String get _consejoDelDia {
     final now = DateTime.now();
-    final index = now.day % 30;
-    return _consejos[index];
+    return _consejos[now.day % _consejos.length];
   }
 
   @override
   void initState() {
     super.initState();
 
-    _controller1 =
-        AnimationController(
-            vsync: this, duration: const Duration(milliseconds: 550));
-    _controller2 =
-        AnimationController(
-            vsync: this, duration: const Duration(milliseconds: 650));
-    _controller3 =
-        AnimationController(
-            vsync: this, duration: const Duration(milliseconds: 750));
+    _controller1 = AnimationController(vsync: this, duration: const Duration(milliseconds: 550));
+    _controller2 = AnimationController(vsync: this, duration: const Duration(milliseconds: 650));
+    _controller3 = AnimationController(vsync: this, duration: const Duration(milliseconds: 750));
 
-    _fade1 = CurvedAnimation(parent: _controller1, curve: Curves.easeOutCubic);
-    _fade2 = CurvedAnimation(parent: _controller2, curve: Curves.easeOutCubic);
-    _fade3 = CurvedAnimation(parent: _controller3, curve: Curves.easeOutCubic);
+    final curve = Curves.easeOutCubic;
+    _fade1 = CurvedAnimation(parent: _controller1, curve: curve);
+    _fade2 = CurvedAnimation(parent: _controller2, curve: curve);
+    _fade3 = CurvedAnimation(parent: _controller3, curve: curve);
 
-    _slide1 = Tween<Offset>(begin: const Offset(0, 0.25), end: Offset.zero)
-        .animate(
-        CurvedAnimation(parent: _controller1, curve: Curves.easeOutCubic));
-    _slide2 = Tween<Offset>(begin: const Offset(0, 0.35), end: Offset.zero)
-        .animate(
-        CurvedAnimation(parent: _controller2, curve: Curves.easeOutCubic));
-    _slide3 = Tween<Offset>(begin: const Offset(0, 0.40), end: Offset.zero)
-        .animate(
-        CurvedAnimation(parent: _controller3, curve: Curves.easeOutCubic));
+    _slide1 = Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero).animate(_fade1);
+    _slide2 = Tween<Offset>(begin: const Offset(0, 0.20), end: Offset.zero).animate(_fade2);
+    _slide3 = Tween<Offset>(begin: const Offset(0, 0.25), end: Offset.zero).animate(_fade3);
 
-    Future.delayed(
-        const Duration(milliseconds: 200), () => _controller1.forward());
-    Future.delayed(
-        const Duration(milliseconds: 400), () => _controller2.forward());
-    Future.delayed(
-        const Duration(milliseconds: 600), () => _controller3.forward());
+    Future.delayed(const Duration(milliseconds: 100), () => _controller1.forward());
+    Future.delayed(const Duration(milliseconds: 250), () => _controller2.forward());
+    Future.delayed(const Duration(milliseconds: 400), () => _controller3.forward());
   }
 
   @override
@@ -116,33 +94,23 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Colors.white,
-            size: 20,
-          ),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         centerTitle: true,
         title: Text(
           "Agregar Cliente",
           style: GoogleFonts.playfairDisplay(
-            textStyle: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 26,
-            ),
+            textStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 24),
           ),
         ),
       ),
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Color(0xFF0A2F4E),
-              Color(0xFF0E4D8F),
-              Color(0xFF007EA7),
-            ],
+            colors: [Color(0xFF0A2F4E), Color(0xFF0E4D8F), Color(0xFF007EA7)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -150,116 +118,58 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              // 👉 pequeño por ancho (Android chico ~360dp)
-              final bool isSmall = constraints.maxWidth < 380;
-
-              final contenido = Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 22,
-                  vertical: isSmall ? 4 : 14,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    SizedBox(height: isSmall ? 0 : 20),
-
-                    // --- Préstamo ---
-                    FadeTransition(
-                      opacity: _fade1,
-                      child: SlideTransition(
-                        position: _slide1,
-                        child: _tarjetaPremium(
-                          context,
-                          color: const Color(0xFF0B60D8),
-                          icon: Icons.account_balance_rounded,
-                          title: "Préstamo",
-                          subtitle: "Registrar cliente con préstamo activo",
-                          compact: isSmall,
-                          onTap: () =>
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (
-                                      _) => const AgregarClientePrestamoScreen(),
-                                ),
-                              ),
-                        ),
-                      ),
-                    ),
-
-                    SizedBox(height: isSmall ? 2 : 28),
-
-                    // --- Producto / Fiado ---
-                    FadeTransition(
-                      opacity: _fade2,
-                      child: SlideTransition(
-                        position: _slide2,
-                        child: _tarjetaPremium(
-                          context,
-                          color: const Color(0xFF00A86B),
-                          icon: Icons.shopping_bag_rounded,
-                          title: "Producto / Fiado",
-                          subtitle: "Registrar cliente con producto o venta fiada",
-                          compact: isSmall,
-                          onTap: () =>
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                  const AgregarClienteProductoScreen(),
-                                ),
-                              ),
-                        ),
-                      ),
-                    ),
-
-                    SizedBox(height: isSmall ? 4 : 28),
-
-                    // --- Alquiler ---
-                    FadeTransition(
-                      opacity: _fade3,
-                      child: SlideTransition(
-                        position: _slide3,
-                        child: _tarjetaPremium(
-                          context,
-                          color: const Color(0xFFFFA000),
-                          icon: Icons.home_work_rounded,
-                          title: "Alquiler",
-                          subtitle: "Registrar cliente de alquiler o arriendo",
-                          compact: isSmall,
-                          onTap: () =>
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                  const AgregarClienteAlquilerScreen(),
-                                ),
-                              ),
-                        ),
-                      ),
-                    ),
-
-                    SizedBox(height: isSmall ? 4 : 24),
-
-                    _bloqueWebInfo(isSmall),
-
-                    SizedBox(height: isSmall ? 2 : 14),
-                  ],
-                ),
-              );
-
               return SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.only(bottom: 60),
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: constraints.maxHeight,
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 10),
+
+                          // --- Préstamo ---
+                          _animatedItem(_fade1, _slide1, _tarjetaPremium(
+                            color: const Color(0xFF0B60D8),
+                            icon: Icons.account_balance_rounded,
+                            title: "Préstamo",
+                            subtitle: "Registrar cliente con préstamo activo",
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgregarClientePrestamoScreen())),
+                          )),
+
+                          const SizedBox(height: 18),
+
+                          // --- Producto / Fiado ---
+                          _animatedItem(_fade2, _slide2, _tarjetaPremium(
+                            color: const Color(0xFF00A86B),
+                            icon: Icons.shopping_bag_rounded,
+                            title: "Producto / Fiado",
+                            subtitle: "Registrar cliente con producto o venta fiada",
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgregarClienteProductoScreen())),
+                          )),
+
+                          const SizedBox(height: 18),
+
+                          // --- Alquiler ---
+                          _animatedItem(_fade3, _slide3, _tarjetaPremium(
+                            color: const Color(0xFFFFA000),
+                            icon: Icons.home_work_rounded,
+                            title: "Alquiler",
+                            subtitle: "Registrar cliente de alquiler o arriendo",
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgregarClienteAlquilerScreen())),
+                          )),
+
+                          const Spacer(), // Empuja el consejo hacia abajo si hay espacio
+                          const SizedBox(height: 24),
+                          _bloqueWebInfo(),
+                          const SizedBox(height: 20),
+                        ],
+                      ),
+                    ),
                   ),
-                  child: contenido,
                 ),
               );
-
-
             },
           ),
         ),
@@ -267,145 +177,62 @@ class _AgregarClienteScreenState extends State<AgregarClienteScreen>
     );
   }
 
+  Widget _animatedItem(Animation<double> opacity, Animation<Offset> position, Widget child) {
+    return FadeTransition(opacity: opacity, child: SlideTransition(position: position, child: child));
+  }
 
-  Widget _tarjetaPremium(BuildContext context, {
-    required Color color,
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required bool compact,
-    required VoidCallback onTap,
-  }) {
+  Widget _tarjetaPremium({required Color color, required IconData icon, required String title, required String subtitle, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
+      child: Container(
         width: double.infinity,
-        padding: EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: compact ? 12 : 30, // ✅ MÁS BAJO EN PEQUEÑO
-        ),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: color.withOpacity(0.14),
           borderRadius: BorderRadius.circular(22),
           border: Border.all(color: color.withOpacity(0.25), width: 1.1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.18),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ],
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 6))],
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              width: compact ? 42 : 52, // ✅ MÁS PEQUEÑO
-              height: compact ? 42 : 52, // ✅ MÁS PEQUEÑO
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: color,
-              ),
-              child: Icon(icon, color: Colors.white, size: compact ? 22 : 28),
+              width: 48, height: 48,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+              child: Icon(icon, color: Colors.white, size: 24),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.poppins(
-                      textStyle: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: compact ? 15 : 17, // ✅
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.poppins(
-                      textStyle: TextStyle(
-                        color: Colors.white.withOpacity(0.85),
-                        fontSize: compact ? 11 : 13.0, // ✅
-                      ),
-                    ),
-                  ),
+                  Text(title, style: GoogleFonts.poppins(textStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16))),
+                  Text(subtitle, style: GoogleFonts.poppins(textStyle: TextStyle(color: Colors.white.withOpacity(0.80), fontSize: 12))),
                 ],
               ),
             ),
-            Icon(
-              Icons.arrow_forward_ios_rounded,
-              color: Colors.white70,
-              size: compact ? 14 : 18, // ✅
-            ),
+            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 14),
           ],
         ),
       ),
     );
   }
 
-
-  Widget _bloqueWebInfo(bool compact) {
+  Widget _bloqueWebInfo() {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 16 : 24,
-        vertical: compact ? 10 : 32, // ✅ MUCHO MÁS BAJO
-      ),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F4D82),
+        color: const Color(0xFF1F4D82).withOpacity(0.8),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.18),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: compact ? 40 : 58,
-            height: compact ? 40 : 58,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.18),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.lightbulb_outline,
-              color: Colors.white,
-              size: compact ? 20 : 26,
-            ),
-          ),
-          SizedBox(height: compact ? 6 : 18),
-          Text(
-            "Consejo rápido",
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: compact ? 14 : 18,
-            ),
-          ),
-          SizedBox(height: compact ? 4 : 12),
-          Text(
-            _consejoDelDia,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: compact ? 12 : 15,
-              height: 1.3,
-            ),
-          ),
+          Icon(Icons.lightbulb_outline, color: Colors.white.withOpacity(0.9), size: 28),
+          const SizedBox(height: 10),
+          const Text("Consejo rápido", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+          const SizedBox(height: 8),
+          Text(_consejoDelDia, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
         ],
       ),
     );

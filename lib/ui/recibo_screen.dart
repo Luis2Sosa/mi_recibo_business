@@ -780,7 +780,7 @@ class _PlainCardShell extends StatelessWidget {
   }
 }
 
-/// ===============================
+/// ================================
 /// WIDGET: MONTO GRANDE (prefijo + número con estilos)
 /// ===============================
 class MontoGrande extends StatelessWidget {

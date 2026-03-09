@@ -590,28 +590,12 @@ class _ClientesScreenState extends State<ClientesScreen> with WidgetsBindingObse
   }
 
   void _abrirEditarCliente(Cliente c) async {
-    Widget destino;
+    Widget? destino;
 
-    // Según el filtro actual, abrimos la pantalla correcta
+    // 1. Determinamos a qué pantalla ir (Limpiando parámetros no definidos)
     switch (_filtro) {
       case FiltroClientes.prestamos:
         destino = AgregarClientePrestamoScreen(
-          id: c.id,
-          initNombre: c.nombre,
-          initApellido: c.apellido,
-          initTelefono: c.telefono,
-          initDireccion: c.direccion,
-          initNota: c.nota,
-          initProducto: c.producto,
-          initCapital: c.capitalInicial,
-          initTasa: c.tasaInteres,
-          initPeriodo: c.periodo,
-          initProximaFecha: c.proximaFecha,
-        );
-        break;
-
-      case FiltroClientes.productos:
-        destino = AgregarClienteProductoScreen(
           id: c.id,
           initNombre: c.nombre,
           initApellido: c.apellido,
@@ -626,6 +610,19 @@ class _ClientesScreenState extends State<ClientesScreen> with WidgetsBindingObse
         );
         break;
 
+      case FiltroClientes.productos:
+        destino = AgregarClienteProductoScreen(
+          id: c.id,
+          initNombre: c.nombre,
+          initApellido: c.apellido,
+          initTelefono: c.telefono,
+          initDireccion: c.direccion,
+          initNota: c.nota,
+          initProducto: c.producto,
+          initProximaFecha: c.proximaFecha,
+          // ✅ Se eliminaron capital, tasa y periodo porque Productos no los usa
+        );
+        break;
 
       case FiltroClientes.alquiler:
         destino = AgregarClienteAlquilerScreen(
@@ -636,74 +633,67 @@ class _ClientesScreenState extends State<ClientesScreen> with WidgetsBindingObse
           initDireccion: c.direccion,
           initNota: c.nota,
           initProducto: c.producto,
-          initCapital: c.capitalInicial,
-          initTasa: c.tasaInteres,
-          initPeriodo: c.periodo,
           initProximaFecha: c.proximaFecha,
+          // ✅ Se eliminaron capital, tasa y periodo para coincidir con el constructor
         );
         break;
+
+      default:
+        return;
     }
 
+    if (destino == null) return;
+
+    // 2. Navegamos
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => destino),
+      MaterialPageRoute(builder: (_) => destino!),
     );
 
+    // 3. Procesamos el retorno (Opcional si la pantalla ya guarda por sí sola)
     if (result == null || result is! Map) return;
+
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    // ... 🔽 desde aquí sigue tu código original, sin tocar
-    final String nombre = (result['nombre'] as String).trim();
-    final String apellido = (result['apellido'] as String).trim();
-    final String nombreCompleto = '$nombre $apellido';
-    final String telefono = (result['telefono'] as String).trim();
-    final String? direccion = ((result['direccion'] as String?)?.trim().isEmpty ?? true)
-        ? null
-        : (result['direccion'] as String).trim();
-    final String? producto = ((result['producto'] as String?)?.trim().isEmpty ?? true)
-        ? null
-        : (result['producto'] as String).trim();
-    final String? nota = ((result['nota'] as String?)?.trim().isEmpty ?? true)
-        ? null
-        : (result['nota'] as String).trim();
-    final int nuevoCapital = result['capital'] as int? ?? c.capitalInicial;
-    final double tasa = result['tasa'] as double? ?? c.tasaInteres;
-    final String periodo = result['periodo'] as String? ?? c.periodo;
-    final DateTime nuevaProxRaw = result['proximaFecha'] as DateTime? ?? c.proximaFecha;
-    final DateTime nuevaProx = _atNoon(nuevaProxRaw);
-    final docId = result['id'] ?? c.id;
-
-    final docRef = FirebaseFirestore.instance
-        .collection('prestamistas')
-        .doc(uid)
-        .collection('clientes')
-        .doc(docId);
-
     try {
+      final String nombre = (result['nombre'] ?? c.nombre).toString().trim();
+      final String apellido = (result['apellido'] ?? c.apellido).toString().trim();
+
       final Map<String, dynamic> update = {
         'nombre': nombre,
         'apellido': apellido,
-        'nombreCompleto': nombreCompleto,
-        'telefono': telefono,
-        'direccion': direccion,
-        'producto': producto,
-        'nota': nota,
-        'capitalInicial': nuevoCapital,
-        'tasaInteres': tasa,
-        'periodo': periodo,
-
-        // 🔥 ESTA ES LA LÍNEA QUE FALTABA
-        'proximaFecha': Timestamp.fromDate(nuevaProx),
-
+        'nombreCompleto': '$nombre $apellido',
+        'telefono': (result['telefono'] ?? c.telefono).toString().trim(),
+        'direccion': result['direccion'],
+        'producto': result['producto'],
+        'nota': result['nota'],
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      await docRef.set(update, SetOptions(merge: true));
+      // Solo actualizamos estos campos si vienen en el resultado (útil para Préstamos)
+      if (result.containsKey('capital')) update['capitalInicial'] = result['capital'];
+      if (result.containsKey('tasa')) update['tasaInteres'] = (result['tasa'] as num).toDouble();
+      if (result.containsKey('periodo')) update['periodo'] = result['periodo'];
+
+      if (result['proximaFecha'] != null) {
+        final DateTime prox = result['proximaFecha'] is DateTime
+            ? result['proximaFecha']
+            : DateTime.now();
+        update['proximaFecha'] = Timestamp.fromDate(_atNoon(prox));
+      }
+
+      await FirebaseFirestore.instance
+          .collection('prestamistas')
+          .doc(uid)
+          .collection('clientes')
+          .doc(c.id)
+          .set(update, SetOptions(merge: true));
 
       _showBanner('Cliente actualizado ✅', color: const Color(0xFF417CDE));
+
     } catch (e) {
-      _showBanner('Error al actualizar: $e', color: const Color(0xFF417CDE));
+      _showBanner('Error al actualizar: $e', color: Colors.red);
     }
   }
 

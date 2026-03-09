@@ -90,213 +90,220 @@ class _PantallaBloqueoPremiumState extends State<PantallaBloqueoPremium> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF0B0E18), // oscuro profesional
-              Color(0xFF141826), // gris azulado mate
-              Color(0xFF1B2133), // tono intermedio
-              Color(0xFF10131C), // base metálica
+              Color(0xFF0B0E18),
+              Color(0xFF141826),
+              Color(0xFF1B2133),
+              Color(0xFF10131C),
             ],
           ),
         ),
-          child: SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final bool isSmall = constraints.maxHeight < 750;
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final contenido = Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 20),
 
-                final contenido = Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 25),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const SizedBox(height: 20),
-
-                      // 🌟 Ícono Premium
-                      Container(
-                        width: 110,
-                        height: 110,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFF1F1F1F),
-                              Color(0xFF2C2C2C),
-                              Color(0xFF3A3A3A),
-                            ],
-                          ),
-                          border: Border.all(
-                            color: Color(0xFFE0B85A),
-                            width: 2.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
-                              blurRadius: 14,
-                              offset: const Offset(0, 6),
-                            ),
+                    // 🌟 Ícono Premium
+                    Container(
+                      width: 110,
+                      height: 110,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFF1F1F1F),
+                            Color(0xFF2C2C2C),
+                            Color(0xFF3A3A3A),
                           ],
                         ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.workspace_premium_rounded,
-                            color: Colors.white,
-                            size: 60,
-                          ),
+                        border: Border.all(
+                          color: const Color(0xFFE0B85A),
+                          width: 2.5,
                         ),
-                      ),
-
-                      const SizedBox(height: 25),
-
-                      Text(
-                        'Mi Recibo Premium',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 24,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      Text(
-                        'Tu acceso al siguiente nivel financiero',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          color: Colors.white.withOpacity(0.75),
-                          fontSize: 15.2,
-                          fontWeight: FontWeight.w500,
-                          height: 1.5,
-                        ),
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _beneficio(
-                            icon: Icons.account_balance_wallet_rounded,
-                            color: const Color(0xFF60A5FA),
-                            texto:
-                            'Consulta tus ganancias totales y divididas por categoría: préstamos, productos y alquileres.',
-                          ),
-                          _beneficio(
-                            icon: Icons.auto_awesome_rounded,
-                            color: const Color(0xFF34D399),
-                            texto:
-                            'Accede al Potenciador Premium con estrategias financieras únicas cada día.',
-                          ),
-                          _beneficio(
-                            icon: Icons.shield_rounded,
-                            color: const Color(0xFFA78BFA),
-                            texto:
-                            'Disfruta de una experiencia sin anuncios y con soporte técnico prioritario.',
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 14,
+                            offset: const Offset(0, 6),
                           ),
                         ],
                       ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.workspace_premium_rounded,
+                          color: Colors.white,
+                          size: 60,
+                        ),
+                      ),
+                    ),
 
-                      const SizedBox(height: 28),
+                    const SizedBox(height: 25),
 
-                      // 🔘 Botón Premium
-                      GestureDetector(
-                        onTap: () async {
-                          await Future.delayed(const Duration(milliseconds: 300));
-                          final uid = FirebaseAuth.instance.currentUser?.uid;
-                          if (uid == null) return;
+                    Text(
+                      'Mi Recibo Premium',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 24,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
 
-                          final yaPremium =
-                          await _premiumService.esPremiumActivo(uid);
+                    const SizedBox(height: 8),
 
-                          if (yaPremium) {
-                            final docRef = FirebaseFirestore.instance
-                                .collection('prestamistas')
-                                .doc(uid);
+                    Text(
+                      'Tu acceso al siguiente nivel financiero',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        color: Colors.white.withOpacity(0.75),
+                        fontSize: 15.2,
+                        fontWeight: FontWeight.w500,
+                        height: 1.5,
+                      ),
+                    ),
 
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    GananciasScreen(docPrest: docRef),
-                              ),
-                            );
-                            return;
-                          }
+                    const SizedBox(height: 32),
 
-                          await _premiumService.activarPremium(context);
-                        },
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(45),
-                            gradient: const LinearGradient(
-                              colors: [
-                                Color(0xFF3B82F6),
-                                Color(0xFF2563EB)
-                              ],
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _beneficio(
+                          icon: Icons.account_balance_wallet_rounded,
+                          color: const Color(0xFF60A5FA),
+                          texto:
+                          'Consulta tus ganancias totales y divididas por categoría: préstamos, productos y alquileres.',
+                        ),
+                        _beneficio(
+                          icon: Icons.auto_awesome_rounded,
+                          color: const Color(0xFF34D399),
+                          texto:
+                          'Accede al Potenciador Premium con estrategias financieras únicas cada día.',
+                        ),
+                        _beneficio(
+                          icon: Icons.shield_rounded,
+                          color: const Color(0xFFA78BFA),
+                          texto:
+                          'Disfruta de una experiencia sin anuncios y con soporte técnico prioritario.',
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // 🔘 Botón Premium
+                    GestureDetector(
+                      onTap: () async {
+                        await Future.delayed(
+                            const Duration(milliseconds: 300));
+                        final uid = FirebaseAuth.instance.currentUser?.uid;
+                        if (uid == null) return;
+
+                        final yaPremium =
+                        await _premiumService.esPremiumActivo(uid);
+
+                        if (yaPremium) {
+                          final docRef = FirebaseFirestore.instance
+                              .collection('prestamistas')
+                              .doc(uid);
+
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  GananciasScreen(docPrest: docRef),
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.25),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
+                          );
+                          return;
+                        }
+
+                        await _premiumService.activarPremium(context);
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(45),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
                           ),
-                          child: Text(
-                            'Desbloquear por US\$0.99',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 16,
-                              letterSpacing: 0.5,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.25),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
+                          ],
+                        ),
+                        child: Text(
+                          'Desbloquear por US\$0.99',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ),
+                    ),
 
-                      const SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-                      Text(
-                        'Convierte tu gestión en un verdadero negocio 💼',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          color: Colors.white.withOpacity(0.9),
-                          fontSize: 13.6,
-                          height: 1.5,
-                        ),
+                    Text(
+                      'Convierte tu gestión en un verdadero negocio 💼',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 13.6,
+                        height: 1.5,
                       ),
+                    ),
 
-                      const SizedBox(height: 8),
+                    const SizedBox(height: 8),
 
-                      Text(
-                        'Acceso seguro, simple y cancelable en cualquier momento.',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          color: Colors.white.withOpacity(0.6),
-                          fontSize: 12.5,
-                          height: 1.3,
-                        ),
+                    Text(
+                      'Acceso seguro, simple y cancelable en cualquier momento.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        color: Colors.white.withOpacity(0.6),
+                        fontSize: 12.5,
+                        height: 1.3,
                       ),
+                    ),
 
-                      const SizedBox(height: 20),
-                    ],
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              );
+
+              // ✅ CENTRADO VERTICAL CON SCROLL CUANDO SEA NECESARIO
+              return Center(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [contenido],
+                      ),
+                    ),
                   ),
-                );
-
-                return isSmall
-                    ? SingleChildScrollView(child: contenido) // ✅ SOLO EN PEQUEÑOS
-                    : contenido; // ✅ GRANDES INTACTOS
-              },
-            ),
+                ),
+              );
+            },
           ),
+        ),
       ),
     );
-
-
-          }
-
+  }
 
   // === Beneficio visual sobrio ===
   Widget _beneficio({
