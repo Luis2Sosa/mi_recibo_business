@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,11 +6,10 @@ import 'package:intl/intl.dart';
 
 import '../core/premium_service.dart';
 
-
 class HistorialScreen extends StatelessWidget {
   final String idCliente;
   final String nombreCliente;
-  final String? producto; // opcional (decide estilo: préstamo/producto/alquiler)
+  final String? producto;
 
   const HistorialScreen({
     super.key,
@@ -20,14 +18,14 @@ class HistorialScreen extends StatelessWidget {
     this.producto,
   });
 
-  // =======================
-  // Helpers
-  // =======================
-
+  // ─── Getters de tipo ─────────────────────────────────────────────────────
   bool get _esPrestamo {
     final p = (producto ?? '').trim().toLowerCase();
-    if (p.isEmpty) return true; // vacío = préstamo clásico
-    return p.contains('prest') || p.contains('crédito') || p.contains('credito') || p.contains('loan');
+    if (p.isEmpty) return true;
+    return p.contains('prest') ||
+        p.contains('crédito') ||
+        p.contains('credito') ||
+        p.contains('loan');
   }
 
   bool get _esAlquiler {
@@ -41,6 +39,7 @@ class HistorialScreen extends StatelessWidget {
 
   bool get _esProducto => !_esPrestamo && !_esAlquiler;
 
+  // ─── Helpers de formato ──────────────────────────────────────────────────
   String _fmtFecha(DateTime d) {
     const meses = [
       'ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.',
@@ -49,83 +48,53 @@ class HistorialScreen extends StatelessWidget {
     return '${d.day} ${meses[d.month - 1]} ${d.year}';
   }
 
-  // moneda automática según país del dispositivo
   String _rd(num v) {
-    final format = NumberFormat.simpleCurrency(locale: Intl.getCurrentLocale());
-    return format.format(v);
+    return NumberFormat.currency(
+      locale: 'en_US',
+      symbol: '\$',
+      decimalDigits: 0,
+    ).format(v);
   }
 
   DateTime _parseFecha(dynamic ts) {
     if (ts is Timestamp) return ts.toDate();
     if (ts is DateTime) return ts;
-    return DateTime.fromMillisecondsSinceEpoch(0); // muy vieja para ordenar
+    return DateTime.fromMillisecondsSinceEpoch(0);
   }
 
-  TextStyle get _titleStyle => GoogleFonts.playfairDisplay(
-    textStyle: const TextStyle(
-      color: Colors.white,
-      fontSize: 22,
-      fontWeight: FontWeight.w600,
-      fontStyle: FontStyle.italic,
-    ),
-  );
+  // ─── Colores por tipo ────────────────────────────────────────────────────
+  Color get _colorMain => _esPrestamo
+      ? const Color(0xFF2563EB)
+      : (_esAlquiler ? const Color(0xFFF59E0B) : const Color(0xFF22C55E));
 
+  IconData get _iconoTipo => _esAlquiler
+      ? Icons.house_rounded
+      : (_esPrestamo
+      ? Icons.request_quote_rounded
+      : Icons.shopping_bag_rounded);
+
+  // ─── Build ───────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    const double _logoTop = -100;
-    const double _logoHeight = 350;
-    const double _contentTop = 135;
-
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    final premiumService = PremiumService(); // ✅ instancia única para toda la pantalla
+    final screenW = MediaQuery.of(context).size.width;
+    final screenH = MediaQuery.of(context).size.height;
+    final topPad = MediaQuery.of(context).padding.top;
+    final botPad = MediaQuery.of(context).padding.bottom;
 
+    // Tamaños adaptativos
+    final double logoH = (screenH * 0.40).clamp(220.0, 360.0);
+    final double logoTop = -(logoH * 0.28);
+    final double contentTop = (screenH * 0.14).clamp(100.0, 150.0);
+    final double hPad = (screenW * 0.04).clamp(12.0, 24.0);
+
+    final Color cardTint = _colorMain.withOpacity(0.08);
+    final Color cardBorder = _colorMain.withOpacity(0.22);
 
     if (uid == null) {
-      return Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF2458D6), Color(0xFF0A9A76)],
-            ),
-          ),
-          child: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CircularProgressIndicator(color: Colors.white),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Sesión expirada. Inicia sesión de nuevo.',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Colors.white),
-                          shape: const StadiumBorder(),
-                        ),
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Volver', style: TextStyle(color: Colors.white)),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
+      return _SesionExpirada();
     }
 
-    // 📌 NO usamos orderBy para no perder pagos que no tengan 'fecha'.
     final pagosRef = FirebaseFirestore.instance
         .collection('prestamistas')
         .doc(uid)
@@ -133,16 +102,7 @@ class HistorialScreen extends StatelessWidget {
         .doc(idCliente)
         .collection('pagos');
 
-    final double safeBottom = MediaQuery.of(context).padding.bottom;
-
-    // Paleta HALO suave por tipo
-    final Color colorMain = _esPrestamo
-        ? const Color(0xFF2563EB) // azul
-        : (_esAlquiler ? const Color(0xFFF59E0B) : const Color(0xFF22C55E)); // naranja : verde
-
-    final Color cardTint = colorMain.withOpacity(0.08);
-    final Color cardBorder = colorMain.withOpacity(0.22);
-
+    final premiumService = PremiumService();
 
     return Scaffold(
       body: Container(
@@ -154,345 +114,249 @@ class HistorialScreen extends StatelessWidget {
           ),
         ),
         child: SafeArea(
+          bottom: false,
           child: Stack(
             children: [
+              // ── Logo de fondo ──────────────────────────────────────────
               Positioned(
-                top: _logoTop,
+                top: logoTop,
                 left: 0,
                 right: 0,
-                child: const IgnorePointer(
+                child: IgnorePointer(
                   child: Center(
-                    child: Image(
-                      image: AssetImage('assets/images/logoB.png'),
-                      height: _logoHeight,
+                    child: Image.asset(
+                      'assets/images/logoB.png',
+                      height: logoH,
                       fit: BoxFit.contain,
                     ),
                   ),
                 ),
               ),
+
+              // ── Contenido ──────────────────────────────────────────────
               Positioned.fill(
-                top: _contentTop,
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 720),
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + safeBottom),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(28),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.18),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
+                top: contentTop,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                      hPad, 0, hPad, botPad > 0 ? botPad : 12),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.18),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
                         ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(28),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              children: [
-                                Center(child: Text('Historial de Pagos', style: _titleStyle)),
-                                const SizedBox(height: 12),
-                                Expanded(
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(18),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.08),
-                                          blurRadius: 12,
-                                          offset: const Offset(0, 6),
-                                        ),
-                                      ],
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          children: [
+                            // Título
+                            Text(
+                              'Historial de Pagos',
+                              style: GoogleFonts.playfairDisplay(
+                                textStyle: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: (screenW * 0.055).clamp(18.0, 24.0),
+                                  fontWeight: FontWeight.w600,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Tarjeta blanca principal
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(18),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.08),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 6),
                                     ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        // Encabezado (cliente + subtítulo por tipo)
-                                        Padding(
-                                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                                          child: Builder(
-                                            builder: (_) {
-                                              final p = (producto ?? '').trim();
-                                              final lower = p.toLowerCase();
+                                  ],
+                                ),
+                                child: Column(
+                                  children: [
+                                    // Encabezado cliente
+                                    _EncabezadoCliente(
+                                      nombreCliente: nombreCliente,
+                                      esPrestamo: _esPrestamo,
+                                      esAlquiler: _esAlquiler,
+                                      colorMain: _colorMain,
+                                      iconoTipo: _iconoTipo,
+                                      screenW: screenW,
+                                    ),
 
-                                              final bool esAlquiler = lower.contains('alquiler') ||
-                                                  lower.contains('arriendo') ||
-                                                  lower.contains('renta') ||
-                                                  lower.contains('casa') ||
-                                                  lower.contains('apart');
+                                    const Divider(
+                                        height: 1,
+                                        color: Color(0xFFE5E7EB)),
 
-                                              final bool esPrestamo = p.isEmpty ||
-                                                  lower.contains('prest') ||
-                                                  lower.contains('crédit') ||
-                                                  lower.contains('credit') ||
-                                                  lower.contains('loan');
+                                    // Lista de pagos
+                                    Expanded(
+                                      child: StreamBuilder<User?>(
+                                        stream: FirebaseAuth.instance
+                                            .authStateChanges(),
+                                        builder: (context, userSnap) {
+                                          if (!userSnap.hasData) {
+                                            return const _LoadingList();
+                                          }
 
-                                              final String subtitulo = esPrestamo ? 'Préstamo' : p;
-
-                                              final IconData icono = esAlquiler
-                                                  ? Icons.house_rounded
-                                                  : (esPrestamo ? Icons.request_quote_rounded : Icons.shopping_bag_rounded);
-
-                                              final Color colorIcono = esAlquiler
-                                                  ? const Color(0xFFF59E0B)   // naranja alquiler
-                                                  : (esPrestamo ? const Color(0xFF2563EB) : const Color(0xFF22C55E)); // azul préstamo / verde producto
-
-                                              return Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  const SizedBox(height: 6),
-                                                  Center(
-                                                    child: Column(
-                                                      children: [
-                                                        Text(
-                                                          nombreCliente,
-                                                          style: const TextStyle(
-                                                            fontSize: 20,
-                                                            fontWeight: FontWeight.w900,
-                                                            color: Color(0xFF0F172A),
-                                                            letterSpacing: 0.5,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(height: 4),
-                                                        Row(
-                                                          mainAxisAlignment: MainAxisAlignment.center,
-                                                          children: [
-                                                            Icon(
-                                                              _esPrestamo
-                                                                  ? Icons.request_quote_rounded
-                                                                  : _esAlquiler
-                                                                  ? Icons.house_rounded
-                                                                  : Icons.shopping_bag_rounded,
-                                                              color: _esPrestamo
-                                                                  ? const Color(0xFF2563EB)
-                                                                  : _esAlquiler
-                                                                  ? const Color(0xFFF59E0B)
-                                                                  : const Color(0xFF16A34A),
-                                                              size: 18,
-                                                            ),
-                                                            const SizedBox(width: 5),
-                                                            Text(
-                                                              _esPrestamo
-                                                                  ? 'Préstamo'
-                                                                  : _esAlquiler
-                                                                  ? 'Alquiler'
-                                                                  : 'Producto',
-                                                              style: TextStyle(
-                                                                fontSize: 14,
-                                                                color: _esPrestamo
-                                                                    ? const Color(0xFF2563EB)
-                                                                    : _esAlquiler
-                                                                    ? const Color(0xFFF59E0B)
-                                                                    : const Color(0xFF16A34A),
-                                                                fontWeight: FontWeight.w600,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                        const SizedBox(height: 12),
-                                                        Container(
-                                                          height: 1.3,
-                                                          width: 180,
-                                                          color: Colors.black.withOpacity(0.08),
-                                                        ),
-                                                        const SizedBox(height: 12),
-                                                      ],
-                                                    ),
-                                                  ),
-
-
-
-                                                ],
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                        const Divider(height: 1, color: Color(0xFFE5E7EB)),
-
-                                        Expanded(
-                                          child: StreamBuilder<User?>(
-                                            stream: FirebaseAuth.instance.authStateChanges(),
-                                            builder: (context, userSnap) {
-                                              if (!userSnap.hasData) {
-                                                return const Center(
-                                                  child: CircularProgressIndicator(color: Colors.blueAccent),
-                                                );
+                                          return StreamBuilder<bool>(
+                                            stream: premiumService
+                                                .streamEstadoPremium(
+                                                userSnap.data!.uid),
+                                            builder: (context, premiumSnap) {
+                                              if (!premiumSnap.hasData) {
+                                                return const _LoadingList();
                                               }
+                                              final esPremium =
+                                                  premiumSnap.data ?? false;
 
-                                              final uid = userSnap.data!.uid;
+                                              return StreamBuilder<
+                                                  QuerySnapshot<
+                                                      Map<String, dynamic>>>(
+                                                stream: pagosRef.snapshots(),
+                                                builder: (context, snapshot) {
+                                                  if (snapshot.connectionState ==
+                                                      ConnectionState.waiting) {
+                                                    return const _LoadingList();
+                                                  }
+                                                  if (snapshot.hasError) {
+                                                    return const _ErrorState();
+                                                  }
 
-                                              return StreamBuilder<bool>(
-                                                stream: premiumService.streamEstadoPremium(uid),
-
-
-
-                                                builder: (context, premiumSnap) {
-                                                  if (!premiumSnap.hasData) {
-                                                    return const Center(
-                                                      child: CircularProgressIndicator(color: Colors.blueAccent),
+                                                  final raw =
+                                                      snapshot.data?.docs ?? [];
+                                                  if (raw.isEmpty) {
+                                                    return _EmptyState(
+                                                      onRegistrar: () =>
+                                                          Navigator.pop(context),
                                                     );
                                                   }
 
-                                                  final esPremium = premiumSnap.data ?? false;
-
-                                                  return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                                                    stream: pagosRef.snapshots(),
-                                                    builder: (context, snapshot) {
-                                                      if (snapshot.connectionState == ConnectionState.waiting) {
-                                                        return const _LoadingList();
-                                                      }
-                                                      if (snapshot.hasError) {
-                                                        return _ErrorState(onRetry: () {});
-                                                      }
-
-                                                      final raw = snapshot.data?.docs ?? [];
-                                                      if (raw.isEmpty) return const _EmptyState();
-
-                                                      // Ordenar por fecha descendente
-                                                      final docs = [...raw]..sort((a, b) {
-                                                        final ad = a.data();
-                                                        final bd = b.data();
-                                                        final af = _parseFecha(ad['fecha'] ?? ad['createdAt']);
-                                                        final bf = _parseFecha(bd['fecha'] ?? bd['createdAt']);
+                                                  // Ordenar por fecha desc
+                                                  final docs = [...raw]..sort(
+                                                          (a, b) {
+                                                        final af = _parseFecha(
+                                                            a.data()['fecha'] ??
+                                                                a.data()[
+                                                                'createdAt']);
+                                                        final bf = _parseFecha(
+                                                            b.data()['fecha'] ??
+                                                                b.data()[
+                                                                'createdAt']);
                                                         return bf.compareTo(af);
                                                       });
 
-                                                      List<_PagoNorm> pagos = [];
-                                                      for (final e in docs) {
-                                                        final d = e.data();
-                                                        final capital = (d['pagoCapital'] ?? d['capital'] ?? d['abono'] ?? 0) as num;
-                                                        final interes = (d['pagoInteres'] ?? d['interes'] ?? 0) as num;
-                                                        final total = (d['totalPagado'] ?? capital + interes) as num;
-                                                        pagos.add(_PagoNorm(
-                                                          id: e.id,
-                                                          data: d,
-                                                          total: total.toInt(),
-                                                          interes: interes.toInt(),
-                                                          capital: capital.toInt(),
-                                                        ));
-                                                      }
+                                                  final pagos = docs.map((e) {
+                                                    final d = e.data();
+                                                    final capital = (d[
+                                                    'pagoCapital'] ??
+                                                        d['capital'] ??
+                                                        d['abono'] ??
+                                                        0)
+                                                    as num;
+                                                    final interes = (d[
+                                                    'pagoInteres'] ??
+                                                        d['interes'] ??
+                                                        0)
+                                                    as num;
+                                                    final total = (d[
+                                                    'totalPagado'] ??
+                                                        capital + interes)
+                                                    as num;
+                                                    return _PagoNorm(
+                                                      id: e.id,
+                                                      data: d,
+                                                      total: total.toInt(),
+                                                      interes: interes.toInt(),
+                                                      capital: capital.toInt(),
+                                                    );
+                                                  }).toList();
 
-                                                      // ✅ Si el usuario es Premium
+                                                  return ListView.separated(
+                                                    padding: EdgeInsets.fromLTRB(
+                                                        12,
+                                                        12,
+                                                        12,
+                                                        12 +
+                                                            (botPad > 0
+                                                                ? botPad
+                                                                : 0)),
+                                                    itemCount: pagos.length,
+                                                    separatorBuilder: (_, __) =>
+                                                    const SizedBox(
+                                                        height: 12),
+                                                    itemBuilder: (context, i) {
+                                                      final p = pagos[i];
+                                                      final d = p.data;
+                                                      final fecha = _parseFecha(
+                                                          d['fecha'] ??
+                                                              d['createdAt']);
+                                                      final saldoAnterior =
+                                                      (d['saldoAnterior'] ??
+                                                          0)
+                                                      as num;
+                                                      final saldoNuevo =
+                                                      (d['saldoNuevo'] ??
+                                                          saldoAnterior)
+                                                      as num;
+
+                                                      // ✅ Un solo widget por estado premium
                                                       if (esPremium) {
-                                                        return ListView.separated(
-                                                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                                                          itemCount: pagos.length,
-                                                          separatorBuilder: (_, __) => const SizedBox(height: 12),
-                                                          itemBuilder: (context, i) {
-                                                            final p = pagos[i];
-                                                            final d = p.data;
-                                                            final fecha = _parseFecha(d['fecha'] ?? d['createdAt']);
-                                                            final saldoAnterior = (d['saldoAnterior'] ?? 0) as num;
-                                                            final saldoNuevo = (d['saldoNuevo'] ?? saldoAnterior) as num;
-                                                            // ✅ Nuevos campos que vienen del recibo (distribución del pago)
-                                                            final pagoInteres = (d['pagoInteres'] ?? 0) as num;
-                                                            final pagoCapital = (d['pagoCapital'] ?? 0) as num;
-                                                            final totalPagado = (d['totalPagado'] ?? 0) as num;
-                                                            final moraCobrada = (d['moraCobrada'] ?? 0) as num;
-
-
-                                                            return esPremium
-                                                                ? _PagoCardDesbloqueada(
-                                                              key: ValueKey(p.id),
-                                                              fecha: _fmtFecha(fecha),
-                                                              fechaPendiente: false,
-                                                              total: p.total,
-                                                              capital: p.capital,
-                                                              interes: p.interes,
-                                                              saldoAntes: saldoAnterior.toInt(),
-                                                              saldoDespues: saldoNuevo.toInt(),
-                                                              rd: _rd,
-                                                              showInteres: _esPrestamo && p.interes > 0,
-                                                              tint: cardTint,
-                                                              border: cardBorder,
-                                                              accent: colorMain,
-                                                              leadingIcon: _esAlquiler
-                                                                  ? Icons.house_rounded
-                                                                  : (_esPrestamo
-                                                                  ? Icons.request_quote_rounded
-                                                                  : Icons.shopping_bag_rounded),
-                                                            )
-                                                                : _PagoCardPremium(
-                                                              key: ValueKey(p.id),
-                                                              fecha: _fmtFecha(fecha),
-                                                              fechaPendiente: false,
-                                                              total: p.total,
-                                                              capital: p.capital,
-                                                              interes: p.interes,
-                                                              saldoAntes: saldoAnterior.toInt(),
-                                                              saldoDespues: saldoNuevo.toInt(),
-                                                              rd: _rd,
-                                                              showInteres: _esPrestamo && p.interes > 0,
-                                                              tint: cardTint,
-                                                              border: cardBorder,
-                                                              accent: colorMain,
-                                                              leadingIcon: _esAlquiler
-                                                                  ? Icons.house_rounded
-                                                                  : (_esPrestamo
-                                                                  ? Icons.request_quote_rounded
-                                                                  : Icons.shopping_bag_rounded),
-                                                            );
-
-
-                                                          },
+                                                        return _PagoCardDesbloqueada(
+                                                          key: ValueKey(p.id),
+                                                          fecha: _fmtFecha(fecha),
+                                                          total: p.total,
+                                                          capital: p.capital,
+                                                          interes: p.interes,
+                                                          saldoAntes: saldoAnterior.toInt(),
+                                                          saldoDespues: saldoNuevo.toInt(),
+                                                          rd: _rd,
+                                                          showInteres: _esPrestamo && p.interes > 0,
+                                                          tint: cardTint,
+                                                          border: cardBorder,
+                                                          accent: _colorMain,
+                                                          leadingIcon: _iconoTipo,
+                                                          esAlquiler: _esAlquiler,
+                                                          screenW: screenW,
+                                                        );
+                                                      } else {
+                                                        return _PagoCardBloqueada(
+                                                          key: ValueKey(p.id),
+                                                          fecha: _fmtFecha(fecha),
+                                                          total: p.total,
+                                                          rd: _rd,
+                                                          border: cardBorder,
+                                                          accent: _colorMain,
+                                                          leadingIcon: _iconoTipo,
+                                                          screenW: screenW,
                                                         );
                                                       }
-
-                                                      // 🚫 Si NO es Premium
-                                                      return ListView.separated(
-                                                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                                                        itemCount: pagos.length,
-                                                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                                                        itemBuilder: (context, i) {
-                                                          final p = pagos[i];
-                                                          final d = p.data;
-                                                          final fecha = _parseFecha(d['fecha'] ?? d['createdAt']);
-                                                          final saldoAnterior = (d['saldoAnterior'] ?? 0) as num;
-                                                          final saldoNuevo = (d['saldoNuevo'] ?? saldoAnterior) as num;
-
-                                                          return _PagoCardPremium(
-                                                            key: ValueKey(p.id),
-                                                            fecha: _fmtFecha(fecha),
-                                                            fechaPendiente: false,
-                                                            total: p.total,
-                                                            capital: p.capital,
-                                                            interes: p.interes,
-                                                            saldoAntes: saldoAnterior.toInt(),
-                                                            saldoDespues: saldoNuevo.toInt(),
-                                                            rd: _rd,
-                                                            showInteres: _esPrestamo && p.interes > 0,
-                                                            tint: cardTint,
-                                                            border: cardBorder,
-                                                            accent: colorMain,
-                                                            leadingIcon: _esAlquiler
-                                                                ? Icons.house_rounded
-                                                                : (_esPrestamo
-                                                                ? Icons.request_quote_rounded
-                                                                : Icons.shopping_bag_rounded),
-                                                          );
-                                                        },
-                                                      );
                                                     },
                                                   );
                                                 },
                                               );
                                             },
-                                          ),
-                                        ),
-
-                                      ],
+                                          );
+                                        },
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
                     ),
@@ -507,10 +371,7 @@ class HistorialScreen extends StatelessWidget {
   }
 }
 
-// =======================
-// Modelo interno para normalizar pago
-// =======================
-
+// ─── Modelo interno ──────────────────────────────────────────────────────────
 class _PagoNorm {
   final String id;
   final Map<String, dynamic> data;
@@ -518,7 +379,7 @@ class _PagoNorm {
   final int interes;
   final int capital;
 
-  _PagoNorm({
+  const _PagoNorm({
     required this.id,
     required this.data,
     required this.total,
@@ -527,94 +388,125 @@ class _PagoNorm {
   });
 }
 
-// =======================
-// Widgets auxiliares
-// =======================
+// ─── Encabezado cliente ──────────────────────────────────────────────────────
+class _EncabezadoCliente extends StatelessWidget {
+  final String nombreCliente;
+  final bool esPrestamo;
+  final bool esAlquiler;
+  final Color colorMain;
+  final IconData iconoTipo;
+  final double screenW;
 
-class _ChipStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color bg;
-  final Color border;
-  final Color valueColor;
-
-  const _ChipStat({
-    required this.label,
-    required this.value,
-    required this.bg,
-    required this.border,
-    required this.valueColor,
+  const _EncabezadoCliente({
+    required this.nombreCliente,
+    required this.esPrestamo,
+    required this.esAlquiler,
+    required this.colorMain,
+    required this.iconoTipo,
+    required this.screenW,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 72,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: border),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.grey.shade800,
-                fontWeight: FontWeight.w800,
-                fontSize: 13.5,
-              ),
+    final String tipoLabel = esPrestamo
+        ? 'Préstamo'
+        : (esAlquiler ? 'Alquiler' : 'Producto');
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      child: Column(
+        children: [
+          Text(
+            nombreCliente,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: (screenW * 0.052).clamp(16.0, 22.0),
+              fontWeight: FontWeight.w900,
+              color: const Color(0xFF0F172A),
+              letterSpacing: 0.3,
             ),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: valueColor,
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(iconoTipo, color: colorMain, size: 18),
+              const SizedBox(width: 5),
+              Text(
+                tipoLabel,
+                style: TextStyle(
+                  fontSize: (screenW * 0.035).clamp(12.0, 15.0),
+                  color: colorMain,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            height: 1.3,
+            width: 160,
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(2),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 4),
+        ],
       ),
     );
   }
 }
 
+// ─── Estado vacío ────────────────────────────────────────────────────────────
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  final VoidCallback? onRegistrar;
+
+  const _EmptyState({this.onRegistrar});
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.receipt_long, size: 48, color: Color(0xFF94A3B8)),
-            const SizedBox(height: 8),
+            const Icon(Icons.receipt_long,
+                size: 52, color: Color(0xFF94A3B8)),
+            const SizedBox(height: 10),
             const Text(
               'No hay pagos registrados todavía',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Color(0xFF64748B), fontWeight: FontWeight.w700),
+              style: TextStyle(
+                  fontSize: 16,
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w700),
             ),
-            const SizedBox(height: 4),
-            Text(
+            const SizedBox(height: 6),
+            const Text(
               'Cuando registres un pago, aparecerá aquí.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF94A3B8),
+                  fontWeight: FontWeight.w500),
             ),
+            if (onRegistrar != null) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Ir a registrar pago'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF2563EB),
+                  side: const BorderSide(color: Color(0xFF2563EB)),
+                  shape: const StadiumBorder(),
+                ),
+                onPressed: onRegistrar,
+              ),
+            ],
           ],
         ),
       ),
@@ -622,36 +514,33 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+// ─── Estado error ────────────────────────────────────────────────────────────
 class _ErrorState extends StatelessWidget {
-  final VoidCallback onRetry;
-
-  const _ErrorState({required this.onRetry});
+  const _ErrorState();
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline, size: 48, color: Colors.red.shade600),
-            const SizedBox(height: 8),
+            Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
+            const SizedBox(height: 10),
             const Text(
               'Error al cargar pagos',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Color(0xFF991B1B), fontWeight: FontWeight.w800),
+              style: TextStyle(
+                  fontSize: 16,
+                  color: Color(0xFF991B1B),
+                  fontWeight: FontWeight.w800),
             ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.refresh),
-              label: const Text('Reintentar'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF2563EB),
-                side: const BorderSide(color: Color(0xFF2563EB)),
-                shape: const StadiumBorder(),
-              ),
-              onPressed: onRetry,
+            const SizedBox(height: 6),
+            const Text(
+              'Verifica tu conexión e intenta de nuevo.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
             ),
           ],
         ),
@@ -660,14 +549,66 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
+// ─── Sesión expirada ─────────────────────────────────────────────────────────
+class _SesionExpirada extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF2458D6), Color(0xFF0A9A76)],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.lock_outline,
+                      color: Colors.white, size: 48),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Sesión expirada.\nInicia sesión de nuevo.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16),
+                  ),
+                  const SizedBox(height: 20),
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.white),
+                      shape: const StadiumBorder(),
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Volver'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Loading ─────────────────────────────────────────────────────────────────
 class _LoadingList extends StatelessWidget {
   const _LoadingList();
 
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-      itemCount: 6,
+      padding: const EdgeInsets.all(12),
+      itemCount: 5,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (_, __) => _ShimmerCard(),
     );
@@ -678,18 +619,18 @@ class _ShimmerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 86,
+      height: 90,
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFF),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 40,
+            height: 40,
             decoration: const BoxDecoration(
               color: Color(0xFFEFF6FF),
               shape: BoxShape.circle,
@@ -698,12 +639,22 @@ class _ShimmerCard extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(height: 16, color: const Color(0xFFE5E7EB)),
+                Container(
+                    height: 14,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFE5E7EB),
+                        borderRadius: BorderRadius.circular(6))),
                 const SizedBox(height: 8),
-                Container(height: 14, color: const Color(0xFFEFF1F3)),
-                const SizedBox(height: 6),
-                Container(height: 14, color: const Color(0xFFEFF1F3)),
+                Container(
+                    height: 12,
+                    width: 140,
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFEFF1F3),
+                        borderRadius: BorderRadius.circular(6))),
               ],
             ),
           ),
@@ -713,119 +664,99 @@ class _ShimmerCard extends StatelessWidget {
   }
 }
 
-// =======================
-// 🔒 Tarjeta Premium bloqueada (coherente con la desbloqueada)
-// =======================
-class _PagoCardPremium extends StatelessWidget {
+// ─── Tarjeta BLOQUEADA (no premium) ─────────────────────────────────────────
+class _PagoCardBloqueada extends StatelessWidget {
   final String fecha;
-  final bool fechaPendiente;
   final int total;
-  final int capital;
-  final int interes;
-  final int saldoAntes;
-  final int saldoDespues;
   final String Function(num) rd;
-  final bool showInteres;
-  final Color tint;
   final Color border;
   final Color accent;
   final IconData leadingIcon;
+  final double screenW;
 
-  const _PagoCardPremium({
+  const _PagoCardBloqueada({
     super.key,
     required this.fecha,
-    required this.fechaPendiente,
     required this.total,
-    required this.capital,
-    required this.interes,
-    required this.saldoAntes,
-    required this.saldoDespues,
     required this.rd,
-    required this.showInteres,
-    required this.tint,
     required this.border,
     required this.accent,
     required this.leadingIcon,
+    required this.screenW,
   });
 
   @override
   Widget build(BuildContext context) {
-    const Color verdePago = Color(0xFF22C55E);
-    const Color azulCandado = Color(0xFF2563EB);
-    const Color grisTexto = Color(0xFF475569);
-    const Color negroElegante = Color(0xFF0F172A);
-
-    // Gradiente tenue para borde premium bloqueado
-    final gradient = LinearGradient(
-      colors: [const Color(0xFF93C5FD), const Color(0xFFE0E7FF)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    );
+    const azulCandado = Color(0xFF2563EB);
+    const verdePago = Color(0xFF22C55E);
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: border, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: accent.withOpacity(0.15),
+            color: accent.withOpacity(0.12),
             blurRadius: 14,
-            offset: const Offset(0, 8),
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 🔹 Fecha + icono con candado Premium
+          // Encabezado: fecha + badge Premium
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 38,
+                    height: 38,
                     decoration: BoxDecoration(
                       color: accent.withOpacity(0.08),
                       shape: BoxShape.circle,
-                      border: Border.all(color: accent.withOpacity(0.15)),
+                      border:
+                      Border.all(color: accent.withOpacity(0.18)),
                     ),
-                    alignment: Alignment.center,
-                    child: Icon(leadingIcon, color: accent, size: 20),
+                    child:
+                    Icon(leadingIcon, color: accent, size: 19),
                   ),
                   const SizedBox(width: 10),
                   Text(
                     fecha,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w900,
-                      color: negroElegante,
-                      fontSize: 15,
+                      color: const Color(0xFF0F172A),
+                      fontSize:
+                      (screenW * 0.038).clamp(13.0, 15.5),
                     ),
                   ),
                 ],
               ),
-
               Container(
                 padding:
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: const Color(0xFFE8EDFF),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: azulCandado.withOpacity(0.25)),
+                  border:
+                  Border.all(color: azulCandado.withOpacity(0.25)),
                 ),
                 child: const Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.lock, color: azulCandado, size: 14),
+                    Icon(Icons.lock, color: azulCandado, size: 13),
                     SizedBox(width: 4),
                     Text(
                       'Premium',
                       style: TextStyle(
                         color: azulCandado,
                         fontWeight: FontWeight.w700,
-                        fontSize: 12.5,
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -834,70 +765,71 @@ class _PagoCardPremium extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
-          // 💵 Pago realizado (verde)
+          // Monto visible
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.payments_rounded, color: verdePago, size: 20),
+              const Icon(Icons.payments_rounded,
+                  color: verdePago, size: 19),
               const SizedBox(width: 6),
               Text(
                 'Pago realizado:',
                 style: TextStyle(
-                  color: grisTexto,
+                  color: const Color(0xFF475569),
                   fontWeight: FontWeight.w700,
-                  fontSize: 14.5,
+                  fontSize: (screenW * 0.036).clamp(13.0, 14.5),
                 ),
               ),
-              const SizedBox(width: 5),
+              const SizedBox(width: 6),
               Text(
                 rd(total),
-                style: const TextStyle(
+                style: TextStyle(
                   color: verdePago,
                   fontWeight: FontWeight.w900,
-                  fontSize: 15.5,
+                  fontSize: (screenW * 0.04).clamp(14.0, 16.0),
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
-          // 🔒 Bloque Premium coherente con el diseño desbloqueado
+          // Bloque bloqueado
           Container(
             width: double.infinity,
-            padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.white, const Color(0xFFF1F5F9)],
+              gradient: const LinearGradient(
+                colors: [Colors.white, Color(0xFFF1F5F9)],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withOpacity(0.4)),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
             child: Column(
               children: [
                 const Icon(Icons.lock_outline,
-                    color: azulCandado, size: 24),
-                const SizedBox(height: 8),
-                const Text(
+                    color: azulCandado, size: 22),
+                const SizedBox(height: 6),
+                Text(
                   'Ver detalles completos con el plan Premium',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color(0xFF1E293B),
+                    color: const Color(0xFF1E293B),
                     fontWeight: FontWeight.w700,
-                    fontSize: 13.5,
+                    fontSize: (screenW * 0.034).clamp(12.0, 14.0),
                   ),
                 ),
                 const SizedBox(height: 10),
                 Container(
                   height: 3,
-                  width: double.infinity,
                   decoration: BoxDecoration(
-                    gradient: gradient,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF93C5FD), Color(0xFFE0E7FF)],
+                    ),
                     borderRadius: BorderRadius.circular(50),
                   ),
                 ),
@@ -910,15 +842,9 @@ class _PagoCardPremium extends StatelessWidget {
   }
 }
 
-
-
-
-// =======================
-// 💎 Tarjeta Premium desbloqueada (cálculos corregidos por Luis)
-// =======================
+// ─── Tarjeta DESBLOQUEADA (premium) ─────────────────────────────────────────
 class _PagoCardDesbloqueada extends StatelessWidget {
   final String fecha;
-  final bool fechaPendiente;
   final int total;
   final int capital;
   final int interes;
@@ -930,11 +856,12 @@ class _PagoCardDesbloqueada extends StatelessWidget {
   final Color border;
   final Color accent;
   final IconData leadingIcon;
+  final bool esAlquiler;
+  final double screenW;
 
   const _PagoCardDesbloqueada({
     super.key,
     required this.fecha,
-    required this.fechaPendiente,
     required this.total,
     required this.capital,
     required this.interes,
@@ -946,34 +873,21 @@ class _PagoCardDesbloqueada extends StatelessWidget {
     required this.border,
     required this.accent,
     required this.leadingIcon,
+    required this.esAlquiler,
+    required this.screenW,
   });
 
   @override
   Widget build(BuildContext context) {
     const grisTexto = Color(0xFF334155);
     const negroElegante = Color(0xFF0F172A);
-    final verde = const Color(0xFF22C55E);
-    final azul = const Color(0xFF2563EB);
-    final naranja = const Color(0xFFF59E0B);
+    const verde = Color(0xFF22C55E);
+    const azul = Color(0xFF2563EB);
+    const naranja = Color(0xFFF59E0B);
 
-    // Detectar tipo
-    final bool esAlquiler = leadingIcon == Icons.house_rounded;
     final bool esPrestamo = leadingIcon == Icons.request_quote_rounded;
     final bool esProducto = !esAlquiler && !esPrestamo;
 
-    // Cálculo general
-    // ❌ Eliminar todo este bloque
-// int saldoNuevo = saldoAntes;
-// if (esPrestamo || esProducto) {
-//   saldoNuevo = saldoAntes - capital;
-//   if (saldoNuevo < 0) saldoNuevo = 0;
-// }
-
-// ✅ Usar directamente el saldo guardado en Firestore
-    final int saldoNuevo = saldoDespues;
-
-
-    // Gradiente visual
     final gradient = LinearGradient(
       colors: esPrestamo
           ? [const Color(0xFF2563EB), const Color(0xFF60A5FA)]
@@ -984,25 +898,29 @@ class _PagoCardDesbloqueada extends StatelessWidget {
       end: Alignment.bottomRight,
     );
 
+    final double bodyFontSize = (screenW * 0.036).clamp(12.5, 14.5);
+    final double totalFontSize = (screenW * 0.042).clamp(14.0, 17.0);
+    final double fechaFontSize = (screenW * 0.038).clamp(13.0, 15.5);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: border, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: accent.withOpacity(0.25),
-            blurRadius: 20,
+            color: accent.withOpacity(0.22),
+            blurRadius: 18,
             spreadRadius: 1,
-            offset: const Offset(0, 8),
+            offset: const Offset(0, 7),
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 🔹 Encabezado
+          // ── Encabezado ─────────────────────────────────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1016,23 +934,22 @@ class _PagoCardDesbloqueada extends StatelessWidget {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: accent.withOpacity(0.4),
-                          blurRadius: 10,
+                          color: accent.withOpacity(0.38),
+                          blurRadius: 8,
                           offset: const Offset(0, 3),
                         ),
                       ],
                     ),
-                    alignment: Alignment.center,
                     child: const Icon(Icons.check_rounded,
                         color: Colors.white, size: 20),
                   ),
                   const SizedBox(width: 10),
                   Text(
                     fecha,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w900,
                       color: negroElegante,
-                      fontSize: 15,
+                      fontSize: fechaFontSize,
                     ),
                   ),
                 ],
@@ -1045,16 +962,17 @@ class _PagoCardDesbloqueada extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.verified_rounded,
-                        color: Colors.white, size: 14),
+                        color: Colors.white, size: 13),
                     SizedBox(width: 4),
                     Text(
                       'Premium',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
-                        fontSize: 12.5,
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -1063,121 +981,73 @@ class _PagoCardDesbloqueada extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
-          // 💵 Pago actual
+          // ── Total ──────────────────────────────────────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Pago actual:',
                 style: TextStyle(
                   color: grisTexto,
                   fontWeight: FontWeight.w700,
-                  fontSize: 14.5,
+                  fontSize: bodyFontSize,
                 ),
               ),
               ShaderMask(
                 shaderCallback: (bounds) => gradient.createShader(bounds),
                 child: Text(
                   rd(total),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
-                    fontSize: 17,
+                    fontSize: totalFontSize,
                   ),
                 ),
               ),
             ],
           ),
 
-          // Mostrar interés solo si aplica
+          // ── Interés (solo préstamo) ────────────────────────────────────
           if (showInteres && esPrestamo) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 5),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Interés:',
+                Text('Interés:',
                     style: TextStyle(
-                        color: Color(0xFF475569),
-                        fontSize: 14,
+                        color: const Color(0xFF475569),
+                        fontSize: bodyFontSize,
                         fontWeight: FontWeight.w600)),
                 Text(
                   rd(interes),
                   style: TextStyle(
                       color: verde,
                       fontWeight: FontWeight.w800,
-                      fontSize: 14.5),
+                      fontSize: bodyFontSize + 0.5),
                 ),
               ],
             ),
+          ],
+
+          const SizedBox(height: 10),
+          Divider(color: accent.withOpacity(0.22), thickness: 1),
+          const SizedBox(height: 6),
+
+          // ── Saldos ────────────────────────────────────────────────────
+          if (!esAlquiler) ...[
+            _filaDetalle('Saldo anterior:', rd(saldoAntes), azul,
+                bodyFontSize),
+            const SizedBox(height: 4),
+            _filaDetalle('Saldo nuevo:', rd(saldoDespues), verde,
+                bodyFontSize),
+          ] else ...[
+            _filaDetalle('Próximo pago:', rd(total), naranja,
+                bodyFontSize),
           ],
 
           const SizedBox(height: 12),
-          Divider(color: accent.withOpacity(0.25), thickness: 1),
-
-          // 📊 Saldos
-          const SizedBox(height: 8),
-
-          if (!esAlquiler) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Saldo anterior:',
-                    style: TextStyle(
-                        color: Color(0xFF6B7280),
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w500)),
-                Text(
-                  rd(saldoAntes),
-                  style: TextStyle(
-                      color: azul,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13.5),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Saldo nuevo:',
-                    style: TextStyle(
-                        color: Color(0xFF6B7280),
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w500)),
-                Text(
-                  rd(saldoNuevo),
-                  style: TextStyle(
-                      color: verde,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 13.5),
-                ),
-              ],
-            ),
-          ] else ...[
-            // 🟧 Solo para alquiler
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Próximo pago:',
-                    style: TextStyle(
-                        color: Color(0xFF6B7280),
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w500)),
-                Text(
-                  'RD\$ ${rd(total)}',
-                  style: const TextStyle(
-                      color: Color(0xFFF59E0B),
-                      fontWeight: FontWeight.w900,
-                      fontSize: 13.5),
-                ),
-              ],
-            ),
-          ],
-
-          const SizedBox(height: 14),
           Container(
             height: 3,
             decoration: BoxDecoration(
@@ -1189,7 +1059,23 @@ class _PagoCardDesbloqueada extends StatelessWidget {
       ),
     );
   }
+
+  Widget _filaDetalle(
+      String label, String value, Color valueColor, double fontSize) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label,
+            style: TextStyle(
+                color: const Color(0xFF6B7280),
+                fontSize: fontSize,
+                fontWeight: FontWeight.w500)),
+        Text(value,
+            style: TextStyle(
+                color: valueColor,
+                fontWeight: FontWeight.w900,
+                fontSize: fontSize)),
+      ],
+    );
+  }
 }
-
-
-

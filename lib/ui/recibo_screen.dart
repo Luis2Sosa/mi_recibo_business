@@ -64,8 +64,8 @@ class ReciboUIConfig {
   final BorderRadius amountPanelRadius;
   final EdgeInsets amountPanelPadding;
   final Color amountPanelBorder;
-  final TextStyle amountPrefixStyle; // “RD$ / $ / MX$ …”
-  final TextStyle amountNumberStyle; // “8,800.00”
+  final TextStyle amountPrefixStyle; // "RD$ / $ / MX$ …"
+  final TextStyle amountNumberStyle; // "8,800.00"
 
   // Paleta
   final Color navy;
@@ -351,27 +351,14 @@ class ReciboScreen extends StatefulWidget {
 class _ReciboScreenState extends State<ReciboScreen> {
   final GlobalKey _captureKey = GlobalKey();
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
-
-
-
   DateTime? _lastBackPress;
   static const Duration _backWindow = Duration(seconds: 2);
 
   ReciboUIConfig get cfg => widget.config;
 
-
   @override
   void initState() {
     super.initState();
-    if (!widget.isPremium) {
-
-    }
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (widget.saldoActual <= 0) {
@@ -381,6 +368,8 @@ class _ReciboScreenState extends State<ReciboScreen> {
       }
     });
   }
+
+  // FIX: dispose eliminado — solo llamaba super.dispose() que Flutter hace automáticamente
 
   String _fmtFecha(DateTime d) {
     const m = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sept.', 'oct.', 'nov.', 'dic.'];
@@ -437,7 +426,6 @@ class _ReciboScreenState extends State<ReciboScreen> {
         image.height.toDouble(),
       );
 
-// Agrega la imagen como página completa
       pdf.addPage(
         pw.Page(
           pageFormat: pageFormat,
@@ -450,7 +438,6 @@ class _ReciboScreenState extends State<ReciboScreen> {
       );
 
       final pdfBytes = await pdf.save();
-
 
       final clienteTok = _sanitizeToken(widget.cliente);
       final numeroTok = _sanitizeToken(_reciboFmt);
@@ -592,135 +579,151 @@ class _ReciboScreenState extends State<ReciboScreen> {
   @override
   Widget build(BuildContext context) {
     final cfg = this.cfg;
-    final padding = MediaQuery.of(context).padding;
+    final mq = MediaQuery.of(context);
+    final screenH = mq.size.height;
+    final padding = mq.padding;
+
+    // FIX 1: altura dinámica — nunca más grande que el espacio disponible entre
+    // el título y el botón de WhatsApp (~80px título + ~80px botón = ~160px reservados)
+    final double cardH = (screenH - padding.top - padding.bottom - 160)
+        .clamp(420.0, cfg.cardHeight)
+        .toDouble();
+
+    final double dynamicCardHeight = (widget.producto.toLowerCase().contains('alquiler') ||
+        widget.producto.toLowerCase().contains('arriendo'))
+        ? (cardH - 70).clamp(380.0, cardH)
+        : cardH;
 
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
         body: AppGradientBackground(
-          child: Stack(
+          child: Column(
             children: [
-              // ===== CAPA CAPTURABLE: fondo + recibo centrado =====
-              RepaintBoundary(
-                key: _captureKey,
-                child: Container(
-                  width: double.infinity,
-                  height: double.infinity,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: cfg.gradientBegin,
-                      end: cfg.gradientEnd,
-                      colors: cfg.gradientColors,
-                    ),
-                  ),
-                  child: Center(
-                    child: _PlainCardShell(
-                      radius: cfg.cardRadius,
-                      height: (widget.producto.toLowerCase().contains('alquiler') ||
-                          widget.producto.toLowerCase().contains('arriendo'))
-                          ? (cfg.cardHeight - 70).clamp(500.0, 700.0)
-                          : cfg.cardHeight.clamp(520.0, 760.0),
-
-                      padding: cfg.cardPadding,
-                      child: FittedBox(
-                        fit: BoxFit.contain,
-                        alignment: Alignment.topCenter,
-                        child: SizedBox(
-                          width: cfg.designWidth,
-                          child: _ReceiptContent(
-                            cfg: cfg,
-                            empresa: widget.empresa,
-                            servidor: widget.servidor,
-                            telefonoServidor: widget.telefonoServidor,
-                            cliente: widget.cliente,
-                            telefonoCliente: widget.telefonoCliente,
-                            producto: widget.producto,
-                            // ✅ pasar datos para primer recibo de producto
-                            productoMontoTotal: widget.productoMontoTotal,
-                            productoPagoInicial: widget.productoPagoInicial,
-                            tipoProducto: widget.tipoProducto,
-                            vehiculoTipo: widget.vehiculoTipo,
-                            numeroRecibo: _fmtNumReciboStr(widget.numeroRecibo),
-                            fecha: widget.fecha,
-                            capitalInicial: widget.capitalInicial,
-                            pagoInteres: widget.pagoInteres,
-                            pagoCapital: widget.pagoCapital,
-                            totalPagado: widget.totalPagado,
-                            saldoAnterior: widget.saldoAnterior,
-                            saldoActual: widget.saldoActual,
-                            saldoRestante: widget.saldoRestante,
-                            proximaFecha: widget.proximaFecha,
-                            fmtFecha: _fmtFecha,
-                            tasaInteres: widget.tasaInteres,
-                            moraCobrada: widget.moraCobrada,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              // ===== TÍTULO flotante (NO capturable) =====
-              if (cfg.showHeaderTitle)
-                Positioned(
-                  top: padding.top -20, // 👈 antes era +6, ahora está más abajo
-                  left: 0,
-                  right: 0,
+              // FIX 2: título en SafeArea column — nunca tapa el notch ni la tarjeta
+              SafeArea(
+                bottom: false,
+                child: cfg.showHeaderTitle
+                    ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Center(
                     child: Text(
                       cfg.headerTitle,
                       style: GoogleFonts.playfairDisplay(
                         textStyle: cfg.headerTitleStyle.copyWith(
-                          fontSize: 28, // 👌 un poco más fino
+                          fontSize: 28,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
                   ),
-                ),
+                )
+                    : const SizedBox(height: 8),
+              ),
 
-
-              // ===== BOTÓN flotante (NO capturable) =====
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: SafeArea(
-                  minimum: const EdgeInsets.only(bottom: 20),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                          child: Padding(
-                            padding: const EdgeInsets.all(4),
-                            child: Image.asset('assets/images/logo_whatsapp.png', fit: BoxFit.contain),
-                          ),
-                        ),
-                        label: const Text('Enviar recibo por WhatsApp'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: cfg.btnPdf,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: const StadiumBorder(),
-                        ),
-                        onPressed: () async {
-                          await AdsManager.showAfterWhatsApp(context, "enviar recibo");
-                          await _compartirWhatsApp();
-                        },
+              // ===== CAPA CAPTURABLE: recibo centrado =====
+              Expanded(
+                child: RepaintBoundary(
+                  key: _captureKey,
+                  child: Container(
+                    width: double.infinity,
+                    height: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: cfg.gradientBegin,
+                        end: cfg.gradientEnd,
+                        colors: cfg.gradientColors,
                       ),
+                    ),
+                    // FIX 3: tarjeta llena todo el espacio disponible
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                          child: _PlainCardShell(
+                            radius: cfg.cardRadius,
+                            // altura = todo el espacio del Expanded menos margen
+                            height: constraints.maxHeight - 12,
+                            padding: cfg.cardPadding,
+                            child: FittedBox(
+                              fit: BoxFit.contain,
+                              alignment: Alignment.topCenter,
+                              child: SizedBox(
+                                width: cfg.designWidth,
+                                child: _ReceiptContent(
+                                  cfg: cfg,
+                                  empresa: widget.empresa,
+                                  servidor: widget.servidor,
+                                  telefonoServidor: widget.telefonoServidor,
+                                  cliente: widget.cliente,
+                                  telefonoCliente: widget.telefonoCliente,
+                                  producto: widget.producto,
+                                  productoMontoTotal: widget.productoMontoTotal,
+                                  productoPagoInicial: widget.productoPagoInicial,
+                                  tipoProducto: widget.tipoProducto,
+                                  vehiculoTipo: widget.vehiculoTipo,
+                                  numeroRecibo: _fmtNumReciboStr(widget.numeroRecibo),
+                                  fecha: widget.fecha,
+                                  capitalInicial: widget.capitalInicial,
+                                  pagoInteres: widget.pagoInteres,
+                                  pagoCapital: widget.pagoCapital,
+                                  totalPagado: widget.totalPagado,
+                                  saldoAnterior: widget.saldoAnterior,
+                                  saldoActual: widget.saldoActual,
+                                  saldoRestante: widget.saldoRestante,
+                                  proximaFecha: widget.proximaFecha,
+                                  fmtFecha: _fmtFecha,
+                                  tasaInteres: widget.tasaInteres,
+                                  moraCobrada: widget.moraCobrada,
+                                  esPrimerPago: widget.esPrimerPago,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
-              )
+              ),
 
+              // ===== BOTÓN (NO capturable) =====
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Image.asset('assets/images/logo_whatsapp.png', fit: BoxFit.contain),
+                        ),
+                      ),
+                      label: const Text('Enviar recibo por WhatsApp'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: cfg.btnPdf,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: const StadiumBorder(),
+                      ),
+                      onPressed: () async {
+                        await AdsManager.showAfterWhatsApp(context, "enviar recibo");
+                        await _compartirWhatsApp();
+                      },
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
+
     );
   }
 
@@ -769,7 +772,7 @@ class _PlainCardShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: height,
-      constraints: const BoxConstraints(minHeight: 560), // fuerza altura mínima
+      constraints: const BoxConstraints(minHeight: 560),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: radius,
@@ -832,7 +835,6 @@ class _ReceiptContent extends StatelessWidget {
   final String telefonoCliente;
   final String producto;
 
-  // ✅ NUEVO: datos del producto actual
   final int? productoMontoTotal;
   final int? productoPagoInicial;
 
@@ -851,6 +853,9 @@ class _ReceiptContent extends StatelessWidget {
   final DateTime proximaFecha;
 
   final String Function(DateTime) fmtFecha;
+
+  // FIX 2: parámetro directo en lugar de findAncestorWidgetOfExactType
+  final bool esPrimerPago;
 
   const _ReceiptContent({
     super.key,
@@ -878,11 +883,11 @@ class _ReceiptContent extends StatelessWidget {
     required this.fmtFecha,
     required this.tasaInteres,
     this.moraCobrada = 0,
+    this.esPrimerPago = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    // ===== Detectar tipo correctamente por el texto del producto =====
     final t = producto.toLowerCase().trim();
     final bool esPrestamo = t.isEmpty ||
         t.contains('prest') ||
@@ -896,10 +901,8 @@ class _ReceiptContent extends StatelessWidget {
         t.contains('apartamento') ||
         t.contains('casa');
 
-    // Todo lo que no sea préstamo ni arriendo => producto
     final bool esProducto = !esPrestamo && !esArriendo;
 
-    // 👇 DETECCIÓN DE VEHÍCULO
     final bool esVehiculo =
         (tipoProducto?.toLowerCase().trim() == 'vehiculo') ||
             ((vehiculoTipo?.trim().isNotEmpty ?? false)) ||
@@ -918,7 +921,6 @@ class _ReceiptContent extends StatelessWidget {
       }
     }
 
-    // 👇 SELECCIONA ICONO SEGÚN TIPO
     IconData _vehIcon(String s) {
       switch (s.toLowerCase()) {
         case 'moto':
@@ -941,7 +943,6 @@ class _ReceiptContent extends StatelessWidget {
 
     final bool pagoFinalizado = saldoActual == 0;
 
-    // Títulos bonitos según tipo
     String tituloPrincipal;
     if (esArriendo && pagoFinalizado) {
       tituloPrincipal = 'Alquiler saldado';
@@ -957,24 +958,17 @@ class _ReceiptContent extends StatelessWidget {
       tituloPrincipal = 'Pago recibido';
     }
 
-    // Interés solo se usa/enseña para PRÉSTAMO
     final int proximoInteres = (saldoActual * (tasaInteres / 100)).round();
     final int saldoProximoPago = !pagoFinalizado ? (saldoActual + proximoInteres) : 0;
 
-    // ✅ PRIMER RECIBO DE PRODUCTO (solo el PRIMER pago)
     final bool esPrimerReciboProducto =
         esProducto &&
-            // Deben venir ambos datos del producto actual
             productoMontoTotal != null &&
             productoPagoInicial != null &&
-            // El capital de este producto debe ser: total - inicial
             capitalInicial == (productoMontoTotal! - productoPagoInicial!) &&
-            // Justo antes de este pago, el saldo era el capitalInicial (primer pago)
             saldoAnterior == capitalInicial &&
-            // El pago que estoy registrando es exactamente el inicial
             totalPagado == productoPagoInicial;
 
-    // ===== Helper fila con ícono =====
     Widget _rowIcon(IconData icon, String t, String v, {Color? iconBg, Color? iconColor}) {
       final bg = iconBg ?? const Color(0xFFEFF6FF);
       final ic = iconColor ?? const Color(0xFF2563EB);
@@ -1003,7 +997,6 @@ class _ReceiptContent extends StatelessWidget {
       );
     }
 
-    // ===== CONTENIDO COMPLETO =====
     return Stack(
       children: [
         Column(
@@ -1029,8 +1022,6 @@ class _ReceiptContent extends StatelessWidget {
               padding: cfg.titleMargin,
               child: Center(child: Text(tituloPrincipal, style: cfg.recibidoTitleStyle)),
             ),
-
-
 
             // ✔ MONTO GRANDE
             Container(
@@ -1072,7 +1063,6 @@ class _ReceiptContent extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Empresa / Servidor
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1110,7 +1100,6 @@ class _ReceiptContent extends StatelessWidget {
                           ],
                         ),
                       ),
-                      // Recibo / Fecha
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
@@ -1125,7 +1114,6 @@ class _ReceiptContent extends StatelessWidget {
                   const SizedBox(height: 10),
                   Divider(height: 14, thickness: 1, color: cfg.line),
 
-                  // Cliente
                   label('Cliente'),
                   const SizedBox(height: 4),
                   valueClient(cliente),
@@ -1135,23 +1123,23 @@ class _ReceiptContent extends StatelessWidget {
                   // ===== BLOQUE DE PAGO SEGÚN TIPO =====
                   Builder(
                     builder: (context) {
-                      final String t = (producto).toLowerCase();
+                      final String tLocal = producto.toLowerCase();
 
                       final bool esVehiculoLocal =
                           (tipoProducto?.toLowerCase() == 'vehiculo') ||
                               (vehiculoTipo != null && vehiculoTipo!.trim().isNotEmpty) ||
-                              t.contains('carro') ||
-                              t.contains('moto') ||
-                              t.contains('guagua') ||
-                              t.contains('bus') ||
-                              t.contains('vehiculo');
+                              tLocal.contains('carro') ||
+                              tLocal.contains('moto') ||
+                              tLocal.contains('guagua') ||
+                              tLocal.contains('bus') ||
+                              tLocal.contains('vehiculo');
 
                       String vehiculoEtiquetaLocal() {
                         final s = (vehiculoTipo ?? '').trim().toLowerCase();
                         if (s.isNotEmpty) return s;
-                        if (t.contains('moto')) return 'moto';
-                        if (t.contains('guagua') || t.contains('bus')) return 'guagua';
-                        if (t.contains('carro') || t.contains('auto') || t.contains('coche')) return 'carro';
+                        if (tLocal.contains('moto')) return 'moto';
+                        if (tLocal.contains('guagua') || tLocal.contains('bus')) return 'guagua';
+                        if (tLocal.contains('carro') || tLocal.contains('auto') || tLocal.contains('coche')) return 'carro';
                         return '';
                       }
 
@@ -1193,17 +1181,12 @@ class _ReceiptContent extends StatelessWidget {
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 4),
-
-                            // === MONTO PAGADO ===
                             const SizedBox(height: 6),
 
-                            // ✅ Tipo de pago según categoría (SOLO modificamos ARRIENDO saldado)
                             if (esArriendo) ...[
                               Center(
                                 child: Column(
                                   children: const [
-                                    // Nada de "Pago de arriendo / Arriendo / Producto" aquí.
-                                    // Solo mensaje igual que los otros finalizados.
                                     SizedBox(height: 10),
                                     Text(
                                       'Gracias por cumplir tu compromiso.',
@@ -1218,19 +1201,15 @@ class _ReceiptContent extends StatelessWidget {
                                 ),
                               ),
                             ] else ...[
-                              // Todo lo demás queda igual
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  const SizedBox(height: 6),
-
-                                  const SizedBox(height: 12),
-
+                                children: const [
+                                  SizedBox(height: 6),
+                                  SizedBox(height: 12),
                                 ],
                               ),
                             ],
 
-                            // 👉 Mora (si aplica)
                             if (moraCobrada > 0) ...[
                               const SizedBox(height: 6),
                               _rowIcon(
@@ -1244,7 +1223,7 @@ class _ReceiptContent extends StatelessWidget {
 
                             const SizedBox(height: 50),
                             Transform.translate(
-                              offset: const Offset(0, -45), // 👈 valor negativo = sube el texto (ajústalo -5, -10 o -15 según lo que veas)
+                              offset: const Offset(0, -45),
                               child: Text(
                                 esArriendo
                                     ? 'Nos vemos en tu próxima fecha de pago.'
@@ -1258,29 +1237,24 @@ class _ReceiptContent extends StatelessWidget {
                               ),
                             ),
 
-
                             const SizedBox(height: 18),
                             ShaderMask(
                               shaderCallback: (bounds) => const LinearGradient(
-                                colors: [Color(0xFF2458D6), Color(0xFF0A9A76)], // 👈 azul a verde azulado
+                                colors: [Color(0xFF2458D6), Color(0xFF0A9A76)],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ).createShader(bounds),
-                              child: Text(
+                              child: const Text(
                                 'Este recibo fue generado con Mi Recibo Business',
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: 0.3,
-                                  color: Colors.white, // 👈 obligatorio para que se vea el degradado
+                                  color: Colors.white,
                                 ),
                               ),
                             ),
-
-
-
-
                           ],
                         )
                             : Column(
@@ -1330,7 +1304,6 @@ class _ReceiptContent extends StatelessWidget {
                             // ====== PRODUCTO ======
                             else if (esProducto) ...[
                               if (esPrimerReciboProducto) ...[
-                                // —— PRIMER RECIBO DE PRODUCTO ——
                                 _rowIcon(
                                   Icons.sell_rounded,
                                   'Monto total',
@@ -1384,18 +1357,14 @@ class _ReceiptContent extends StatelessWidget {
                                   ),
                                 ),
                               ] else ...[
-                                // —— RECIBOS NORMALES DE PRODUCTO ——
+                                // FIX 2: esPrimerPago viene como parámetro directo
                                 _rowIcon(
                                   Icons.shopping_bag_rounded,
-                                  ((context.findAncestorWidgetOfExactType<ReciboScreen>() as ReciboScreen?)?.esPrimerPago ?? false)
-                                      ? 'Monto inicial'
-                                      : 'Pago de producto',
+                                  esPrimerPago ? 'Monto inicial' : 'Pago de producto',
                                   pesoSolo(totalPagado),
-
                                   iconBg: const Color(0xFFF3F0FF),
                                   iconColor: const Color(0xFF6D28D9),
                                 ),
-
 
                                 if (moraCobrada > 0) ...[
                                   const SizedBox(height: 6),
@@ -1510,7 +1479,6 @@ class _ReceiptContent extends StatelessWidget {
                                   ),
                                 ],
                               ],
-
                           ],
                         ),
                       );

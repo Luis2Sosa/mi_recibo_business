@@ -2,25 +2,19 @@ import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';   // 👈 Firestore
-import 'package:firebase_auth/firebase_auth.dart';      // 👈 UID
-import 'package:intl/intl.dart';                        // 👈 Formato moneda pro
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 import '../core/ads/ads_manager.dart';
 import 'pago_form_screen.dart';
 import 'recibo_screen.dart';
 import 'historial_screen.dart';
-import 'widgets/app_frame.dart'; // <-- ruta desde lib/ui/
-
-// 🚀 Notificaciones Plus
+import 'widgets/app_frame.dart';
 import '../core/notifications_plus.dart';
-// 📲 Envíos por WhatsApp (Bloque 3)
 import 'package:url_launcher/url_launcher.dart';
 import 'guardar_pago_y_kpis.dart';
 
-
-
 class ClienteDetalleScreen extends StatefulWidget {
-  // --------- Datos del cliente ---------
   final String id;
   final String codigo;
   final String nombreCompleto;
@@ -31,16 +25,12 @@ class ClienteDetalleScreen extends StatefulWidget {
   final String periodo;
   final DateTime proximaFecha;
   final String producto;
-  final String? tipoProducto;   // 'vehiculo' | 'otro'
-  final String? vehiculoTipo;   // 'carro' | 'guagua' | 'moto'
-
-
-  // --------- Datos del prestamista ---------
+  final String? tipoProducto;
+  final String? vehiculoTipo;
   final String empresa;
   final String servidor;
   final String telefonoServidor;
-  final int moraAcumulada; // 👈 mora unificada desde Cliente
-
+  final int moraAcumulada;
 
   const ClienteDetalleScreen({
     super.key,
@@ -59,9 +49,7 @@ class ClienteDetalleScreen extends StatefulWidget {
     required this.producto,
     this.tipoProducto,
     this.vehiculoTipo,
-
-    required this.moraAcumulada, // 👈 NUEVO
-
+    required this.moraAcumulada,
   });
 
   @override
@@ -69,187 +57,112 @@ class ClienteDetalleScreen extends StatefulWidget {
 }
 
 class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
-  // ✅ Icono de WhatsApp reutilizable (usa el PNG de assets)
-  Widget _waIcon({double size = 24}) {
-    return Image.asset(
-      'assets/images/logo_whatsapp.png',
-      width: size,
-      height: size,
-      fit: BoxFit.contain,
-    );
-  }
-
-  static const double _logoHeight = 310;
-  static const double _logoTop = -100;
-  static const double _contentTop = 110;
-
-  late int _saldoActual;
-  late DateTime _proximaFecha;
-  bool _tieneCambios = false;
-  String? _fechaPrimerPago; // 👈 agrega esto aquí
-  bool _esPremium = false;   // 👈 NUEVO
-
-
-  int _totalPrestado = 0;
-  bool _btnPagoBusy = false;
-  bool _autoFecha = true; // 👈 NUEVO: por defecto automático
-  // ✅ Mora acumulada offline (calculada aquí)
-  late int _moraAcumulada; // 👈 NUEVO
-  // 👇 Pago inicial (solo para productos)
-  int _pagoInicial = 0;
-
-
-  // Es PRÉSTAMO solo si el campo producto está vacío
-  // o si explícitamente contiene palabras de préstamo.
+  // ─── Getters de tipo (fuente única de verdad) ────────────────────────────
   bool get _esPrestamo {
     final p = widget.producto.trim().toLowerCase();
-    if (p.isEmpty) return true; // vacío = préstamo normal
-    return p.contains('prest') || p.contains('crédito') || p.contains('credito') || p.contains('loan');
+    if (p.isEmpty) return true;
+    return p.contains('prest') ||
+        p.contains('crédito') ||
+        p.contains('credito') ||
+        p.contains('loan');
   }
 
-  // ✅ Nota opcional (leída de Firestore SIN tocar el constructor)
-  String? _nota;
-
-  bool get _estaSaldado => _saldoActual <= 0;
-
-  IconData _iconoProducto() {
-    final p    = (widget.producto).toLowerCase().trim();
-    final tipo = (widget.tipoProducto ?? '').toLowerCase();
-    final veh  = (widget.vehiculoTipo ?? '').toLowerCase();
-
-    // 1) Si es alquiler de inmueble → casa
-    final esInmueble = p.contains('alquiler') ||
+  bool get _esAlquiler {
+    final p = widget.producto.toLowerCase();
+    return p.contains('alquiler') ||
         p.contains('arriendo') ||
         p.contains('renta') ||
         p.contains('casa') ||
-        p.contains('apart');
-    if (esInmueble) return Icons.house_rounded;
-
-    // 2) Si marcaste que es vehículo, respeta el tipo
-    if (tipo == 'vehiculo') {
-      if (veh == 'carro' || veh == 'auto' || veh == 'vehiculo') {
-        return Icons.directions_car_filled_rounded;
-      }
-      if (veh == 'guagua' || veh == 'bus' || veh == 'minibus') {
-        return Icons.directions_bus_filled_rounded;
-      }
-      if (veh == 'moto' || veh == 'motor') {
-        return Icons.two_wheeler_rounded;
-      }
-    }
-
-    // 3) Fallback por texto (por si no llegaron los campos)
-    if (p.contains('carro') || p.contains('auto') || p.contains('vehí')) {
-      return Icons.directions_car_filled_rounded;
-    }
-    if (p.contains('guagua') || p.contains('bus') || p.contains('mini')) {
-      return Icons.directions_bus_filled_rounded;
-    }
-    if (p.contains('moto') || p.contains('motor')) {
-      return Icons.two_wheeler_rounded;
-    }
-
-    // 4) Otro producto → bolsita
-    return Icons.shopping_bag_rounded;
+        p.contains('apart') ||
+        p.contains('estudio');
   }
 
+  bool get _esProducto => !_esPrestamo && !_esAlquiler;
+  bool get _esProdOAlq => _esAlquiler || _esProducto;
+  bool get _estaSaldado => _saldoActual <= 0;
 
+  // ─── Estado ──────────────────────────────────────────────────────────────
+  late int _saldoActual;
+  late DateTime _proximaFecha;
+  bool _tieneCambios = false;
+  String? _fechaPrimerPago;
+  bool _esPremium = false;
+  int _totalPrestado = 0;
+  bool _btnPagoBusy = false;
+  bool _autoFecha = true;
+  late int _moraAcumulada;
+  int _pagoInicial = 0;
+  String? _nota;
+
+  // ─── WhatsApp icon ───────────────────────────────────────────────────────
+  Widget _waIcon({double size = 24}) => Image.asset(
+    'assets/images/logo_whatsapp.png',
+    width: size,
+    height: size,
+    fit: BoxFit.contain,
+  );
+
+  // ─── Lifecycle ───────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
-
     _saldoActual = widget.saldoActual;
     _proximaFecha = widget.proximaFecha;
-
-    // 🟢 Inicializa mora local
-    _moraAcumulada = (widget.moraAcumulada > 0)
+    _moraAcumulada = widget.moraAcumulada > 0
         ? widget.moraAcumulada
         : _calcMoraAcumulada();
 
-    // 🟢 Cargas normales
     Future.microtask(_autoFixEstado);
     Future.microtask(_cargarTotalPrestado);
     Future.microtask(_cargarNota);
     Future.microtask(_cargarFlags);
     Future.microtask(_cargarPagoInicial);
-
-    // 🟢 Cargar fecha del primer pago
     Future.microtask(() async {
       _fechaPrimerPago = await _obtenerFechaPrimerPago();
       if (mounted) setState(() {});
     });
-
-    // ⭐⭐⭐ Cargar PREMIUM AUTOMÁTICO ⭐⭐⭐
     Future.microtask(() async {
-      _esPremium = await _cargarPremium();   // ← aquí se carga
+      _esPremium = await _cargarPremium();
       if (mounted) setState(() {});
     });
   }
 
-
-
   @override
   void didUpdateWidget(covariant ClienteDetalleScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Si cambian fecha o saldo provenientes del widget, sincroniza y recalcula mora
     if (oldWidget.proximaFecha != widget.proximaFecha ||
         oldWidget.saldoActual != widget.saldoActual) {
       _proximaFecha = widget.proximaFecha;
       _saldoActual = widget.saldoActual;
-      _moraAcumulada = (widget.moraAcumulada > 0) ? widget.moraAcumulada : _calcMoraAcumulada();
+      _moraAcumulada = widget.moraAcumulada > 0
+          ? widget.moraAcumulada
+          : _calcMoraAcumulada();
       setState(() {});
     }
-
   }
 
-
-
-
-  // =======================
-  // 👇 NUEVO: cálculo de mora offline (defaults del modelo)
-  // umbrales: [15,30], tipo: porcentaje, valor: 10, dobleEn30: true
+  // ─── Mora offline ────────────────────────────────────────────────────────
   int _calcMoraAcumulada() {
     if (_saldoActual <= 0) return 0;
+    if (!_esProdOAlq) return 0;
 
     final hoy = _soloFecha(DateTime.now());
     final vence = _soloFecha(_proximaFecha);
     final diasAtraso = hoy.difference(vence).inDays;
-    if (diasAtraso <= 0) return 0;
+    if (diasAtraso < 15) return 0;
 
-    // Solo aplica a Producto / Alquiler
-    final productoTxt = widget.producto.toLowerCase();
-    final esAlquiler = productoTxt.contains('alquiler') ||
-        productoTxt.contains('arriendo') ||
-        productoTxt.contains('renta') ||
-        productoTxt.contains('casa') ||
-        productoTxt.contains('apartamento');
-    final esProducto = !_esPrestamo && !esAlquiler;
-    final esProdOAlq = esAlquiler || esProducto;
-    if (!esProdOAlq) return 0;
-
-    const List<int> umbrales = [15, 30];
-    if (diasAtraso < umbrales.first) return 0;
-
-    const String tipo = 'porcentaje';
-    const double valor = 10; // 10%
-    const bool dobleEn30 = true;
-
-    final int base = _saldoActual;
-    double monto = (tipo == 'fijo') ? valor : (base * (valor / 100.0));
-    if (dobleEn30 && diasAtraso >= 30) monto *= 2;
-
+    const double valorPct = 10;
+    double monto = _saldoActual * (valorPct / 100.0);
+    if (diasAtraso >= 30) monto *= 2;
     return monto.round();
   }
-  // =======================
 
-  String _rd(int v) {
-    final f = NumberFormat.currency(
-      locale: 'en_US',
-      symbol: '\$',
-      decimalDigits: 0,
-    );
-    return f.format(v);
-  }
+  // ─── Formato ─────────────────────────────────────────────────────────────
+  String _rd(int v) => NumberFormat.currency(
+    locale: 'en_US',
+    symbol: '\$',
+    decimalDigits: 0,
+  ).format(v);
 
   String _fmtFecha(DateTime d) {
     const meses = [
@@ -260,8 +173,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   }
 
   DateTime _soloFecha(DateTime d) => DateTime(d.year, d.month, d.day);
-
-  // 🕛 Normaliza al mediodía para evitar problemas de zona horaria
   DateTime _atNoon(DateTime d) => DateTime(d.year, d.month, d.day, 12);
 
   bool _esHoyOAnterior(DateTime d) {
@@ -272,15 +183,10 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
   DateTime _sumarPeriodo(DateTime base, String periodo) {
     final p = periodo.toLowerCase().trim();
-    if (p.startsWith('mens')) {
-      return DateTime(base.year, base.month + 1, base.day);
-    } else if (p.startsWith('quin')) {
-      return base.add(const Duration(days: 15));
-    } else if (p.startsWith('seman')) {
-      return base.add(const Duration(days: 7));
-    } else if (p.startsWith('diar')) {
-      return base.add(const Duration(days: 1));
-    }
+    if (p.startsWith('mens')) return DateTime(base.year, base.month + 1, base.day);
+    if (p.startsWith('quin')) return base.add(const Duration(days: 15));
+    if (p.startsWith('seman')) return base.add(const Duration(days: 7));
+    if (p.startsWith('diar')) return base.add(const Duration(days: 1));
     return DateTime(base.year, base.month + 1, base.day);
   }
 
@@ -292,325 +198,200 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     return f;
   }
 
-  Future<void> _autoFixEstado() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+  // ─── Icono producto ──────────────────────────────────────────────────────
+  IconData _iconoProducto() {
+    final p = widget.producto.toLowerCase().trim();
+    final tipo = (widget.tipoProducto ?? '').toLowerCase();
+    final veh = (widget.vehiculoTipo ?? '').toLowerCase();
 
-    final ref = FirebaseFirestore.instance
+    if (p.contains('alquiler') || p.contains('arriendo') ||
+        p.contains('renta') || p.contains('casa') || p.contains('apart')) {
+      return Icons.house_rounded;
+    }
+    if (tipo == 'vehiculo') {
+      if (veh == 'carro' || veh == 'auto') return Icons.directions_car_filled_rounded;
+      if (veh == 'guagua' || veh == 'bus') return Icons.directions_bus_filled_rounded;
+      if (veh == 'moto' || veh == 'motor') return Icons.two_wheeler_rounded;
+    }
+    if (p.contains('carro') || p.contains('auto')) return Icons.directions_car_filled_rounded;
+    if (p.contains('guagua') || p.contains('bus')) return Icons.directions_bus_filled_rounded;
+    if (p.contains('moto') || p.contains('motor')) return Icons.two_wheeler_rounded;
+    return Icons.shopping_bag_rounded;
+  }
+
+  // ─── Firestore helpers ───────────────────────────────────────────────────
+  DocumentReference<Map<String, dynamic>> get _clienteRef {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    return FirebaseFirestore.instance
         .collection('prestamistas')
         .doc(uid)
         .collection('clientes')
         .doc(widget.id);
+  }
 
-    final snap = await ref.get();
+  Future<void> _autoFixEstado() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final snap = await _clienteRef.get();
     final data = snap.data() ?? {};
-    final bool saldado = (data['saldado'] == true);
-
-    bool needsUpdate = false;
+    final bool saldado = data['saldado'] == true;
     final Map<String, dynamic> updates = {};
+    bool needsUpdate = false;
 
-    if (_saldoActual > 0 &&
-        (saldado == true || (data['estado'] ?? '') == 'saldado')) {
-      updates['saldado'] = false;
-      updates['estado'] = 'al_dia';
-      needsUpdate = true;
-    }
-
-    // 🔒 Detectar si es cliente de alquiler
-    final productoTxt = (widget.producto).toLowerCase();
-    final esAlquiler = productoTxt.contains('alquiler') ||
-        productoTxt.contains('arriendo') ||
-        productoTxt.contains('renta') ||
-        productoTxt.contains('casa') ||
-        productoTxt.contains('apart') ||
-        productoTxt.contains('estudio');
-
-// ⚙️ Evitar que los alquileres se marquen saldados
-    if (esAlquiler) {
-      if ((data['estado'] ?? '') != 'al_dia' || saldado == true) {
+    if (_esAlquiler) {
+      if ((data['estado'] ?? '') != 'al_dia' || saldado) {
         updates['saldado'] = false;
         updates['estado'] = 'al_dia';
         needsUpdate = true;
       }
-    } else if (_saldoActual <= 0 && !(saldado == true)) {
+    } else if (_saldoActual > 0 && (saldado || data['estado'] == 'saldado')) {
+      updates['saldado'] = false;
+      updates['estado'] = 'al_dia';
+      needsUpdate = true;
+    } else if (_saldoActual <= 0 && !saldado) {
       updates['saldado'] = true;
       updates['estado'] = 'saldado';
       updates['venceEl'] = FieldValue.delete();
       needsUpdate = true;
     }
 
-
     if (needsUpdate) {
-      await ref.set(updates, SetOptions(merge: true));
-      if (!mounted) return;
-      setState(() {});
+      await _clienteRef.set(updates, SetOptions(merge: true));
+      if (mounted) setState(() {});
     }
   }
 
   Future<void> _cargarTotalPrestado() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
-    final ref = FirebaseFirestore.instance
-        .collection('prestamistas')
-        .doc(uid)
-        .collection('clientes')
-        .doc(widget.id);
-
     try {
-      final snap = await ref.get();
+      final snap = await _clienteRef.get();
       final data = snap.data() ?? {};
-
-      // ¿Este cliente es "Producto" o "Alquiler"?
-      final pTxt = (widget.producto).toLowerCase();
-      final esInmueble = pTxt.contains('alquiler') ||
-          pTxt.contains('arriendo') ||
-          pTxt.contains('renta') ||
-          pTxt.contains('casa') ||
-          pTxt.contains('apart');
-      final esProducto = !_esPrestamo && !esInmueble;
-
       int total = 0;
 
-      if (esProducto) {
-        // 1) Prioriza el total explícito del flujo de productos
+      if (_esProducto) {
         final rawTotal = data['productoMontoTotal'];
-        if (rawTotal is int) total = rawTotal;
-        if (rawTotal is double) total = rawTotal.round();
-
-        // 2) Intentar clave antigua/migraciones
+        if (rawTotal is num) total = rawTotal.round();
         if (total <= 0) {
           final rawMonto = data['montoProducto'];
-          if (rawMonto is int) total = rawMonto;
-          if (rawMonto is double) total = rawMonto.round();
+          if (rawMonto is num) total = rawMonto.round();
         }
-
-        // 3) Fallback: capitalInicial (saldo restante) + pago inicial
         if (total <= 0) {
-          final cap = (data['capitalInicial'] is num) ? (data['capitalInicial'] as num).round() : 0;
-          final iniRaw = data.containsKey('productoPagoInicial')
-              ? data['productoPagoInicial']
-              : data['pagoInicial'];
-          final ini = (iniRaw is num) ? iniRaw.round() : 0;
+          final cap = (data['capitalInicial'] as num?)?.round() ?? 0;
+          final iniRaw = data['productoPagoInicial'] ?? data['pagoInicial'];
+          final ini = (iniRaw as num?)?.round() ?? 0;
           total = cap + ini;
         }
-      } else if (esInmueble) {
-        // 👈 ALQUILER: leer el histórico cobrado (lo incrementas en renovaciones/pagos)
-        final rawCobrado = data['totalCobrado'];
-        if (rawCobrado is int) total = rawCobrado;
-        if (rawCobrado is double) total = rawCobrado.round();
-
-        // Fallback si aún no existe el campo
-        if (total <= 0) total = 0;
+      } else if (_esAlquiler) {
+        final raw = data['totalCobrado'];
+        if (raw is num) total = raw.round();
       } else {
-        // Préstamo → como lo tenías (totalPrestado / fallback)
         if (data.containsKey('totalPrestado')) {
           final raw = data['totalPrestado'];
-          if (raw is int) total = raw;
-          if (raw is double) total = raw.round();
+          if (raw is num) total = raw.round();
         } else {
-          final capitalInicial = (data['capitalInicial'] is num) ? (data['capitalInicial'] as num).round() : 0;
-          final fallbackSaldoAnterior = (data['saldoAnterior'] is num) ? (data['saldoAnterior'] as num).round() : 0;
-          total = capitalInicial > 0 ? capitalInicial : fallbackSaldoAnterior;
-          await ref.set({'totalPrestado': total, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+          final cap = (data['capitalInicial'] as num?)?.round() ?? 0;
+          final prev = (data['saldoAnterior'] as num?)?.round() ?? 0;
+          total = cap > 0 ? cap : prev;
+          await _clienteRef.set(
+              {'totalPrestado': total, 'updatedAt': FieldValue.serverTimestamp()},
+              SetOptions(merge: true));
         }
       }
 
-      if (!mounted) return;
-      setState(() => _totalPrestado = total);
+      if (mounted) setState(() => _totalPrestado = total);
     } catch (_) {}
   }
 
-
   Future<void> _cargarNota() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('prestamistas').doc(uid)
-          .collection('clientes').doc(widget.id)
-          .get();
-      final data = snap.data() ?? {};
-      final nota = (data['nota'] ?? '').toString().trim();
-      if (!mounted) return;
-      setState(() {
-        _nota = nota.isEmpty ? null : nota;
-      });
+      final snap = await _clienteRef.get();
+      final nota = ((snap.data() ?? {})['nota'] ?? '').toString().trim();
+      if (mounted) setState(() => _nota = nota.isEmpty ? null : nota);
     } catch (_) {}
   }
 
   Future<void> _cargarFlags() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('prestamistas').doc(uid)
-          .collection('clientes').doc(widget.id)
-          .get();
-      final data = snap.data() ?? {};
-      final bool auto = (data['autoFecha'] as bool?) ?? true;
-
-      if (!mounted) return;
-      setState(() {
-        _autoFecha = auto;
-      });
-    } catch (_) {
-      // si falla, dejamos _autoFecha=true por defecto
-    }
-  }
-
-  // =======================
-// 👇 NUEVO: cargar si el usuario es PRO o GRATIS
-  Future<bool> _cargarPremium() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return false;
-
-    final snap = await FirebaseFirestore.instance
-        .collection('prestamistas')
-        .doc(uid)
-        .get();
-
-    final data = snap.data() ?? {};
-    return (data['isPremium'] ?? false) == true;
-  }
-// =======================
-
-
-  // 👇 Cargar el pago inicial solo para productos (prioriza productoPagoInicial)
-  Future<void> _cargarPagoInicial() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('prestamistas').doc(uid)
-          .collection('clientes').doc(widget.id)
-          .get();
-      final data = snap.data() ?? {};
-
-      final raw = data.containsKey('productoPagoInicial')
-          ? data['productoPagoInicial']
-          : data['pagoInicial'];
-      final val = (raw is int) ? raw : (raw is double ? raw.round() : 0);
-
-      if (!mounted) return;
-      setState(() => _pagoInicial = val);
-    } catch (_) {/* ignore */}
-  }
-
-  Future<String?> _obtenerFechaPrimerPago() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return null;
-
-    final clienteRef = FirebaseFirestore.instance
-        .collection('prestamistas')
-        .doc(uid)
-        .collection('clientes')
-        .doc(widget.id);
-
-    final clienteDoc = await clienteRef.get();
-    final data = clienteDoc.data();
-    if (data == null) return null;
-
-    final fechaRaw = data['primerPago'];
-    if (fechaRaw == null) return null;
-
-    if (fechaRaw is Timestamp) {
-      return DateFormat('dd/MM/yyyy').format(fechaRaw.toDate());
-    } else {
-      return null;
-    }
-  }
-
-
-
-
-
-  Future<void> incrementarTotalPrestado(int monto) async {
-    if (monto <= 0) return;
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
-    final ref = FirebaseFirestore.instance
-        .collection('prestamistas')
-        .doc(uid)
-        .collection('clientes')
-        .doc(widget.id);
-
-    try {
-      await ref.set({
-        'totalPrestado': FieldValue.increment(monto),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      if (!mounted) return;
-      setState(() => _totalPrestado += monto);
+      final snap = await _clienteRef.get();
+      final auto = (snap.data() ?? {})['autoFecha'] as bool? ?? true;
+      if (mounted) setState(() => _autoFecha = auto);
     } catch (_) {}
   }
 
-  Future<Map<String, String>> _prestamistaSeguro() async {
-    // Nunca confiar en los valores congelados del constructor
-    String empresa = '';
-    String servidor = '';
-    String telefono = '';
-
+  Future<bool> _cargarPremium() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      return {
-        'empresa': widget.empresa.trim(),
-        'servidor': widget.servidor.trim(),
-        'telefono': widget.telefonoServidor.trim(),
-      };
-    }
-
+    if (uid == null) return false;
     try {
       final snap = await FirebaseFirestore.instance
           .collection('prestamistas')
           .doc(uid)
           .get();
-
-      final data = snap.data() ?? {};
-
-      // 🔥 LEER SIEMPRE DE FIRESTORE (actualizados)
-      empresa = (data['empresa'] ?? widget.empresa).toString().trim();
-
-      final nombre = (data['nombre'] ?? '').toString().trim();
-      final apellido = (data['apellido'] ?? '').toString().trim();
-      final servidorFS =
-      [nombre, apellido].where((e) => e.isNotEmpty).join(' ').trim();
-
-      servidor =
-      servidorFS.isNotEmpty ? servidorFS : widget.servidor.trim();
-
-      telefono = (data['telefono'] ?? widget.telefonoServidor)
-          .toString()
-          .trim();
-
+      return (snap.data() ?? {})['isPremium'] == true;
     } catch (_) {
-      // Si Firestore falla, usa los valores locales
-      empresa = widget.empresa.trim();
-      servidor = widget.servidor.trim();
-      telefono = widget.telefonoServidor.trim();
+      return false;
     }
-
-    return {
-      'empresa': empresa,
-      'servidor': servidor,
-      'telefono': telefono,
-    };
   }
 
+  Future<void> _cargarPagoInicial() async {
+    try {
+      final snap = await _clienteRef.get();
+      final data = snap.data() ?? {};
+      final raw = data.containsKey('productoPagoInicial')
+          ? data['productoPagoInicial']
+          : data['pagoInicial'];
+      final val = (raw as num?)?.round() ?? 0;
+      if (mounted) setState(() => _pagoInicial = val);
+    } catch (_) {}
+  }
 
+  Future<String?> _obtenerFechaPrimerPago() async {
+    try {
+      final snap = await _clienteRef.get();
+      final fechaRaw = (snap.data() ?? {})['primerPago'];
+      if (fechaRaw is Timestamp) {
+        return DateFormat('dd/MM/yyyy').format(fechaRaw.toDate());
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<Map<String, String>> _prestamistaSeguro() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return {
+        'empresa': widget.empresa,
+        'servidor': widget.servidor,
+        'telefono': widget.telefonoServidor,
+      };
+    }
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('prestamistas')
+          .doc(uid)
+          .get();
+      final data = snap.data() ?? {};
+      final empresa = (data['empresa'] ?? widget.empresa).toString().trim();
+      final nombre = (data['nombre'] ?? '').toString().trim();
+      final apellido = (data['apellido'] ?? '').toString().trim();
+      final servidor = [nombre, apellido].where((e) => e.isNotEmpty).join(' ').trim();
+      final telefono = (data['telefono'] ?? widget.telefonoServidor).toString().trim();
+      return {
+        'empresa': empresa.isEmpty ? widget.empresa : empresa,
+        'servidor': servidor.isEmpty ? widget.servidor : servidor,
+        'telefono': telefono.isEmpty ? widget.telefonoServidor : telefono,
+      };
+    } catch (_) {
+      return {
+        'empresa': widget.empresa,
+        'servidor': widget.servidor,
+        'telefono': widget.telefonoServidor,
+      };
+    }
+  }
+
+  // ─── Flujo de pago ───────────────────────────────────────────────────────
   Future<void> _registrarPagoFlow(BuildContext context) async {
-    // 🔹 Antes de abrir el formulario, obtener la lista de productos desde Firestore
-    final snap = await FirebaseFirestore.instance
-        .collection('prestamistas')
-        .doc(FirebaseAuth.instance.currentUser?.uid)
-        .collection('clientes')
-        .doc(widget.id)
-        .get();
-
+    final snap = await _clienteRef.get();
     final data = snap.data() ?? {};
     final productosLista = data['productos'] ?? [];
 
@@ -627,78 +408,56 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           producto: widget.producto,
           moraActual: _moraAcumulada,
           autoFecha: _autoFecha,
-          productosLista: productosLista, // 👈 NUEVO: pasa lista real de Firestore
+          productosLista: productosLista,
         ),
       ),
     );
 
     if (result == null) return;
 
-    final int pagoInteres   = result['pagoInteres']   as int? ?? 0;
-    final int pagoCapital   = result['pagoCapital']   as int? ?? 0;
-    final int totalPagado   = result['totalPagado']   as int? ?? (pagoInteres + pagoCapital);
+    final int pagoInteres = result['pagoInteres'] as int? ?? 0;
+    final int pagoCapital = result['pagoCapital'] as int? ?? 0;
+    final int totalPagado =
+        result['totalPagado'] as int? ?? (pagoInteres + pagoCapital);
     final int saldoAnterior = result['saldoAnterior'] as int? ?? _saldoActual;
-    final int saldoNuevo    = result['saldoNuevo']    as int? ?? _saldoActual;
-    final DateTime prox     = result['proximaFecha']  as DateTime? ?? _proximaFecha;
-    // 🔒 Asegura local + 12:00 antes de avanzar períodos/guardar
+    final int saldoNuevo = result['saldoNuevo'] as int? ?? _saldoActual;
+    final DateTime prox =
+        result['proximaFecha'] as DateTime? ?? _proximaFecha;
     final DateTime proxLocalBase = _atNoon(prox.toLocal());
-
-
-    // 🕛 Normaliza antes de usar/guardar
     final DateTime proxAlDia = _siguienteFechaAlDia(proxLocalBase, widget.periodo);
-    final DateTime proxNoon  = _atNoon(proxAlDia);
+    final DateTime proxNoon = _atNoon(proxAlDia);
 
-    // 👇 Sumar mora SOLO en producto/alquiler (si hay)
-    final txt = widget.producto.toLowerCase();
-    final esAlquiler = txt.contains('alquiler') || txt.contains('arriendo') || txt.contains('renta') || txt.contains('casa') || txt.contains('apartamento');
-    final esProducto = !_esPrestamo && !esAlquiler;
-    final bool esProdOAlq = esAlquiler || esProducto;
-
-    // 1) Usar el valor que vino del form si lo hay; si no, usa la mora local
-    final int moraCobrada = (result['moraCobrada'] as int?) ?? (esProdOAlq ? _moraAcumulada : 0);
+    final int moraCobrada =
+        (result['moraCobrada'] as int?) ?? (_esProdOAlq ? _moraAcumulada : 0);
     final int totalConMora = totalPagado + moraCobrada;
 
-    // === Obtener correlativo visible del recibo (optimista) ===
+    // Correlativo del recibo
     String numeroRecibo = 'REC-0001';
     try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid != null) {
-        final clienteRef = FirebaseFirestore.instance
-            .collection('prestamistas').doc(uid)
-            .collection('clientes').doc(widget.id);
+      final snap = await _clienteRef.get();
+      final current = (snap.data()?['nextReciboCliente'] ?? 0) as int;
+      final next = (current + 1).clamp(1, 999999);
+      numeroRecibo = 'REC-${next.toString().padLeft(4, '0')}';
+    } catch (_) {}
 
-        final snap = await clienteRef.get();
-        final current = (snap.data()?['nextReciboCliente'] ?? 0) as int;
-        final next = (current + 1).clamp(1, 999999); // evita 0 o negativos
-        numeroRecibo = 'REC-${next.toString().padLeft(4, '0')}';
-      }
-    } catch (_) {
-      // si falla, seguimos con 'REC-0001'
-    }
-
-
-    // 👉 Mostrar Recibo ya mismo
     if (!mounted) return;
-    // 🔥 Obtener datos actualizados del prestamista ANTES de mostrar el recibo
     final prest = await _prestamistaSeguro();
-    final empresaReal  = prest['empresa'] ?? widget.empresa;
-    final servidorReal = prest['servidor'] ?? widget.servidor;
-    final telReal      = prest['telefono'] ?? widget.telefonoServidor;
 
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ReciboScreen(
-          empresa: empresaReal,
-          servidor: servidorReal,
-          telefonoServidor: telReal,
-          // 💥 Lo demás se queda igual
+          empresa: prest['empresa'] ?? widget.empresa,
+          servidor: prest['servidor'] ?? widget.servidor,
+          telefonoServidor: prest['telefono'] ?? widget.telefonoServidor,
           cliente: widget.nombreCompleto,
           telefonoCliente: widget.telefono,
           numeroRecibo: numeroRecibo,
           producto: (productosLista is List && productosLista.isNotEmpty)
               ? productosLista
-              .map((p) => p is Map<String, dynamic> ? (p['nombre'] ?? p.toString()) : p.toString())
+              .map((p) => p is Map<String, dynamic>
+              ? (p['nombre'] ?? p.toString())
+              : p.toString())
               .join(' / ')
               : widget.producto,
           tipoProducto: widget.tipoProducto,
@@ -715,104 +474,71 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
           tasaInteres: widget.tasaInteres,
           moraCobrada: moraCobrada,
           isPremium: _esPremium,
-
         ),
       ),
     );
 
-
-    // ✅ 3) GUARDAR DESPUÉS (si hay internet). Sin duplicar nada.
+    // Guardar en Firestore
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
-      final docPrest = FirebaseFirestore.instance
-          .collection('prestamistas').doc(uid);
-      final clienteRef = docPrest
-          .collection('clientes').doc(widget.id);
-
+      final docPrest =
+      FirebaseFirestore.instance.collection('prestamistas').doc(uid);
       try {
-        // 3.a) Guardar pago + actualizar cliente + KPIs de summary (todo dentro del helper)
         await guardarPagoYActualizarKPIs(
           docPrest: docPrest,
-          clienteRef: clienteRef,
-          pagoCapital:  pagoCapital,
-          pagoInteres:  pagoInteres,      // 0 si no es préstamo
-          totalPagado:  totalConMora,     // incluye mora
-          moraCobrada:  moraCobrada,      // 0 si no aplica
+          clienteRef: _clienteRef,
+          pagoCapital: pagoCapital,
+          pagoInteres: pagoInteres,
+          totalPagado: totalConMora,
+          moraCobrada: moraCobrada,
           saldoAnterior: saldoAnterior,
           proximaFecha: proxNoon,
         );
 
-        // 🔧 Bloque especial: evitar que los alquileres se marquen saldados o bajen a 0
-        final textoProducto = widget.producto.toLowerCase();
-        final esAlquiler = textoProducto.contains('alquiler') ||
-            textoProducto.contains('renta') ||
-            textoProducto.contains('arriendo') ||
-            textoProducto.contains('apart') ||
-            textoProducto.contains('casa') ||
-            textoProducto.contains('estudio');
-
-        if (esAlquiler) {
-          await clienteRef.set({
+        if (_esAlquiler) {
+          await _clienteRef.set({
             'saldado': false,
             'estado': 'al_dia',
-            'saldoActual': saldoAnterior, // 🔒 mantiene su monto original
+            'saldoActual': saldoAnterior,
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
-
-          print('✅ Alquiler actualizado: al día, saldo conservado ($saldoAnterior)');
         }
 
-
-        // 3.b) Incrementar correlativo del cliente (NO tocamos saldos aquí)
+        // Incrementar correlativo
         await FirebaseFirestore.instance.runTransaction((tx) async {
-          final snap = await tx.get(clienteRef);
-          final current = (snap.data()?['nextReciboCliente'] ?? 0) as int;
-          final next = current + 1;
-          tx.set(clienteRef, {
-            'nextReciboCliente': next,
+          final s = await tx.get(_clienteRef);
+          final current = (s.data()?['nextReciboCliente'] ?? 0) as int;
+          tx.set(_clienteRef, {
+            'nextReciboCliente': current + 1,
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
         });
 
-        // 3.c) Si es ALQUILER, acumula histórico cobrado (no afecta KPIs)
-        if (esAlquiler) {
-          await clienteRef.set({
-            'totalCobrado': FieldValue.increment(totalConMora),
-          }, SetOptions(merge: true));
+        if (_esAlquiler) {
+          await _clienteRef.set(
+              {'totalCobrado': FieldValue.increment(totalConMora)},
+              SetOptions(merge: true));
         }
 
-        // ✅ NUEVO BLOQUE: mantener total recuperado permanente
-        try {
-          final metricsRef = FirebaseFirestore.instance
-              .collection('prestamistas')
-              .doc(uid)
-              .collection('metrics')
-              .doc('totales');
-
-          // 👇 Incrementa siempre, sin importar si el cliente se borra o se salda
-          await metricsRef.set({
-            'lifetimeRecuperado': FieldValue.increment(totalConMora),
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-
-          print('[OK] Total recuperado actualizado: +$totalConMora');
-        } catch (e) {
-          print('⚠️ Error al actualizar lifetimeRecuperado: $e');
-        }
-
-        // ⛔️ Eliminado: NO escribimos metricsRef.lifetime* para evitar doble conteo.
-        // ⛔️ Eliminado: NO volvemos a agregar el pago ni a tocar saldo/proximaFecha aquí (ya lo hizo el helper).
-      } catch (_) {
-        // sin internet o error: no bloquea nada
-      }
+        // Lifetime recuperado
+        await FirebaseFirestore.instance
+            .collection('prestamistas')
+            .doc(uid)
+            .collection('metrics')
+            .doc('totales')
+            .set({
+          'lifetimeRecuperado': FieldValue.increment(totalConMora),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (_) {}
     }
 
     if (!mounted) return;
     setState(() {
-      _saldoActual   = saldoNuevo;
-      _proximaFecha  = proxNoon;
-      _moraAcumulada = 0; // recalcular con la nueva fecha/saldo
-      _tieneCambios  = true;
+      _saldoActual = saldoNuevo;
+      _proximaFecha = proxNoon;
+      _moraAcumulada = 0;
+      _tieneCambios = true;
     });
   }
 
@@ -828,40 +554,20 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     }
   }
 
-  // =======================
-  // 🚀 BLOQUE 3 - Recordatorios SOLO WhatsApp (premium)
-  // =======================
-
-  String _limpiarTelefono(String t) {
-    return t.replaceAll(RegExp(r'[^0-9]'), '');
-  }
-
+  // ─── WhatsApp ────────────────────────────────────────────────────────────
   String? _normalizarParaWhatsapp(String telefono) {
-    final digits = _limpiarTelefono(telefono);
-    if (digits.isEmpty) return null;
-
-    if (digits.length > 15) return null;
-
-    if (digits.length == 10) {
-      return '1$digits';
-    }
-    if (digits.length == 11 && digits.startsWith('1')) {
-      return digits;
-    }
-    if (digits.length >= 11) {
-      return digits;
-    }
+    final digits = telefono.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty || digits.length > 15) return null;
+    if (digits.length == 10) return '1$digits';
+    if (digits.length == 11 && digits.startsWith('1')) return digits;
+    if (digits.length >= 11) return digits;
     return null;
   }
 
   Future<void> _enviarPorWhatsApp(String telefono, String mensaje) async {
     final normalized = _normalizarParaWhatsapp(telefono);
-
-
     if (normalized == null) {
-      if (!mounted) return;
-      _showToastPremium(
-          'Número inválido. Agrega el código de país (ej. 1 para RD/EE.UU.) y máximo 15 dígitos.');
+      _showToast('Número inválido. Agrega el código de país.');
       return;
     }
 
@@ -873,61 +579,34 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
         'https://wa.me/$normalized?text=${Uri.encodeComponent(mensaje)}');
 
     try {
-      if (await canLaunchUrl(uriApp)) {
-        final ok = await launchUrl(uriApp, mode: LaunchMode.externalApplication);
-        if (ok) {
-          // ⭐ MOSTRAR ANUNCIO DESPUÉS DEL ENVÍO ⭐
-          await AdsManager.showAfterWhatsApp(context, 'recordatorio');
-          return;
+      for (final uri in [uriApp, uriBiz]) {
+        if (await canLaunchUrl(uri)) {
+          final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+          if (ok) {
+            await AdsManager.showAfterWhatsApp(context, 'recordatorio');
+            return;
+          }
         }
       }
-
-      if (await canLaunchUrl(uriBiz)) {
-        final ok = await launchUrl(uriBiz, mode: LaunchMode.externalApplication);
-        if (ok) {
-          // ⭐ MOSTRAR ANUNCIO DESPUÉS DEL ENVÍO ⭐
-          await AdsManager.showAfterWhatsApp(context, 'recordatorio');
-          return;
-        }
-      }
-
       if (await canLaunchUrl(uriWeb)) {
         await launchUrl(uriWeb, mode: LaunchMode.externalApplication);
-        return;
+      } else {
+        _showToast('No se pudo abrir WhatsApp en este dispositivo.');
       }
-      if (!mounted) return;
-      _showToastPremium('No se pudo abrir WhatsApp en este dispositivo.');
     } catch (_) {
-      if (!mounted) return;
-      _showToastPremium('Error al intentar abrir WhatsApp.');
+      _showToast('Error al intentar abrir WhatsApp.');
     }
   }
-
 
   String _mensajeRecordatorio(String tipo) {
     final nombre = widget.nombreCompleto;
     final fecha = _fmtFecha(_proximaFecha);
     final saldo = _rd(_saldoActual);
-
-    final producto = widget.producto.toLowerCase();
-    final esAlquiler = producto.contains('alquiler') ||
-        producto.contains('arriendo') ||
-        producto.contains('renta') ||
-        producto.contains('casa') ||
-        producto.contains('apartamento');
-    final esPrestamo = _esPrestamo;
-    final esProducto = !esPrestamo && !esAlquiler;
-
-    String base;
-    if (esPrestamo) {
-      base = 'tu pago vence';
-    } else if (esAlquiler) {
-      base = 'tu alquiler vence';
-    } else if (esProducto) {
-      base = 'tu producto vence';
-    } else {
-      base = 'tu pago vence';
-    }
+    final base = _esPrestamo
+        ? 'tu pago vence'
+        : _esAlquiler
+        ? 'tu alquiler vence'
+        : 'tu producto vence';
 
     switch (tipo) {
       case 'vencido':
@@ -945,83 +624,58 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     }
   }
 
-  int _diasHasta(DateTime d) {
-    final hoy = _soloFecha(DateTime.now());
-    final dd = _soloFecha(d);
-    return dd.difference(hoy).inDays;
-  }
+  int _diasHasta(DateTime d) =>
+      _soloFecha(d).difference(_soloFecha(DateTime.now())).inDays;
 
   bool _permiteRecordatorio(String tipo) {
     final d = _diasHasta(_proximaFecha);
     final deuda = _saldoActual > 0;
-
     switch (tipo) {
-      case 'vencido':
-        return deuda && d < 0;
-      case 'hoy':
-        return deuda && d == 0;
-      case 'manana':
-        return deuda && d == 1;
-      case 'dos_dias':
-        return deuda && d == 2;
-      case 'aldia':
-        return !deuda || d > 2;
-      default:
-        return false;
+      case 'vencido':  return deuda && d < 0;
+      case 'hoy':      return deuda && d == 0;
+      case 'manana':   return deuda && d == 1;
+      case 'dos_dias': return deuda && d == 2;
+      case 'aldia':    return !deuda || d > 2;
+      default:         return false;
     }
   }
 
-  void _avisoNoCorresponde() {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-
-    messenger.showSnackBar(
-      SnackBar(
+  // ─── Snackbars ───────────────────────────────────────────────────────────
+  void _showToast(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: Colors.transparent,
         elevation: 0,
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 18),
         duration: const Duration(seconds: 2),
         content: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFFFEF3C7),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFFDE68A)),
+            color: const Color(0xFF1F2937),
+            borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.10),
-                blurRadius: 14,
-                offset: const Offset(0, 8),
-              ),
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 14,
+                  offset: const Offset(0, 8))
             ],
           ),
-          child: Row(
-            children: const [
-              Icon(Icons.lock_clock_rounded, color: Color(0xFF92400E)),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  '⏳ Aún no es momento para este recordatorio de este cliente.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFF78350F),
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          child: Text(text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w700)),
         ),
-      ),
-    );
+      ));
   }
 
   void _showSaldadoBanner() {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -1035,10 +689,9 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
             border: Border.all(color: const Color(0xFFDBEAFE)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.10),
-                blurRadius: 14,
-                offset: const Offset(0, 8),
-              ),
+                  color: Colors.black.withOpacity(0.10),
+                  blurRadius: 14,
+                  offset: const Offset(0, 8))
             ],
           ),
           child: Row(
@@ -1050,47 +703,125 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                   'Este cliente está saldado. No se pueden registrar pagos ni enviar recordatorios.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontWeight: FontWeight.w800,
-                  ),
+                      color: Color(0xFF0F172A), fontWeight: FontWeight.w800),
                 ),
               ),
             ],
           ),
         ),
-      ),
-    );
+      ));
   }
 
-  void _showToastPremium(String text) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
+  void _avisoNoCorresponde() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: Colors.transparent,
         elevation: 0,
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 18),
         duration: const Duration(seconds: 2),
         content: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
-            color: const Color(0xFF1F2937),
-            borderRadius: BorderRadius.circular(14),
+            color: const Color(0xFFFEF3C7),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFFDE68A)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 14,
-                offset: const Offset(0, 8),
+                  color: Colors.black.withOpacity(0.10),
+                  blurRadius: 14,
+                  offset: const Offset(0, 8))
+            ],
+          ),
+          child: Row(
+            children: const [
+              Icon(Icons.lock_clock_rounded, color: Color(0xFF92400E)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '⏳ Aún no es momento para este recordatorio.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: Color(0xFF78350F), fontWeight: FontWeight.w800),
+                ),
               ),
             ],
           ),
-          child: Center(
-            child: Text(
-              text,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+      ));
+  }
+
+  // ─── Menú recordatorio ───────────────────────────────────────────────────
+  void _abrirMenuRecordatorio() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFDFEFF), Color(0xFFF6F8FB)],
+              ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border.all(color: const Color(0xFFE9EEF5)),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(.18),
+                    blurRadius: 22,
+                    offset: const Offset(0, -6))
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                      color: const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(999)),
+                ),
+                const SizedBox(height: 10),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 14),
+                  child: Row(
+                    children: [
+                      Icon(Icons.sms_rounded, color: Color(0xFF0F172A)),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Enviar recordatorio',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF0F172A)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Divider(height: 1, color: Color(0xFFE9EEF5)),
+                _itemRecordatorio('Pago vencido', 'vencido', Icons.warning_amber_rounded),
+                const Divider(height: 1, color: Color(0xFFE9EEF5)),
+                _itemRecordatorio('Vence hoy', 'hoy', Icons.event_available),
+                const Divider(height: 1, color: Color(0xFFE9EEF5)),
+                _itemRecordatorio('Vence mañana', 'manana', Icons.access_time),
+                const Divider(height: 1, color: Color(0xFFE9EEF5)),
+                _itemRecordatorio('Vence en 2 días', 'dos_dias', Icons.schedule),
+                const Divider(height: 1, color: Color(0xFFE9EEF5)),
+                _itemRecordatorio('Al día', 'aldia', Icons.check_circle),
+                const SizedBox(height: 12),
+              ],
             ),
           ),
         ),
@@ -1098,577 +829,67 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     );
   }
 
-  void _abrirMenuRecordatorio() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: false,
-      backgroundColor: Colors.transparent,
-      builder: (_) {
-        Widget _waChip(bool enabled) {
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: enabled ? const Color(0xFF22C55E) : const Color(0xFFCBD5E1),
-              borderRadius: BorderRadius.circular(999),
-              boxShadow: enabled
-                  ? [BoxShadow(color: const Color(0xFF22C55E).withOpacity(.28), blurRadius: 10, offset: const Offset(0, 4))]
-                  : [],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Opacity(opacity: enabled ? 1 : .55, child: _waIcon(size: 14)),
-                const SizedBox(width: 6),
-                Text(
-                  'WhatsApp',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: enabled ? Colors.white : const Color(0xFF334155),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-
-        Widget _premiumItem(String title, String tipo, IconData icon) {
-          final enabled = _permiteRecordatorio(tipo);
-
-          return InkWell(
-            onTap: () async {
-              Navigator.pop(context);
-              if (!enabled) {
-                _avisoNoCorresponde();
-                return;
-              }
-              final msg = _mensajeRecordatorio(tipo);
-              await _enviarPorWhatsApp(widget.telefono, msg);
-            },
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF4FF),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFDCE7FF)),
-                    ),
-                    child: Icon(icon, size: 22, color: const Color(0xFF2563EB)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Opacity(
-                      opacity: enabled ? 1 : .48,
-                      child: Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                    ),
-                  ),
-                  _waChip(enabled),
-                ],
-              ),
-            ),
-          );
-        }
-
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Container(
+  Widget _itemRecordatorio(String title, String tipo, IconData icon) {
+    final enabled = _permiteRecordatorio(tipo);
+    return InkWell(
+      onTap: () async {
+        Navigator.pop(context);
+        if (!enabled) { _avisoNoCorresponde(); return; }
+        await _enviarPorWhatsApp(widget.telefono, _mensajeRecordatorio(tipo));
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFFFDFEFF), Color(0xFFF6F8FB)],
-                ),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                border: Border.all(color: const Color(0xFFE9EEF5)),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(.18), blurRadius: 22, offset: const Offset(0, -6)),
-                ],
+                color: const Color(0xFFEFF4FF),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFDCE7FF)),
               ),
-              child: Column(
+              child: Icon(icon, size: 22, color: const Color(0xFF2563EB)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Opacity(
+                opacity: enabled ? 1 : .48,
+                child: Text(title,
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A))),
+              ),
+            ),
+            // WhatsApp chip
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 140),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: enabled
+                    ? const Color(0xFF22C55E)
+                    : const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(999),
+                boxShadow: enabled
+                    ? [BoxShadow(
+                    color: const Color(0xFF22C55E).withOpacity(.28),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4))]
+                    : [],
+              ),
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SizedBox(height: 8),
-                  Container(
-                    width: 44,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFCBD5E1),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 14),
-                    child: Row(
-                      children: [
-                        Icon(Icons.sms_rounded, color: Color(0xFF0F172A)),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Enviar recordatorio',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Divider(height: 1, color: Color(0xFFE9EEF5)),
-
-                  _premiumItem('Pago vencido', 'vencido', Icons.warning_amber_rounded),
-                  const Divider(height: 1, color: Color(0xFFE9EEF5)),
-                  _premiumItem('Vence hoy', 'hoy', Icons.event_available),
-                  const Divider(height: 1, color: Color(0xFFE9EEF5)),
-                  _premiumItem('Vence mañana', 'manana', Icons.access_time),
-                  const Divider(height: 1, color: Color(0xFFE9EEF5)),
-                  _premiumItem('Vence en 2 días', 'dos_dias', Icons.schedule),
-                  const Divider(height: 1, color: Color(0xFFE9EEF5)),
-                  _premiumItem('Al día', 'aldia', Icons.check_circle),
-
-                  const SizedBox(height: 12),
+                  Opacity(opacity: enabled ? 1 : .55, child: _waIcon(size: 14)),
+                  const SizedBox(width: 6),
+                  Text('WhatsApp',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: enabled ? Colors.white : const Color(0xFF334155))),
                 ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final labelStyle = GoogleFonts.inter(
-      fontSize: 15,
-      color: const Color(0xFF667084),
-      fontWeight: FontWeight.w600,
-      height: 1.2,
-    );
-    final valueStyle = GoogleFonts.inter(
-      fontSize: 16,
-      color: const Color(0xFF0F172A),
-      fontWeight: FontWeight.w800,
-      height: 1.2,
-      fontFeatures: const [FontFeature.tabularFigures()],
-    );
-
-    final labelInk = labelStyle.copyWith(color: const Color(0xFF0F172A));
-
-    const azul = Color(0xFF2563EB);
-    const verde = Color(0xFF22C55E);
-    final saldoColor = _saldoActual > 0 ? Colors.red : verde;
-
-    final valueBlue = valueStyle.copyWith(color: azul);
-    final valueSaldo = valueStyle.copyWith(color: saldoColor);
-    final valueGreen = valueStyle.copyWith(color: const Color(0xFF22C55E));
-    final valueInk = valueStyle.copyWith(color: const Color(0xFF0F172A));
-
-    final bool saldado = _estaSaldado;
-
-    final registrarPagoStyle = ElevatedButton.styleFrom(
-      elevation: saldado ? 0 : 2,
-      shadowColor: const Color(0xFF2563EB).withOpacity(saldado ? 0.0 : 0.35),
-      backgroundColor: saldado ? const Color(0xFF2563EB).withOpacity(0.55) : const Color(0xFF2563EB),
-      foregroundColor: Colors.white,
-      shape: const StadiumBorder(),
-      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-    );
-
-    final waButtonStyle = OutlinedButton.styleFrom(
-      side: BorderSide(
-        color: saldado ? const Color(0xFF94A3B8) : const Color(0xFF2563EB),
-        width: 2,
-      ),
-      shape: const StadiumBorder(),
-      foregroundColor: saldado ? const Color(0xFF64748B) : const Color(0xFF2563EB),
-      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-      backgroundColor: saldado ? Colors.white.withOpacity(0.92) : Colors.white,
-    );
-
-    final productoTxt = widget.producto.toLowerCase();
-    final esAlquiler = productoTxt.contains('alquiler') ||
-        productoTxt.contains('arriendo') ||
-        productoTxt.contains('renta') ||
-        productoTxt.contains('casa') ||
-        productoTxt.contains('apartamento');
-    final esProducto = !_esPrestamo && !esAlquiler;
-    final esProdOAlq = esAlquiler || esProducto;
-
-    return Scaffold(
-      body: AppGradientBackground(
-        child: Stack(
-          children: [
-            Positioned(
-              top: _logoTop,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Image.asset(
-                  'assets/images/logoB.png',
-                  height: _logoHeight,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-
-            Positioned(
-              top: _contentTop,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: AppFrame(
-                header: Center(
-                  child: Text(
-                    'Detalle del Cliente',
-                    style: GoogleFonts.playfairDisplay(
-                      textStyle: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-                ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(22),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(22),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          return SingleChildScrollView(
-                            physics: const ClampingScrollPhysics(),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min, // 👈 clave: se adapta al contenido
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    // ✨ Nombre del cliente centrado y elegante
-
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 4),
-                                      child: Center(
-                                        child: Text(
-                                          widget.nombreCompleto,
-                                          textAlign: TextAlign.center,
-                                          style: GoogleFonts.inter(
-                                            fontSize: 24,                // 🔹 un poco más grande
-                                            fontWeight: FontWeight.w900, // 🔹 fuerte y legible
-                                            color: const Color(0xFF0F172A),
-                                            letterSpacing: 0.3,
-                                            height: 1.2,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-
-
-                                    const SizedBox(height: 8),
-
-                                    // 🌟 BLOQUE PREMIUM DE DATOS DEL CLIENTE
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(18),
-                                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(0.05),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 4),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Column(
-                                        children: [
-                                          _filaInfo(Icons.phone_rounded, widget.telefono, const Color(0xFF16A34A)),
-                                          const Divider(height: 16, thickness: 0.8, color: Color(0xFFE2E8F0)),
-
-                                          if (widget.direccion != null && widget.direccion!.trim().isNotEmpty) ...[
-                                            _filaInfo(Icons.location_on_rounded, widget.direccion!, const Color(0xFFDC2626), maxLines: 2),
-                                            const Divider(height: 16, thickness: 0.8, color: Color(0xFFE2E8F0)),
-                                          ],
-
-                                          if ((_nota ?? '').isNotEmpty) ...[
-                                            _filaInfo(Icons.sticky_note_2_rounded, _nota!, const Color(0xFFF59E0B)),
-                                            const Divider(height: 16, thickness: 0.8, color: Color(0xFFE2E8F0)),
-                                          ],
-
-                                          FutureBuilder<DocumentSnapshot>(
-                                            future: FirebaseFirestore.instance
-                                                .collection('prestamistas')
-                                                .doc(FirebaseAuth.instance.currentUser?.uid)
-                                                .collection('clientes')
-                                                .doc(widget.id)
-                                                .get(),
-                                            builder: (context, snapshot) {
-                                              // 👉 Si es PRÉSTAMO, no mostrar ícono ni línea de producto
-                                              if (_esPrestamo) {
-                                                return const SizedBox.shrink();
-                                              }
-
-                                              if (!snapshot.hasData) {
-                                                return _filaInfo(_iconoProducto(), widget.producto, const Color(0xFF7C3AED));
-                                              }
-
-                                              final data = snapshot.data!.data() as Map<String, dynamic>?;
-                                              final productos = data?['productos'];
-
-                                              String productosTexto = '';
-                                              if (productos is List && productos.isNotEmpty) {
-                                                final nombres = productos.map((p) {
-                                                  if (p is Map && p.containsKey('nombre')) return p['nombre'].toString();
-                                                  return p.toString();
-                                                }).toList();
-
-                                                productosTexto = nombres.take(4).join(' / ');
-                                              } else {
-                                                productosTexto = widget.producto;
-                                              }
-
-                                              return _filaInfo(_iconoProducto(), productosTexto, const Color(0xFF7C3AED));
-                                            },
-                                          ),
-
-
-                                        ],
-                                      ),
-                                    ),
-
-
-                                    const SizedBox(height: 4),
-                                  ],
-                                ),
-
-                                const Divider(height: 24, thickness: 1, color: Color(0xFFE7E9EE)),
-
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF4FAF7),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: const Color(0xFFDDE7E1)),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                  child: Column(
-                                    children: [
-                                      if (_fechaPrimerPago != null) ...[
-                                        _rowStyled(
-                                          'Primer pago',
-                                          _fechaPrimerPago!,
-                                          labelInk,
-                                          valueStyle.copyWith(
-                                            color: const Color(0xFF0F172A),
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        ),
-
-                                      ] else ...[
-                                        _rowStyled(
-                                          'Primer pago',
-                                          'Sin registro',
-                                          labelInk,
-                                          valueStyle.copyWith(
-                                            color: const Color(0xFF0F172A),
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        ),
-                                      ],
-
-
-
-                                      const Divider(
-                                        height: 14,
-                                        thickness: 1,
-                                        color: Color(0xFFE7F0EA),
-                                      ),
-
-                                      // 🟢 Mostrar “Pago inicial” solo en Productos y si existe
-                                      if (esProducto && _pagoInicial > 0) ...[
-                                        _rowStyled(
-                                          'Pago inicial',
-                                          _rd(_pagoInicial),
-                                          labelInk,
-                                          valueStyle.copyWith(
-                                            color: const Color(0xFF059669), // verde
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        ),
-                                        const Divider(height: 14, thickness: 1, color: Color(0xFFE7F0EA)),
-                                      ],
-
-
-                                      _rowStyled(
-                                        'Saldo actual pendiente',
-                                        _rd(_saldoActual),
-                                        labelInk,
-                                        valueSaldo,
-                                      ),
-
-                                      // 👇 NUEVO: Línea Mora (solo producto/alquiler y si hay mora)
-                                      if (esProdOAlq && _moraAcumulada > 0) ...[
-                                        const Divider(height: 14, thickness: 1, color: Color(0xFFE7F0EA)),
-                                        _rowStyled(
-                                          'Mora',
-                                          _rd(_moraAcumulada),
-                                          labelInk,
-                                          valueStyle.copyWith(
-                                            color: const Color(0xFFDC2626),
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        ),
-                                      ],
-
-                                      if (_saldoActual > 0 && _esPrestamo) ...[
-                                        const Divider(height: 14, thickness: 1, color: Color(0xFFE7F0EA)),
-                                        _rowStyled(
-                                          'Interés ${widget.periodo.toLowerCase()}',
-                                          _rd((_saldoActual * (widget.tasaInteres / 100)).round()),
-                                          labelInk,
-                                          valueGreen,
-                                        ),
-                                      ],
-
-                                      if (_saldoActual > 0) ...[
-                                        const Divider(
-                                          height: 14,
-                                          thickness: 1,
-                                          color: Color(0xFFE7F0EA),
-                                        ),
-                                        _rowStyled(
-                                          'Próxima fecha',
-                                          _fmtFecha(_proximaFecha),
-                                          labelInk,
-                                          valueInk,
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-
-                                const SizedBox(height: 18),
-
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 56,
-                                  child: ElevatedButton(
-                                    style: registrarPagoStyle,
-                                    onPressed: () async {
-                                      if (saldado) {
-                                        HapticFeedback.selectionClick();
-                                        _showSaldadoBanner();
-                                        return;
-                                      }
-                                      if (_btnPagoBusy) return;
-                                      HapticFeedback.lightImpact();
-                                      setState(() => _btnPagoBusy = true);
-                                      await _registrarPagoFlow(context);
-                                      if (mounted) setState(() => _btnPagoBusy = false);
-                                    },
-                                    child: const Text('Registrar pago'),
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 56,
-                                  child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      elevation: 0,
-                                      backgroundColor: const Color(0xFF22C55E),
-                                      foregroundColor: Colors.white,
-                                      shape: const StadiumBorder(),
-                                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                                    ),
-                                    onPressed: () {
-                                      HapticFeedback.lightImpact();
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => HistorialScreen(
-                                            idCliente: widget.id,
-                                            nombreCliente: widget.nombreCompleto,
-                                            producto: widget.producto,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                    child: const Text('Ver historial'),
-                                  ),
-                                ),
-
-                                const SizedBox(height: 14),
-
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 56,
-                                  child: OutlinedButton.icon(
-                                    icon: Opacity(
-                                      opacity: saldado ? 0.55 : 1,
-                                      child: _waIcon(size: 22),
-                                    ),
-                                    label: Text(
-                                      'Enviar recordatorio por WhatsApp',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        color: saldado ? const Color(0xFF64748B) : const Color(0xFF2563EB),
-                                      ),
-                                    ),
-                                    style: waButtonStyle,
-                                    onPressed: () {
-                                      HapticFeedback.selectionClick();
-                                      if (saldado) {
-                                        _showSaldadoBanner();
-                                        return;
-                                      }
-                                      _abrirMenuRecordatorio();
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
               ),
             ),
           ],
@@ -1677,48 +898,494 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
     );
   }
 
-  Widget _rowStyled(String l, String v, TextStyle ls, TextStyle vs) {
-    return Row(
-      children: [
-        Expanded(child: Text(l, style: ls)),
-        Text(v, style: vs),
-      ],
-    );
-  }
+  // ─── BUILD ───────────────────────────────────────────────────────────────
+  @override
+  Widget build(BuildContext context) {
+    // Métricas de pantalla para responsividad
+    final screenH = MediaQuery.of(context).size.height;
+    final screenW = MediaQuery.of(context).size.width;
+    final topPad = MediaQuery.of(context).padding.top;
+    final botPad = MediaQuery.of(context).padding.bottom;
 
-  Widget _row(String label, String value) {
-    return Row(
-      children: [
-        Expanded(child: Text(label)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
-      ],
-    );
-  }
-}
-Widget _filaInfo(IconData icon, String texto, Color color, {int maxLines = 1}) {
-  return Row(
-    crossAxisAlignment: CrossAxisAlignment.center,
-    children: [
-      SizedBox(
-        width: 30, // ⬆️ ligeramente más ancho para iconos
-        child: Icon(icon, color: color, size: 20), // ⬆️ icono más visible
-      ),
-      const SizedBox(width: 8), // ⬆️ más espacio entre icono y texto
-      Expanded(
-        child: Text(
-          texto,
-          maxLines: maxLines,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontWeight: FontWeight.w800, // ⬆️ más fuerte visualmente
-            fontSize: 15.8, // ⬆️ más grande
-            color: Color(0xFF0F172A),
-            height: 1.25, // ⬆️ un poco más de aire vertical
+    // Tamaños adaptativos
+    final double logoH = (screenH * 0.38).clamp(200.0, 320.0);
+    final double logoTop = -(logoH * 0.32);
+    final double contentTop = (screenH * 0.12).clamp(90.0, 130.0);
+    final double hPad = (screenW * 0.04).clamp(12.0, 24.0);
+    final double nameFontSize = (screenW * 0.062).clamp(18.0, 26.0);
+
+    const azul = Color(0xFF2563EB);
+    const verde = Color(0xFF22C55E);
+    final saldoColor = _saldoActual > 0 ? Colors.red : verde;
+
+    final labelStyle = GoogleFonts.inter(
+        fontSize: (screenW * 0.036).clamp(13.0, 15.0),
+        color: const Color(0xFF0F172A),
+        fontWeight: FontWeight.w600,
+        height: 1.2);
+
+    final valueStyle = GoogleFonts.inter(
+        fontSize: (screenW * 0.038).clamp(14.0, 16.0),
+        color: const Color(0xFF0F172A),
+        fontWeight: FontWeight.w800,
+        height: 1.2,
+        fontFeatures: const [FontFeature.tabularFigures()]);
+
+    final bool saldado = _estaSaldado;
+
+    return WillPopScope(
+      onWillPop: () async { _onBack(); return false; },
+      child: Scaffold(
+        body: AppGradientBackground(
+          child: Stack(
+            children: [
+              // Logo de fondo
+              Positioned(
+                top: logoTop,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Center(
+                    child: Image.asset(
+                      'assets/images/logoB.png',
+                      height: logoH,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Contenido principal
+              Positioned(
+                top: contentTop,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: AppFrame(
+                  header: Center(
+                    child: Text(
+                      'Detalle del Cliente',
+                      style: GoogleFonts.playfairDisplay(
+                        textStyle: TextStyle(
+                          color: Colors.white,
+                          fontSize: (screenW * 0.058).clamp(18.0, 26.0),
+                          fontWeight: FontWeight.w600,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6))
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(22),
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(hPad, 14, hPad, 14),
+                        child: SingleChildScrollView(
+                          physics: const ClampingScrollPhysics(),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // ── Nombre ──────────────────────────────────
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                child: Center(
+                                  child: Text(
+                                    widget.nombreCompleto,
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.inter(
+                                      fontSize: nameFontSize,
+                                      fontWeight: FontWeight.w900,
+                                      color: const Color(0xFF0F172A),
+                                      letterSpacing: 0.3,
+                                      height: 1.2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 10),
+
+                              // ── Datos del cliente ────────────────────────
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(
+                                      color: const Color(0xFFE5E7EB)),
+                                  boxShadow: [
+                                    BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4))
+                                  ],
+                                ),
+                                child: Column(
+                                  children: [
+                                    _filaInfo(Icons.phone_rounded,
+                                        widget.telefono,
+                                        const Color(0xFF16A34A)),
+
+                                    if ((widget.direccion ?? '').trim().isNotEmpty) ...[
+                                      const Divider(
+                                          height: 16,
+                                          thickness: 0.8,
+                                          color: Color(0xFFE2E8F0)),
+                                      _filaInfo(Icons.location_on_rounded,
+                                          widget.direccion!,
+                                          const Color(0xFFDC2626),
+                                          maxLines: 2),
+                                    ],
+
+                                    if ((_nota ?? '').isNotEmpty) ...[
+                                      const Divider(
+                                          height: 16,
+                                          thickness: 0.8,
+                                          color: Color(0xFFE2E8F0)),
+                                      _filaInfo(Icons.sticky_note_2_rounded,
+                                          _nota!,
+                                          const Color(0xFFF59E0B),
+                                          maxLines: 3),
+                                    ],
+
+                                    if (!_esPrestamo) ...[
+                                      const Divider(
+                                          height: 16,
+                                          thickness: 0.8,
+                                          color: Color(0xFFE2E8F0)),
+                                      FutureBuilder<DocumentSnapshot>(
+                                        future: _clienteRef.get(),
+                                        builder: (context, snapshot) {
+                                          String productosTexto = widget.producto;
+                                          if (snapshot.hasData) {
+                                            final data = snapshot.data!.data()
+                                            as Map<String, dynamic>?;
+                                            final prods = data?['productos'];
+                                            if (prods is List && prods.isNotEmpty) {
+                                              productosTexto = prods
+                                                  .map((p) => p is Map &&
+                                                  p.containsKey('nombre')
+                                                  ? p['nombre'].toString()
+                                                  : p.toString())
+                                                  .take(4)
+                                                  .join(' / ');
+                                            }
+                                          }
+                                          return _filaInfo(
+                                              _iconoProducto(),
+                                              productosTexto,
+                                              const Color(0xFF7C3AED),
+                                              maxLines: 2);
+                                        },
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+
+                              const Divider(
+                                  height: 22,
+                                  thickness: 1,
+                                  color: Color(0xFFE7E9EE)),
+
+                              // ── Tabla financiera ─────────────────────────
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF4FAF7),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                      color: const Color(0xFFDDE7E1)),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 12),
+                                child: Column(
+                                  children: [
+                                    _rowStyled(
+                                      'Primer pago',
+                                      _fechaPrimerPago ?? 'Sin registro',
+                                      labelStyle,
+                                      valueStyle.copyWith(
+                                          color: const Color(0xFF0F172A),
+                                          fontWeight: FontWeight.w900),
+                                    ),
+
+                                    if (_esProducto && _pagoInicial > 0) ...[
+                                      const Divider(
+                                          height: 14,
+                                          thickness: 1,
+                                          color: Color(0xFFE7F0EA)),
+                                      _rowStyled(
+                                        'Pago inicial',
+                                        _rd(_pagoInicial),
+                                        labelStyle,
+                                        valueStyle.copyWith(
+                                            color: const Color(0xFF059669),
+                                            fontWeight: FontWeight.w900),
+                                      ),
+                                    ],
+
+                                    const Divider(
+                                        height: 14,
+                                        thickness: 1,
+                                        color: Color(0xFFE7F0EA)),
+                                    _rowStyled(
+                                      'Saldo actual pendiente',
+                                      _rd(_saldoActual),
+                                      labelStyle,
+                                      valueStyle.copyWith(color: saldoColor),
+                                    ),
+
+                                    if (_esProdOAlq && _moraAcumulada > 0) ...[
+                                      const Divider(
+                                          height: 14,
+                                          thickness: 1,
+                                          color: Color(0xFFE7F0EA)),
+                                      _rowStyled(
+                                        'Mora',
+                                        _rd(_moraAcumulada),
+                                        labelStyle,
+                                        valueStyle.copyWith(
+                                            color: const Color(0xFFDC2626),
+                                            fontWeight: FontWeight.w900),
+                                      ),
+                                    ],
+
+                                    if (_saldoActual > 0 && _esPrestamo) ...[
+                                      const Divider(
+                                          height: 14,
+                                          thickness: 1,
+                                          color: Color(0xFFE7F0EA)),
+                                      _rowStyled(
+                                        'Interés ${widget.periodo.toLowerCase()}',
+                                        _rd((_saldoActual *
+                                            (widget.tasaInteres / 100))
+                                            .round()),
+                                        labelStyle,
+                                        valueStyle.copyWith(
+                                            color: const Color(0xFF22C55E)),
+                                      ),
+                                    ],
+
+                                    if (_saldoActual > 0) ...[
+                                      const Divider(
+                                          height: 14,
+                                          thickness: 1,
+                                          color: Color(0xFFE7F0EA)),
+                                      _rowStyled(
+                                        'Próxima fecha',
+                                        _fmtFecha(_proximaFecha),
+                                        labelStyle,
+                                        valueStyle,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+
+                              SizedBox(height: (screenH * 0.022).clamp(14.0, 22.0)),
+
+                              // ── Botón Registrar pago ─────────────────────
+                              SizedBox(
+                                width: double.infinity,
+                                height: (screenH * 0.068).clamp(48.0, 58.0),
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    elevation: saldado ? 0 : 2,
+                                    shadowColor: azul.withOpacity(
+                                        saldado ? 0.0 : 0.35),
+                                    backgroundColor: saldado
+                                        ? azul.withOpacity(0.55)
+                                        : azul,
+                                    foregroundColor: Colors.white,
+                                    shape: const StadiumBorder(),
+                                    textStyle: TextStyle(
+                                        fontSize: (screenW * 0.04)
+                                            .clamp(14.0, 16.0),
+                                        fontWeight: FontWeight.w700),
+                                  ),
+                                  onPressed: () async {
+                                    if (saldado) {
+                                      HapticFeedback.selectionClick();
+                                      _showSaldadoBanner();
+                                      return;
+                                    }
+                                    if (_btnPagoBusy) return;
+                                    HapticFeedback.lightImpact();
+                                    setState(() => _btnPagoBusy = true);
+                                    await _registrarPagoFlow(context);
+                                    if (mounted) setState(() => _btnPagoBusy = false);
+                                  },
+                                  child: _btnPagoBusy
+                                      ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2.5))
+                                      : const Text('Registrar pago'),
+                                ),
+                              ),
+
+                              SizedBox(height: (screenH * 0.016).clamp(10.0, 16.0)),
+
+                              // ── Botón Ver historial ──────────────────────
+                              SizedBox(
+                                width: double.infinity,
+                                height: (screenH * 0.068).clamp(48.0, 58.0),
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    elevation: 0,
+                                    backgroundColor: verde,
+                                    foregroundColor: Colors.white,
+                                    shape: const StadiumBorder(),
+                                    textStyle: TextStyle(
+                                        fontSize: (screenW * 0.04)
+                                            .clamp(14.0, 16.0),
+                                        fontWeight: FontWeight.w700),
+                                  ),
+                                  onPressed: () {
+                                    HapticFeedback.lightImpact();
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => HistorialScreen(
+                                          idCliente: widget.id,
+                                          nombreCliente: widget.nombreCompleto,
+                                          producto: widget.producto,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text('Ver historial'),
+                                ),
+                              ),
+
+                              SizedBox(height: (screenH * 0.016).clamp(10.0, 16.0)),
+
+                              // ── Botón WhatsApp ───────────────────────────
+                              SizedBox(
+                                width: double.infinity,
+                                height: (screenH * 0.068).clamp(48.0, 58.0),
+                                child: OutlinedButton.icon(
+                                  icon: Opacity(
+                                    opacity: saldado ? 0.55 : 1,
+                                    child: _waIcon(size: 20),
+                                  ),
+                                  label: Flexible(
+                                    child: Text(
+                                      'Enviar recordatorio por WhatsApp',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: (screenW * 0.036)
+                                            .clamp(12.0, 15.0),
+                                        color: saldado
+                                            ? const Color(0xFF64748B)
+                                            : azul,
+                                      ),
+                                    ),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(
+                                        color: saldado
+                                            ? const Color(0xFF94A3B8)
+                                            : azul,
+                                        width: 2),
+                                    shape: const StadiumBorder(),
+                                    foregroundColor: saldado
+                                        ? const Color(0xFF64748B)
+                                        : azul,
+                                    backgroundColor: saldado
+                                        ? Colors.white.withOpacity(0.92)
+                                        : Colors.white,
+                                  ),
+                                  onPressed: () {
+                                    HapticFeedback.selectionClick();
+                                    if (saldado) {
+                                      _showSaldadoBanner();
+                                      return;
+                                    }
+                                    _abrirMenuRecordatorio();
+                                  },
+                                ),
+                              ),
+
+                              // Safe area bottom
+                              SizedBox(height: botPad > 0 ? botPad : 8),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
-    ],
-  );
+    );
+  }
+
+  // ─── Widgets auxiliares ──────────────────────────────────────────────────
+  Widget _rowStyled(String l, String v, TextStyle ls, TextStyle vs) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 5,
+          child: Text(l, style: ls),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          flex: 5,
+          child: Text(v,
+              style: vs,
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis),
+        ),
+      ],
+    );
+  }
+
+  Widget _filaInfo(IconData icon, String texto, Color color,
+      {int maxLines = 1}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 28,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(icon, color: color, size: 20),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            texto,
+            maxLines: maxLines,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+              color: Color(0xFF0F172A),
+              height: 1.3,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
-
-
