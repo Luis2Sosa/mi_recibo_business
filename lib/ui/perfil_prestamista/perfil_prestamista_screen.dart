@@ -134,8 +134,8 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w900,
-              fontSize: 14,      // 🔹 un punto más grande
-              letterSpacing: .3, // 🔹 más aire tipográfico
+              fontSize: 14,
+              letterSpacing: .3,
             ),
           ),
         ],
@@ -611,21 +611,17 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
               final contenido = Stack(
                 children: [
                   Padding(
-                    // ✅ SOLO margen vertical (el marco llega a los bordes)
                     padding: const EdgeInsets.only(top: 8),
                     child: Material(
-                      // ✅ EL MARCO TRANSPARENTE OCUPA TODO EL ANCHO
                       color: Colors.white.withOpacity(_Brand.glassAlpha),
                       borderRadius: BorderRadius.circular(28),
                       clipBehavior: Clip.antiAlias,
                       child: Center(
                         child: ConstrainedBox(
-                          // ✅ SOLO EL CONTENIDO SE LIMITA EN ANCHO
                           constraints: const BoxConstraints(
                             maxWidth: 520,
                           ),
                           child: Padding(
-                            // ✅ MARGEN INTERNO PARA CELULAR PEQUEÑO
                             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(28),
@@ -669,8 +665,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                 ],
               );
 
-
-              // ✅ SCROLL GLOBAL CONTROLADO (SIN OVERFLOW)
               return SingleChildScrollView(
                 child: SizedBox(
                   height: constraints.maxHeight,
@@ -692,7 +686,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Título pequeño para dar más peso visual arriba
           Text(
             'Panel de control',
             style: GoogleFonts.inter(
@@ -706,7 +699,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
           ),
           const SizedBox(height: 10),
 
-          // Grupo segmentado grande
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
@@ -734,8 +726,8 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       borderRadius: BorderRadius.circular(28),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        constraints: const BoxConstraints(minHeight: 56), // ← antes 44
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), // ← más alto
+        constraints: const BoxConstraints(minHeight: 56),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         decoration: BoxDecoration(
           color: selected ? Colors.white : Colors.white.withOpacity(0.08),
           borderRadius: BorderRadius.circular(28),
@@ -774,9 +766,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       ),
     );
   }
-
-
-
 
 
   // ==== Acciones de cuenta
@@ -998,17 +987,12 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   }
 
   // ===== GENERAL =====
-  // Agregar al inicio de _generalContent(), justo después de la firma del método:
-
   Widget _generalContent() {
-    // ✅ Detectar ancho de pantalla para escalar proporcionalmente
     final screenWidth = MediaQuery.of(context).size.width;
-    final scale = (screenWidth / 400).clamp(0.85, 1.15); // Factor de escala
+    final scale = (screenWidth / 400).clamp(0.85, 1.15);
 
-    // ✅ Función helper para escalar tamaños de texto
     double _scaledSize(double baseSize) => baseSize * scale;
 
-    // 🌟 Tarjeta Premium horizontal delgada
     Widget _categoriaCard({
       required IconData icon,
       required String title,
@@ -1120,6 +1104,9 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       mayorSaldo: mayorSaldo,
     );
 
+    // FIX 1: guard pagosMes vacío — evita crash en reduce()
+    final int maxPagoMes = pagosMes.isEmpty ? 0 : pagosMes.reduce((a, b) => a > b ? a : b);
+
     final chartsCard = Container(
       margin: const EdgeInsets.only(top: 8),
       padding: EdgeInsets.all(20 * scale),
@@ -1171,7 +1158,19 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                 ],
               ),
               padding: EdgeInsets.fromLTRB(16 * scale, 16 * scale, 16 * scale, 12 * scale),
-              child: Column(
+              child: pagosMes.isEmpty
+              // FIX 1b: si no hay datos, mostramos estado vacío en lugar de crashear
+                  ? Center(
+                child: Text(
+                  'Sin pagos registrados',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: _scaledSize(14),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              )
+                  : Column(
                 children: [
                   Container(
                     padding: EdgeInsets.symmetric(vertical: 6 * scale, horizontal: 22 * scale),
@@ -1187,7 +1186,8 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                       ],
                     ),
                     child: Text(
-                      '\$${NumberFormat("#,###", "en_US").format(pagosMes.reduce((a, b) => a > b ? a : b))}',
+                      // FIX 1c: usa maxPagoMes ya calculado con guard
+                      '\$${NumberFormat("#,###", "en_US").format(maxPagoMes)}',
                       style: TextStyle(
                         fontSize: _scaledSize(22),
                         fontWeight: FontWeight.w900,
@@ -1217,9 +1217,9 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                                 showTitles: true,
                                 reservedSize: 40 * scale,
                                 getTitlesWidget: (value, _) {
-                                  final maxPago = pagosMes.reduce((a, b) => a > b ? a : b);
-                                  final resto = maxPago % 1000;
-                                  final maxRedondeado = maxPago - resto;
+                                  // FIX 1d: usa maxPagoMes ya calculado con guard
+                                  final resto = maxPagoMes % 1000;
+                                  final maxRedondeado = maxPagoMes - resto;
                                   if (value == 0) {
                                     return Text(
                                       '0k',
@@ -1248,7 +1248,9 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                                 reservedSize: 38 * scale,
                                 getTitlesWidget: (value, _) {
                                   final idx = value.toInt();
-                                  final start = pagosMesLabels.indexOf('Nov');
+                                  // FIX 2: guard para indexOf devolviendo -1
+                                  final rawStart = pagosMesLabels.indexOf('Nov');
+                                  final start = rawStart < 0 ? 0 : rawStart;
                                   final rotado = [
                                     ...pagosMesLabels.sublist(start),
                                     ...pagosMesLabels.sublist(0, start)
@@ -1277,11 +1279,11 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                           minX: 0,
                           maxX: 5,
                           minY: 0,
+                          // FIX 1e: usa maxPagoMes ya calculado con guard
                           maxY: (() {
-                            final maxPago = pagosMes.reduce((a, b) => a > b ? a : b);
-                            final resto = maxPago % 1000;
-                            final maxRedondeado = maxPago - resto;
-                            return maxRedondeado.toDouble();
+                            final resto = maxPagoMes % 1000;
+                            final maxRedondeado = maxPagoMes - resto;
+                            return maxRedondeado > 0 ? maxRedondeado.toDouble() : 1.0;
                           })(),
                           lineBarsData: [
                             LineChartBarData(
@@ -1542,7 +1544,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         builder: (_) => GananciaPrestamoScreen(docPrest: _docPrest!),
       ),
     );
-
   }
 
   void _openGanancias() {
@@ -1558,42 +1559,33 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
       return;
     }
-
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const PanelPrestamosScreen()),
     );
-
   }
-
 
   void _openProductos() {
     if (_docPrest == null) {
       _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
       return;
     }
-
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const ProductoEstadisticaScreen()),
     );
-
   }
-
 
   void _openAlquiler() {
     if (_docPrest == null) {
       _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
       return;
     }
-
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const AlquilerEstadisticaScreen()),
     );
-
   }
-
 
   // ===== Helpers de UI
   Widget _card({required Widget child}) {
@@ -1651,7 +1643,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 15, color: Color(0xFF475569), height: 1.35),
           ),
-
           actionsAlignment: MainAxisAlignment.center,
           actions: [
             TextButton(
@@ -1729,12 +1720,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       );
     }
   }
-
-
-
-
-
-
 
   // Placeholder sin datos
   Widget _emptyChart(String t) {
@@ -1863,7 +1848,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     );
   }
 
-  // Botón de filtro premium con pill “Toca para ver” (FIX: agrega texto del pill)
+  // Botón de filtro premium con pill "Toca para ver"
   Widget _filtroBoton({
     required String label,
     required IconData icon,
@@ -1944,10 +1929,8 @@ class _MiniLineChartPainter extends CustomPainter {
       else path.lineTo(x, y);
     }
 
-    // Línea principal
     canvas.drawPath(path, paintLine);
 
-    // Puntos decorativos sutiles
     final dotPaint = Paint()..color = const Color(0xFF2563EB);
     for (int i = 0; i < values.length; i++) {
       final x = i * stepX;
@@ -2010,7 +1993,6 @@ class _DeleteDialogContentState extends State<_DeleteDialogContent>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 🗑️ Ícono del zafacón con animación suave de entrada
           ScaleTransition(
             scale: CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
             child: Container(
@@ -2100,5 +2082,3 @@ class _DeleteDialogContentState extends State<_DeleteDialogContent>
     );
   }
 }
-
-

@@ -80,7 +80,7 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
       // 🔹 Nombre del cliente
       final nombre = '${(dataCliente['nombre'] ?? '').toString()} ${(dataCliente['apellido'] ?? '').toString()}'.trim();
 
-      // 🔹 b Agregamos el cliente con SU total alquilado acumulado
+      // 🔹 Agregamos el cliente con SU total alquilado acumulado
       rows.add(_ClienteGanancia(
         id: c.id,
         nombre: nombre.isEmpty ? (dataCliente['telefono'] ?? 'Cliente') : nombre,
@@ -93,8 +93,6 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
     rows.sort((a, b) => b.ganancia.compareTo(a.ganancia));
     return rows;
   }
-
-
 
 
   // ===================== 🧱 CONSTRUCCIÓN =====================
@@ -113,7 +111,6 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
         }
 
         final esPremium = snapshot.data ?? false;
-
 
         // ✅ Si tiene Premium, mostrar la vista completa
         return Scaffold(
@@ -169,7 +166,7 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
                   );
                 }
 
-// 🚫 Si NO es Premium, mantener el diseño con bloqueo
+                // 🚫 Si NO es Premium, mantener el diseño con bloqueo
                 final visibles = list.take(1).toList();
                 final bloqueados = list.skip(1).toList();
 
@@ -221,7 +218,6 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
                     ],
                   ),
                 );
-
               },
             ),
           ),
@@ -250,7 +246,6 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
             ),
           ],
         ),
-
       ],
     );
   }
@@ -326,14 +321,20 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                e.nombre,
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+              // FIX: Expanded + maxLines + ellipsis — no overflow en pantallas pequeñas
+              Expanded(
+                child: Text(
+                  e.nombre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               const Icon(Icons.home_rounded, color: Colors.white70),
             ],
           ),
@@ -433,13 +434,11 @@ class _GananciaAlquilerScreenState extends State<GananciaAlquilerScreen> {
               child: const Icon(Icons.lock_outline_rounded,
                   color: Colors.white70, size: 26),
             ),
-
           ],
         ),
       ),
     );
   }
-
 
   // ===================== 🔹 BOTÓN FINAL =====================
   Widget _botonFinal() {

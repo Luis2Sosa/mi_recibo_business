@@ -48,11 +48,10 @@ class _GananciaProductoScreenState extends State<GananciaProductoScreen> {
     for (final c in cs.docs) {
       final data = c.data();
       final saldo = (data['saldoActual'] ?? 0) as num;
-// 🔁 Antes se ocultaban los clientes saldados, ahora los mostramos todos
+      // 🔁 Antes se ocultaban los clientes saldados, ahora los mostramos todos
 
-
-      num ganancia = (data['ganancia'] ?? data['gananciaTotal'] ?? 0) as num;
-
+      // FIX: eliminada reasignación redundante — una sola línea limpia
+      final num ganancia = (data['ganancia'] ?? data['gananciaTotal'] ?? 0) as num;
 
       final nombre =
       '${(data['nombre'] ?? '').toString()} ${(data['apellido'] ?? '').toString()}'
@@ -103,7 +102,7 @@ class _GananciaProductoScreenState extends State<GananciaProductoScreen> {
                 final list = snap.data ?? [];
                 if (list.isEmpty) return _empty();
 
-// ✅ Si el usuario es Premium, mostrar todas las tarjetas completas
+                // ✅ Si el usuario es Premium, mostrar todas las tarjetas completas
                 if (esPremium) {
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
@@ -142,7 +141,7 @@ class _GananciaProductoScreenState extends State<GananciaProductoScreen> {
                   );
                 }
 
-// 🚫 Si NO es Premium, mantener el diseño bloqueado
+                // 🚫 Si NO es Premium, mantener el diseño bloqueado
                 final visibles = list.take(1).toList();
                 final bloqueados = list.skip(1).toList();
 
@@ -223,7 +222,6 @@ class _GananciaProductoScreenState extends State<GananciaProductoScreen> {
             ),
           ],
         ),
-
       ],
     );
   }
@@ -299,14 +297,20 @@ class _GananciaProductoScreenState extends State<GananciaProductoScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                e.nombre,
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+              // FIX: Expanded + maxLines + ellipsis — no overflow en pantallas pequeñas
+              Expanded(
+                child: Text(
+                  e.nombre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               const Icon(Icons.inventory_2_rounded, color: Colors.white70),
             ],
           ),
@@ -439,8 +443,6 @@ class _GananciaProductoScreenState extends State<GananciaProductoScreen> {
       ),
     );
   }
-
-
 
   // ===================== 🔹 ESTADO VACÍO =====================
   Widget _empty() => const Center(

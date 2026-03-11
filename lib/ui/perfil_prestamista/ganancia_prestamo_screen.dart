@@ -48,8 +48,7 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
     for (final c in cs.docs) {
       final data = c.data();
       final saldo = (data['saldoActual'] ?? 0) as num;
-// 🔁 Antes se ocultaban los préstamos saldados, ahora se muestran todos
-
+      // 🔁 Antes se ocultaban los préstamos saldados, ahora se muestran todos
 
       final pagos = await c.reference.collection('pagos').get();
       num ganancia = 0;
@@ -61,8 +60,6 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
             0) as num;
         ganancia += interes;
       }
-
-
 
       final nombre =
       '${(data['nombre'] ?? '').toString()} ${(data['apellido'] ?? '').toString()}'
@@ -101,7 +98,6 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
 
         final esPremium = snapshot.data ?? false;
 
-
         // ✅ Si el usuario tiene Premium activo, mostrar pantalla normal
         return Scaffold(
           backgroundColor: _colorFondo,
@@ -117,7 +113,7 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
                 final list = snap.data ?? [];
                 if (list.isEmpty) return _empty();
 
-// ✅ Si es Premium, mostrar todas las tarjetas sin bloqueo
+                // ✅ Si es Premium, mostrar todas las tarjetas sin bloqueo
                 if (esPremium) {
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
@@ -157,7 +153,7 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
                   );
                 }
 
-// 🚫 Si no es Premium, mantener el comportamiento actual
+                // 🚫 Si no es Premium, mantener el comportamiento actual
                 final visibles = list.take(1).toList();
                 final bloqueados = list.skip(1).toList();
 
@@ -212,8 +208,6 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
     );
   }
 
-
-
   // ===================== 🔹 ENCABEZADO =====================
   Widget _encabezado() {
     return Row(
@@ -234,7 +228,6 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
             ),
           ],
         ),
-
       ],
     );
   }
@@ -280,7 +273,6 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
   }
 
   // ===================== 🔹 TARJETA CLIENTE =====================
-  // ===================== 🔹 TARJETA CLIENTE =====================
   Widget _card(_ClienteGanancia e, bool bloqueado) {
     final baseCard = Container(
       width: double.infinity,
@@ -311,14 +303,20 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                e.nombre,
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+              // FIX: Expanded + maxLines + ellipsis — no overflow en pantallas pequeñas
+              Expanded(
+                child: Text(
+                  e.nombre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               const Icon(Icons.account_balance_wallet_rounded,
                   color: Colors.white70),
             ],
@@ -428,7 +426,6 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
     );
   }
 
-
   // ===================== 🔹 BOTÓN FINAL =====================
   Widget _botonFinal() {
     return GestureDetector(
@@ -439,7 +436,6 @@ class _GananciaPrestamoScreenState extends State<GananciaPrestamoScreen> {
         decoration: BoxDecoration(
           gradient: _gradiente,
           borderRadius: BorderRadius.circular(30),
-
         ),
         child: const Center(
           child: Text(

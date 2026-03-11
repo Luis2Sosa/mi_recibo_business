@@ -150,18 +150,12 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
       // 🔹 Ordenar cronológicamente (más recientes arriba)
       movimientos.sort((a, b) => b['fecha'].compareTo(a['fecha']));
 
-      // 🔹 Tomar solo los 3 más recientes
-      ultimosMovimientos = movimientos.take(3).toList();
-
-      // 🔹 Tomar los 3 más recientes, pero permitir rotación del cliente agregado
+      // FIX 1: eliminada la primera asignación redundante — solo se hace una vez
       ultimosMovimientos = [];
-
       for (final mov in movimientos) {
-        // agregamos en orden descendente (ya están ordenados)
         ultimosMovimientos.add(mov);
         if (ultimosMovimientos.length >= 3) break;
       }
-
 
       // 🔹 Datos para gráfico
       final serie = movimientos.take(6).toList();
@@ -197,10 +191,6 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
 
 
 
-
-
-
-
   // ===================== 🔹 FORMATO MONEDA 🔹 =====================
   String _fmt(num valor) {
     final f = NumberFormat.currency(locale: 'es_DO', symbol: '\$', decimalDigits: 0);
@@ -221,135 +211,134 @@ class _PanelPrestamosScreenState extends State<PanelPrestamosScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF081633),
-      body: SafeArea(
-        bottom: false, // 👈 evita el overflow por la barra del sistema
-        child: cargando
-            ? const Center(child: CircularProgressIndicator(color: Colors.white))
-            : Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+        backgroundColor: const Color(0xFF081633),
+        body: SafeArea(
+          bottom: false, // 👈 evita el overflow por la barra del sistema
+          child: cargando
+              ? const Center(child: CircularProgressIndicator(color: Colors.white))
+              : Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
 
 
-                const SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
-                // ======== ENCABEZADO ========
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: const [
-                    Text(
-                      "📊 Rendimiento préstamo",
+                  // ======== ENCABEZADO ========
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: const [
+                      Text(
+                        "📊 Rendimiento préstamo",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 22,
+                        ),
+                      ),
+                    ],
+                  ),
+
+
+                  const SizedBox(height: 10),
+
+                  _tile("Total prestado", _fmt(totalPrestado), const Color(0xFF38BDF8)),
+                  const SizedBox(height: 10),
+                  _tile("Clientes activos", "$clientesActivos", const Color(0xFF38BDF8)),
+                  const SizedBox(height: 10),
+                  _tile("Promedio por cliente", _fmt(promedioPorCliente), const Color(0xFF38BDF8)),
+
+
+                  const SizedBox(height: 20),
+                  _graficoCard(),
+                  const SizedBox(height: 20),
+
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      "🔄 Últimos movimientos",
                       style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 22,
+                        color: Colors.white.withOpacity(0.95),
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
                       ),
-                    ),
-                  ],
-                ),
-
-
-                const SizedBox(height: 10),
-
-                _tile("Total prestado", _fmt(totalPrestado), const Color(0xFF38BDF8)),
-                const SizedBox(height: 10),
-                _tile("Clientes activos", "$clientesActivos", const Color(0xFF38BDF8)),
-                const SizedBox(height: 10),
-                _tile("Promedio por cliente", _fmt(promedioPorCliente), const Color(0xFF38BDF8)),
-
-
-                const SizedBox(height: 20),
-                _graficoCard(),
-                const SizedBox(height: 20),
-
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "🔄 Últimos movimientos",
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.95),
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                _movimientosCard(),
-                const SizedBox(height: 20),
+                  const SizedBox(height: 10),
+                  _movimientosCard(),
+                  const SizedBox(height: 20),
 
-                GestureDetector(
-                  onTap: () {
-                    final uid = _auth.currentUser!.uid;
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => GananciaPrestamoScreen(
-                          docPrest: FirebaseFirestore.instance
-                              .collection('prestamistas')
-                              .doc(uid),
-                        ),
-                      ),
-                    );
-
-                  },
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 14,
-                        horizontal: 24,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFF00E5FF),
-                            Color(0xFF007CF0),
-                            Color(0xFF4318FF),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(Icons.auto_graph_rounded, color: Colors.white, size: 22),
-                          SizedBox(width: 8),
-                          Text(
-                            "Ver ganancias por cliente",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              shadows: [
-                                Shadow(
-                                  offset: Offset(0, 1),
-                                  blurRadius: 2,
-                                  color: Colors.black54, // 👈 sombra sutil que mejora el contraste
-                                ),
-                              ],
-                            ),
+                  GestureDetector(
+                    onTap: () {
+                      // FIX 2: usar uid ya declarado arriba en lugar de redeclarar con !
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => GananciaPrestamoScreen(
+                            docPrest: FirebaseFirestore.instance
+                                .collection('prestamistas')
+                                .doc(uid),
                           ),
+                        ),
+                      );
+                    },
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                          horizontal: 24,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              Color(0xFF00E5FF),
+                              Color(0xFF007CF0),
+                              Color(0xFF4318FF),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(30),
+                          boxShadow: [
 
-                        ],
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(Icons.auto_graph_rounded, color: Colors.white, size: 22),
+                            SizedBox(width: 8),
+                            Text(
+                              "Ver ganancias por cliente",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                shadows: [
+                                  Shadow(
+                                    offset: Offset(0, 1),
+                                    blurRadius: 2,
+                                    color: Colors.black54,
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                          ],
+                        ),
                       ),
                     ),
-                  ),
 
-                ),
-                const SizedBox(height: 40),
-              ],
+                  ),
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
           ),
-      ),
-      )
+        )
     );
   }
 
@@ -709,5 +698,3 @@ class _AnimatedGrowthBackgroundVisible extends StatelessWidget {
     );
   }
 }
-
-
