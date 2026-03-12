@@ -9,7 +9,7 @@ import 'package:mi_recibo/ui/perfil_prestamista/premium_boosts_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:ui';
 
-import 'analisis_financiero_screen.dart'; // 👈 importante para el desenfoque
+import 'analisis_financiero_screen.dart';
 
 
 class GananciasScreen extends StatefulWidget {
@@ -25,6 +25,8 @@ class _GananciasScreenState extends State<GananciasScreen>
   final FirebaseAuth _auth = FirebaseAuth.instance;
   int _displayedTotal = 0;
   bool _reiniciarGrafico = false;
+  // FIX: flag para evitar múltiples Timer.periodic corriendo en paralelo
+  bool _animating = false;
   List<int> pagosMes = [];
   List<String> pagosMesLabels = [];
 
@@ -107,10 +109,32 @@ class _GananciasScreenState extends State<GananciasScreen>
     super.dispose();
   }
 
+  // FIX: formato correcto — sin replaceAll que invertía separadores
   String _rd(int v) {
-    final f = NumberFormat.decimalPattern('es');
-    final formatted = f.format(v);
-    return formatted.replaceAll('.', ',');
+    final f = NumberFormat('#,###', 'en_US');
+    return f.format(v);
+  }
+
+  // FIX: animación de contador extraída aquí para evitar Timer en build()
+  void _animarHacia(int target) {
+    if (_animating) return; // evita múltiples timers en paralelo
+    _animating = true;
+    Timer.periodic(const Duration(milliseconds: 30), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        _animating = false;
+        return;
+      }
+      setState(() {
+        if (_displayedTotal < target) {
+          _displayedTotal += ((target - _displayedTotal) / 6).ceil();
+        } else {
+          _displayedTotal = target;
+          timer.cancel();
+          _animating = false;
+        }
+      });
+    });
   }
 
   Future<void> _borrarGananciasTotales() async {
@@ -133,10 +157,8 @@ class _GananciasScreenState extends State<GananciasScreen>
         .doc('totales')
         .set({'totalGanancia': 0}, SetOptions(merge: true));
 
-
     if (!mounted) return;
 
-// Banner premium elegante con blur y sin líneas amarillas
     final overlay = Overlay.of(context);
     late OverlayEntry entry;
 
@@ -160,7 +182,8 @@ class _GananciasScreenState extends State<GananciasScreen>
                       filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
                       child: Container(
                         width: MediaQuery.of(context).size.width * 0.85,
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 14),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(22),
                           gradient: LinearGradient(
@@ -185,16 +208,16 @@ class _GananciasScreenState extends State<GananciasScreen>
                           children: [
                             const Icon(
                               Icons.check_circle_rounded,
-                              color: Color(0xFF22C55E), // ✅ verde éxito (se nota más sobre el fondo oscuro)
+                              color: Color(0xFF22C55E),
                               size: 22,
                             ),
                             const SizedBox(width: 10),
-                            Flexible(
+                            const Flexible(
                               child: Text(
                                 'Ganancias totales reiniciadas correctamente',
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Color(0xFF22C55E), // ✅ mismo verde, coherente y elegante
+                                style: TextStyle(
+                                  color: Color(0xFF22C55E),
                                   fontWeight: FontWeight.w800,
                                   fontSize: 15,
                                   letterSpacing: 0.2,
@@ -202,7 +225,6 @@ class _GananciasScreenState extends State<GananciasScreen>
                                 ),
                               ),
                             ),
-
                           ],
                         ),
                       ),
@@ -216,17 +238,15 @@ class _GananciasScreenState extends State<GananciasScreen>
       },
     );
 
-// Mostrar de inmediato y quitar tras 3 segundos
     overlay.insert(entry);
     Future.delayed(const Duration(seconds: 3), () {
       entry.remove();
     });
 
-
-
     if (mounted) {
       setState(() {
         _displayedTotal = 0;
+        _animating = false; // resetea flag para que la animación pueda volver a correr
         _reiniciarGrafico = true;
       });
     }
@@ -236,17 +256,15 @@ class _GananciasScreenState extends State<GananciasScreen>
     final overlay = Overlay.of(context);
     late OverlayEntry entry;
 
-    // Controlador que escucha el botón atrás
     entry = OverlayEntry(
       builder: (context) {
         return PopScope(
           canPop: false,
           onPopInvoked: (didPop) {
-            entry.remove(); // 🔹 Se quita cuando el usuario da atrás
+            entry.remove();
           },
           child: Stack(
             children: [
-              // Fondo oscuro con blur
               GestureDetector(
                 onTap: () => entry.remove(),
                 child: BackdropFilter(
@@ -254,8 +272,6 @@ class _GananciasScreenState extends State<GananciasScreen>
                   child: Container(color: Colors.black.withOpacity(0.55)),
                 ),
               ),
-
-              // Banner premium
               Center(
                 child: TweenAnimationBuilder<double>(
                   tween: Tween(begin: 0.92, end: 1),
@@ -266,7 +282,8 @@ class _GananciasScreenState extends State<GananciasScreen>
                       scale: scale,
                       child: Container(
                         width: MediaQuery.of(context).size.width * 0.85,
-                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 30),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 28, vertical: 30),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(28),
                           gradient: LinearGradient(
@@ -293,19 +310,22 @@ class _GananciasScreenState extends State<GananciasScreen>
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Ícono dorado
                             Container(
                               padding: const EdgeInsets.all(18),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: const LinearGradient(
-                                  colors: [Color(0xFFFFD700), Color(0xFFFFB347)],
+                                  colors: [
+                                    Color(0xFFFFD700),
+                                    Color(0xFFFFB347)
+                                  ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.yellowAccent.withOpacity(0.35),
+                                    color:
+                                    Colors.yellowAccent.withOpacity(0.35),
                                     blurRadius: 18,
                                     offset: const Offset(0, 6),
                                   ),
@@ -317,7 +337,6 @@ class _GananciasScreenState extends State<GananciasScreen>
                                 size: 46,
                               ),
                             ),
-
                             const SizedBox(height: 22),
                             Text(
                               'Confirmar reinicio de ganancias',
@@ -343,18 +362,19 @@ class _GananciasScreenState extends State<GananciasScreen>
                               ),
                             ),
                             const SizedBox(height: 30),
-
-                            // Botones
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment:
+                              MainAxisAlignment.spaceBetween,
                               children: [
                                 Expanded(
                                   child: ElevatedButton(
                                     style: ElevatedButton.styleFrom(
                                       elevation: 0,
-                                      backgroundColor: Colors.white.withOpacity(0.07),
+                                      backgroundColor:
+                                      Colors.white.withOpacity(0.07),
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(18),
+                                        borderRadius:
+                                        BorderRadius.circular(18),
                                         side: BorderSide(
                                           color: Colors.white.withOpacity(0.15),
                                           width: 1.2,
@@ -383,11 +403,13 @@ class _GananciasScreenState extends State<GananciasScreen>
                                       padding: const EdgeInsets.symmetric(
                                           vertical: 14, horizontal: 18),
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(18),
+                                        borderRadius:
+                                        BorderRadius.circular(18),
                                       ),
-                                      backgroundColor: const Color(0xFFFFD700),
-                                      shadowColor:
-                                      const Color(0xFFFFD700).withOpacity(0.4),
+                                      backgroundColor:
+                                      const Color(0xFFFFD700),
+                                      shadowColor: const Color(0xFFFFD700)
+                                          .withOpacity(0.4),
                                     ),
                                     onPressed: () async {
                                       entry.remove();
@@ -422,7 +444,6 @@ class _GananciasScreenState extends State<GananciasScreen>
     overlay.insert(entry);
   }
 
-
   @override
   Widget build(BuildContext context) {
     final user = _auth.currentUser;
@@ -430,24 +451,27 @@ class _GananciasScreenState extends State<GananciasScreen>
 
     final db = FirebaseFirestore.instance;
 
+    // FIX: escalar fontSize del balance según ancho de pantalla
+    final screenW = MediaQuery.of(context).size.width;
+    final balanceFontSize = (screenW * 0.115).clamp(34.0, 52.0);
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        automaticallyImplyLeading: false,   // 👈 IMPORTANTE
-        centerTitle: true,                   // 👈 CENTRADO
-        title: Text(
+        automaticallyImplyLeading: false,
+        centerTitle: true,
+        title: const Text(
           'Ganancias Totales',
           style: TextStyle(
             fontWeight: FontWeight.w900,
             color: Colors.white,
-            fontSize: 20,                    // 🔥 un poquito más grande
-            letterSpacing: 0.3,              // 🔥 más elegante
+            fontSize: 20,
+            letterSpacing: 0.3,
           ),
         ),
       ),
-
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -478,9 +502,7 @@ class _GananciasScreenState extends State<GananciasScreen>
                     child: CircularProgressIndicator(color: Colors.white));
               }
 
-              int ganPrestamo = 0,
-                  ganProducto = 0,
-                  ganAlquiler = 0;
+              int ganPrestamo = 0, ganProducto = 0, ganAlquiler = 0;
               for (var doc in snap.data!) {
                 final data = doc.data() as Map<String, dynamic>? ?? {};
                 if (doc.id == 'prestamo') ganPrestamo = data['gananciaNeta'] ?? 0;
@@ -490,18 +512,9 @@ class _GananciasScreenState extends State<GananciasScreen>
 
               final total = ganPrestamo + ganProducto + ganAlquiler;
 
-              if (_displayedTotal != total) {
-                Timer.periodic(const Duration(milliseconds: 30), (timer) {
-                  setState(() {
-                    if (_displayedTotal < total) {
-                      _displayedTotal +=
-                          ((total - _displayedTotal) / 6).ceil();
-                    } else {
-                      _displayedTotal = total;
-                      timer.cancel();
-                    }
-                  });
-                });
+              // FIX: solo inicia la animación si no hay una corriendo ya
+              if (_displayedTotal != total && !_animating) {
+                _animarHacia(total);
               }
 
               return FadeTransition(
@@ -509,24 +522,23 @@ class _GananciasScreenState extends State<GananciasScreen>
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     return SingleChildScrollView(
-                      physics: const ClampingScrollPhysics(), // ✅ SCROLL PROFESIONAL ANDROID
-
+                      physics: const ClampingScrollPhysics(),
                       child: ConstrainedBox(
-                        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                        constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight),
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+                          padding:
+                          const EdgeInsets.fromLTRB(20, 10, 20, 24),
                           child: Column(
-
-                          mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              // PANEL SUPERIOR — NUEVO DISEÑO PREMIUM MINIMALISTA
+                              // PANEL SUPERIOR
                               Container(
                                 width: double.infinity,
-                                padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 28, horizontal: 20),
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(20),
-
-                                  // 🎨 Fondo sobrio y elegante
                                   gradient: const LinearGradient(
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
@@ -535,14 +547,10 @@ class _GananciasScreenState extends State<GananciasScreen>
                                       Color(0xFF182A5C),
                                     ],
                                   ),
-
-                                  // 🎨 Borde suave profesional
                                   border: Border.all(
                                     color: Colors.white.withOpacity(0.08),
                                     width: 1.2,
                                   ),
-
-                                  // 🎨 Sombra premium suave
                                   boxShadow: [
                                     BoxShadow(
                                       color: Colors.black.withOpacity(0.40),
@@ -551,11 +559,10 @@ class _GananciasScreenState extends State<GananciasScreen>
                                     ),
                                   ],
                                 ),
-
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  crossAxisAlignment:
+                                  CrossAxisAlignment.center,
                                   children: [
-                                    // 📌 Título
                                     Text(
                                       'Balance Total',
                                       style: GoogleFonts.poppins(
@@ -564,46 +571,48 @@ class _GananciasScreenState extends State<GananciasScreen>
                                         fontSize: 15,
                                       ),
                                     ),
-
                                     const SizedBox(height: 10),
-
-                                    // 📌 MONTO con degradado premium
+                                    // FIX: fontSize escalado según ancho de pantalla
                                     ShaderMask(
-                                      shaderCallback: (bounds) => const LinearGradient(
-                                        colors: [
-                                          Color(0xFF00E7D6), // Turquesa premium
-                                          Color(0xFF00A8FF), // Azul financiero
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ).createShader(bounds),
+                                      shaderCallback: (bounds) =>
+                                          const LinearGradient(
+                                            colors: [
+                                              Color(0xFF00E7D6),
+                                              Color(0xFF00A8FF),
+                                            ],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ).createShader(bounds),
                                       blendMode: BlendMode.srcIn,
                                       child: Text(
                                         "\$${_rd(_displayedTotal)}",
                                         style: GoogleFonts.poppins(
-                                          fontSize: 48,
+                                          fontSize: balanceFontSize,
                                           fontWeight: FontWeight.w900,
-                                          color: Colors.white, // requerido para el ShaderMask
+                                          color: Colors.white,
                                           letterSpacing: -1,
                                         ),
                                       ),
                                     ),
-
                                     const SizedBox(height: 14),
-
-                                    // 📌 Chip “En crecimiento” minimalista
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 7),
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.10),
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(color: Colors.white.withOpacity(0.20)),
+                                        color:
+                                        Colors.white.withOpacity(0.10),
+                                        borderRadius:
+                                        BorderRadius.circular(16),
+                                        border: Border.all(
+                                            color: Colors.white
+                                                .withOpacity(0.20)),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: const [
                                           Icon(Icons.trending_up_rounded,
-                                              color: Colors.greenAccent, size: 18),
+                                              color: Colors.greenAccent,
+                                              size: 18),
                                           SizedBox(width: 5),
                                           Text(
                                             'En crecimiento',
@@ -620,52 +629,61 @@ class _GananciasScreenState extends State<GananciasScreen>
                                 ),
                               ),
 
-
                               const SizedBox(height: 25),
 
                               // KPIs
                               Row(
                                 children: [
                                   Expanded(
-                                      child: _kpi('Préstamos', ganPrestamo, Colors.blueAccent)),
+                                      child: _kpi('Préstamos', ganPrestamo,
+                                          Colors.blueAccent)),
                                   const SizedBox(width: 10),
                                   Expanded(
-                                      child: _kpi('Productos', ganProducto, Colors.tealAccent)),
+                                      child: _kpi('Productos', ganProducto,
+                                          Colors.tealAccent)),
                                   const SizedBox(width: 10),
                                   Expanded(
-                                      child: _kpi('Alquiler', ganAlquiler, Colors.orangeAccent)),
+                                      child: _kpi('Alquiler', ganAlquiler,
+                                          Colors.orangeAccent)),
                                 ],
                               ),
 
                               const SizedBox(height: 30),
 
-                              // PREMIUM CARD
                               _premiumCard(),
 
                               const SizedBox(height: 35),
 
-                              // BOTÓN DISCRETO PREMIUM
                               Builder(
                                 builder: (context) {
-                                  final h = MediaQuery.of(context).size.height;
-                                  final esPequeno = h < 750; // 👈 mismo criterio que usas arriba
+                                  final h =
+                                      MediaQuery.of(context).size.height;
+                                  final esPequeno = h < 750;
 
                                   return Transform.translate(
-                                    offset: Offset(0, esPequeno ? -22 : 0), // ✅ SUBE SOLO EN PEQUEÑOS
+                                    offset: Offset(
+                                        0, esPequeno ? -22 : 0),
                                     child: ElevatedButton.icon(
-                                      onPressed: _mostrarBannerConfirmacion,
-                                      icon: const Icon(Icons.delete_outline_rounded,
-                                          color: Colors.white70, size: 18),
-                                      label: const Text('Borrar ganancias totales'),
+                                      onPressed:
+                                      _mostrarBannerConfirmacion,
+                                      icon: const Icon(
+                                          Icons.delete_outline_rounded,
+                                          color: Colors.white70,
+                                          size: 18),
+                                      label: const Text(
+                                          'Borrar ganancias totales'),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.white.withOpacity(0.08),
+                                        backgroundColor:
+                                        Colors.white.withOpacity(0.08),
                                         foregroundColor: Colors.white70,
                                         shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(18)),
+                                            borderRadius:
+                                            BorderRadius.circular(18)),
                                         padding: const EdgeInsets.symmetric(
                                             horizontal: 20, vertical: 12),
                                         textStyle: const TextStyle(
-                                            fontWeight: FontWeight.w600, fontSize: 13),
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 13),
                                         elevation: 0,
                                       ),
                                     ),
@@ -693,7 +711,6 @@ class _GananciasScreenState extends State<GananciasScreen>
                   },
                 ),
               );
-
             },
           ),
         ),
@@ -725,14 +742,26 @@ class _GananciasScreenState extends State<GananciasScreen>
       ),
       child: Column(
         children: [
-          Text("\$${_rd(value)}",
+          // FIX: maxLines + ellipsis para evitar overflow en pantallas angostas
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Text(
+              "\$${_rd(value)}",
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: GoogleFonts.poppins(
-                  color: color, fontWeight: FontWeight.w800, fontSize: 17)),
-          Text(label,
-              style: GoogleFonts.inter(
-                  color: Colors.white.withOpacity(.8),
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12)),
+                  color: color,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 17),
+            ),
+          ),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+                color: Colors.white.withOpacity(.8),
+                fontWeight: FontWeight.w600,
+                fontSize: 12),
+          ),
         ],
       ),
     );
@@ -745,11 +774,11 @@ class _GananciasScreenState extends State<GananciasScreen>
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => AnalisisFinancieroScreen(docPrest: widget.docPrest),
+            builder: (_) =>
+                AnalisisFinancieroScreen(docPrest: widget.docPrest),
           ),
         );
       },
-
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
@@ -763,7 +792,8 @@ class _GananciasScreenState extends State<GananciasScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          border: Border.all(color: Colors.white.withOpacity(0.1), width: 1.2),
+          border: Border.all(
+              color: Colors.white.withOpacity(0.1), width: 1.2),
           boxShadow: [
             BoxShadow(
               color: Colors.blueAccent.withOpacity(0.25),
@@ -780,7 +810,8 @@ class _GananciasScreenState extends State<GananciasScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: const Color(0xFFFFD700).withOpacity(0.15),
-                border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.5)),
+                border: Border.all(
+                    color: const Color(0xFFFFD700).withOpacity(0.5)),
               ),
               child: const Icon(
                 Icons.workspace_premium_rounded,
@@ -810,7 +841,8 @@ class _GananciasScreenState extends State<GananciasScreen>
             ),
             const SizedBox(height: 18),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 20, vertical: 10),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 gradient: const LinearGradient(
@@ -842,11 +874,9 @@ class _GananciasScreenState extends State<GananciasScreen>
                 ],
               ),
             ),
-
           ],
         ),
       ),
     );
   }
-
 }

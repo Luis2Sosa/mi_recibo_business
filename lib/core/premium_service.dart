@@ -9,13 +9,14 @@ class PremiumService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final InAppPurchase _iap = InAppPurchase.instance;
 
-  // ✅ ID REAL DEL PLAN EN GOOGLE PLAY
   static const String _productId = 'premium-mensual';
 
-  late StreamSubscription<List<PurchaseDetails>> _subscription;
+  // FIX: nullable en lugar de late — evita LateInitializationError si
+  // cerrarListener() se llama antes de iniciarListenerCompras()
+  StreamSubscription<List<PurchaseDetails>>? _subscription;
 
   // ===============================
-  // ✅ INICIAR ESCUCHA DE COMPRAS
+  // INICIAR ESCUCHA DE COMPRAS
   // ===============================
   void iniciarListenerCompras(BuildContext context) {
     _subscription = _iap.purchaseStream.listen(
@@ -24,7 +25,7 @@ class PremiumService {
           _procesarCompra(context, purchase);
         }
       },
-      onDone: () => _subscription.cancel(),
+      onDone: () => _subscription?.cancel(),
       onError: (error) {
         print('❌ Error compra: $error');
       },
@@ -32,7 +33,7 @@ class PremiumService {
   }
 
   // ===============================
-  // ✅ VERIFICAR PREMIUM (una sola vez)
+  // VERIFICAR PREMIUM (una sola vez)
   // ===============================
   Future<bool> esPremiumActivo(String uid) async {
     try {
@@ -60,7 +61,7 @@ class PremiumService {
   }
 
   // ===============================
-  // ✅ STREAM EN TIEMPO REAL DEL ESTADO PREMIUM
+  // STREAM EN TIEMPO REAL DEL ESTADO PREMIUM
   // ===============================
   Stream<bool> streamEstadoPremium(String uid) {
     return _db
@@ -85,7 +86,7 @@ class PremiumService {
   }
 
   // ===============================
-  // ✅ ACTIVAR PREMUM REAL (GOOGLE PLAY)
+  // ACTIVAR PREMIUM REAL (GOOGLE PLAY)
   // ===============================
   Future<void> activarPremium(BuildContext context) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -114,16 +115,12 @@ class PremiumService {
     }
 
     final ProductDetails product = response.productDetails.first;
-
-    final PurchaseParam purchaseParam =
-    PurchaseParam(productDetails: product);
-
-    // ✅ LANZA EL POPUP REAL DE GOOGLE
+    final PurchaseParam purchaseParam = PurchaseParam(productDetails: product);
     _iap.buyNonConsumable(purchaseParam: purchaseParam);
   }
 
   // ===============================
-  // ✅ PROCESAR COMPRA CONFIRMADA POR GOOGLE
+  // PROCESAR COMPRA CONFIRMADA POR GOOGLE
   // ===============================
   Future<void> _procesarCompra(
       BuildContext context,
@@ -178,7 +175,7 @@ class PremiumService {
   }
 
   // ===============================
-  // ✅ DESACTIVAR PREMIUM
+  // DESACTIVAR PREMIUM
   // ===============================
   Future<void> desactivarPremium(String uid) async {
     await _db
@@ -193,7 +190,7 @@ class PremiumService {
   }
 
   // ===============================
-  // ✅ BANNER PROFESIONAL
+  // BANNER PROFESIONAL
   // ===============================
   void _mostrarBanner(
       BuildContext context, {
@@ -221,9 +218,10 @@ class PremiumService {
   }
 
   // ===============================
-  // ✅ CERRAR LISTENER
+  // CERRAR LISTENER
   // ===============================
   void cerrarListener() {
-    _subscription.cancel();
+    // FIX: uso de ?. — seguro aunque iniciarListenerCompras() nunca fue llamado
+    _subscription?.cancel();
   }
 }

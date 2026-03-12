@@ -8,14 +8,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PantallaBienvenidaPremium extends StatefulWidget {
   final DocumentReference<Map<String, dynamic>> docPrest;
-  final String destino; // 👈 agregamos esto
+  final String destino;
 
   const PantallaBienvenidaPremium({
     super.key,
     required this.docPrest,
     required this.destino,
   });
-
 
   @override
   State<PantallaBienvenidaPremium> createState() =>
@@ -33,22 +32,24 @@ class _PantallaBienvenidaPremiumState extends State<PantallaBienvenidaPremium>
   void initState() {
     super.initState();
 
-    // Control de partículas suaves
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 12),
     )..repeat();
 
-    // Simula progreso real
-    _timer = Timer.periodic(const Duration(milliseconds: 10), (timer) {
+    // FIX: 20ms en lugar de 10ms — 50fps es suficiente para una barra de progreso
+    // y reduce a la mitad los rebuilds durante la animación
+    _timer = Timer.periodic(const Duration(milliseconds: 20), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       if (_progress < 1.0) {
         setState(() {
-          _progress += 0.01;
+          _progress = (_progress + 0.01).clamp(0.0, 1.0);
         });
       } else {
-        setState(() {
-          _mostrarBoton = true;
-        });
+        setState(() => _mostrarBoton = true);
         timer.cancel();
       }
     });
@@ -67,10 +68,10 @@ class _PantallaBienvenidaPremiumState extends State<PantallaBienvenidaPremium>
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: const Color(0xFF0A0F1F), // 🌌 FONDO FIJO GALÁXIA
+      backgroundColor: const Color(0xFF0A0F1F),
       body: Stack(
         children: [
-          // ✨ Partículas flotando lentas
+          // Partículas flotando
           AnimatedBuilder(
             animation: _controller,
             builder: (_, __) {
@@ -81,14 +82,14 @@ class _PantallaBienvenidaPremiumState extends State<PantallaBienvenidaPremium>
             },
           ),
 
-          // 🌟 Contenido central
+          // Contenido central
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // 🔸 Ícono Premium central
+                  // Ícono Premium
                   Container(
                     width: 120,
                     height: 120,
@@ -119,7 +120,6 @@ class _PantallaBienvenidaPremiumState extends State<PantallaBienvenidaPremium>
 
                   const SizedBox(height: 30),
 
-                  // 🏆 Título
                   Text(
                     'Bienvenido a Mi Recibo Premium',
                     textAlign: TextAlign.center,
@@ -133,7 +133,6 @@ class _PantallaBienvenidaPremiumState extends State<PantallaBienvenidaPremium>
 
                   const SizedBox(height: 12),
 
-                  // ✨ Subtítulo
                   Text(
                     'Disfruta de un entorno sin anuncios, acceso total a tus estadísticas y estrategias financieras exclusivas.',
                     textAlign: TextAlign.center,
@@ -147,7 +146,7 @@ class _PantallaBienvenidaPremiumState extends State<PantallaBienvenidaPremium>
 
                   const SizedBox(height: 50),
 
-                  // 💫 Tarjeta con progreso
+                  // Tarjeta con progreso
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(22),
@@ -214,54 +213,60 @@ class _PantallaBienvenidaPremiumState extends State<PantallaBienvenidaPremium>
 
                   const SizedBox(height: 60),
 
-                  // 🔘 Botón aparece al 100%
-                  AnimatedOpacity(
-                    opacity: _mostrarBoton ? 1 : 0,
-                    duration: const Duration(milliseconds: 800),
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                GananciasScreen(docPrest: widget.docPrest),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        width: width * 0.7,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(45),
-                          gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFFFFD700),
-                              Color(0xFFF4C10F),
-                              Color(0xFFE0AA3E),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.amber.withOpacity(0.4),
-                              blurRadius: 15,
-                              offset: const Offset(0, 6),
+                  // FIX: IgnorePointer bloquea taps mientras el botón es invisible
+                  // AnimatedOpacity solo oculta visualmente; sin esto el área
+                  // seguía siendo tappeable con opacidad 0
+                  IgnorePointer(
+                    ignoring: !_mostrarBoton,
+                    child: AnimatedOpacity(
+                      opacity: _mostrarBoton ? 1 : 0,
+                      duration: const Duration(milliseconds: 800),
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  GananciasScreen(docPrest: widget.docPrest),
                             ),
-                          ],
-                        ),
-                        child: Text(
-                          'Continuar',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(
-                            color: Colors.black,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 16,
+                          );
+                        },
+                        child: Container(
+                          width: width * 0.7,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(45),
+                            gradient: const LinearGradient(
+                              colors: [
+                                Color(0xFFFFD700),
+                                Color(0xFFF4C10F),
+                                Color(0xFFE0AA3E),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.amber.withOpacity(0.4),
+                                blurRadius: 15,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            'Continuar',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(
+                              color: Colors.black,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 30),
                 ],
               ),
@@ -274,7 +279,7 @@ class _PantallaBienvenidaPremiumState extends State<PantallaBienvenidaPremium>
 }
 
 // ==========================================================
-// 🌌 PINTOR GALÁCTICO DE PARTÍCULAS PREMIUM (FONDO FIJO)
+// PINTOR GALÁCTICO DE PARTÍCULAS
 // ==========================================================
 class _GalaxyPainter extends CustomPainter {
   final double progress;

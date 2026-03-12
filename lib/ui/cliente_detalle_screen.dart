@@ -221,7 +221,11 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
   // ─── Firestore helpers ───────────────────────────────────────────────────
   DocumentReference<Map<String, dynamic>> get _clienteRef {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
+    // FIX: currentUser?.uid con guard en lugar de currentUser!.uid
+    // Si la sesión expira con el widget abierto, el force-unwrap lanzaba
+    // "Null check operator used on a null value"
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) throw Exception('Usuario no autenticado');
     return FirebaseFirestore.instance
         .collection('prestamistas')
         .doc(uid)
@@ -863,7 +867,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                         color: Color(0xFF0F172A))),
               ),
             ),
-            // WhatsApp chip
             AnimatedContainer(
               duration: const Duration(milliseconds: 140),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -901,13 +904,11 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   // ─── BUILD ───────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    // Métricas de pantalla para responsividad
     final screenH = MediaQuery.of(context).size.height;
     final screenW = MediaQuery.of(context).size.width;
     final topPad = MediaQuery.of(context).padding.top;
     final botPad = MediaQuery.of(context).padding.bottom;
 
-    // Tamaños adaptativos
     final double logoH = (screenH * 0.38).clamp(200.0, 320.0);
     final double logoTop = -(logoH * 0.32);
     final double contentTop = (screenH * 0.12).clamp(90.0, 130.0);
@@ -933,8 +934,14 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
 
     final bool saldado = _estaSaldado;
 
-    return WillPopScope(
-      onWillPop: () async { _onBack(); return false; },
+    // FIX: PopScope en lugar de WillPopScope (deprecado en Flutter 3.12+)
+    // WillPopScope podía ignorar el back gesture de iOS en versiones recientes
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        _onBack();
+      },
       child: Scaffold(
         body: AppGradientBackground(
           child: Stack(
@@ -1064,7 +1071,9 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                           height: 16,
                                           thickness: 0.8,
                                           color: Color(0xFFE2E8F0)),
+                                      // FutureBuilder con key para evitar re-fetch en cada rebuild
                                       FutureBuilder<DocumentSnapshot>(
+                                        key: ValueKey(widget.id),
                                         future: _clienteRef.get(),
                                         builder: (context, snapshot) {
                                           String productosTexto = widget.producto;
@@ -1321,7 +1330,6 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                                 ),
                               ),
 
-                              // Safe area bottom
                               SizedBox(height: botPad > 0 ? botPad : 8),
                             ],
                           ),

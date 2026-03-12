@@ -28,27 +28,35 @@ class _PantallaBloqueoPremiumState extends State<PantallaBloqueoPremium> {
   void initState() {
     super.initState();
 
-    // ✅ 1) INICIAR LISTENER DE COMPRAS (OBLIGATORIO)
-    _premiumService.iniciarListenerCompras(context);
+    // FIX: iniciarListenerCompras movido a addPostFrameCallback
+    // En initState el widget aún no está en el árbol — si el método usa
+    // Navigator, showDialog o Provider.of, llamarlo aquí puede crashear
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _premiumService.iniciarListenerCompras(context);
+    });
 
-    // ✅ 2) VERIFICAR SI YA ES PREMIUM
     _verificarPremium();
   }
 
-  /// 🔹 Verifica si el usuario ya es Premium al abrir la pantalla
   Future<void> _verificarPremium() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+    if (uid == null) {
+      if (mounted) setState(() => _cargando = false);
+      return;
+    }
 
     final activo = await _premiumService.esPremiumActivo(uid);
     if (!mounted) return;
 
     if (activo) {
-      // 🚀 Ya tiene Premium → ir directo a Ganancias
       final docRef =
       FirebaseFirestore.instance.collection('prestamistas').doc(uid);
 
+      // FIX: mounted check dentro del callback — el widget puede desmontarse
+      // entre el await y la ejecución del postFrameCallback
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -57,7 +65,6 @@ class _PantallaBloqueoPremiumState extends State<PantallaBloqueoPremium> {
         );
       });
     } else {
-      // ❌ No tiene Premium → mostrar pantalla normal
       setState(() => _cargando = false);
     }
   }
@@ -107,7 +114,7 @@ class _PantallaBloqueoPremiumState extends State<PantallaBloqueoPremium> {
                   children: [
                     const SizedBox(height: 20),
 
-                    // 🌟 Ícono Premium
+                    // Ícono Premium
                     Container(
                       width: 110,
                       height: 110,
@@ -195,16 +202,19 @@ class _PantallaBloqueoPremiumState extends State<PantallaBloqueoPremium> {
 
                     const SizedBox(height: 28),
 
-                    // 🔘 Botón Premium
+                    // Botón Premium
                     GestureDetector(
                       onTap: () async {
                         await Future.delayed(
                             const Duration(milliseconds: 300));
+                        if (!mounted) return;
+
                         final uid = FirebaseAuth.instance.currentUser?.uid;
                         if (uid == null) return;
 
                         final yaPremium =
                         await _premiumService.esPremiumActivo(uid);
+                        if (!mounted) return;
 
                         if (yaPremium) {
                           final docRef = FirebaseFirestore.instance
@@ -281,7 +291,6 @@ class _PantallaBloqueoPremiumState extends State<PantallaBloqueoPremium> {
                 ),
               );
 
-              // ✅ CENTRADO VERTICAL CON SCROLL CUANDO SEA NECESARIO
               return Center(
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
@@ -305,7 +314,6 @@ class _PantallaBloqueoPremiumState extends State<PantallaBloqueoPremium> {
     );
   }
 
-  // === Beneficio visual sobrio ===
   Widget _beneficio({
     required IconData icon,
     required String texto,

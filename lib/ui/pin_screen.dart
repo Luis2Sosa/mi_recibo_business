@@ -24,7 +24,7 @@ class _PinScreenState extends State<PinScreen> {
   DateTime? _lastBack;
 
   // Estética
-  static const double _logoTop = -30;
+  static const double _logoTop = 0; // FIX: era -30, se recortaba en notch/Dynamic Island
   static const double _logoHeight = 400;
 
   @override
@@ -44,7 +44,6 @@ class _PinScreenState extends State<PinScreen> {
       if (!mounted) return;
       setState(() => _loading = false);
 
-      // Prompt automático (1 sola vez) si el dispositivo soporta autenticación
       if (_deviceCanAuth && !_autoTried) {
         _autoTried = true;
         await Future.delayed(const Duration(milliseconds: 120));
@@ -60,8 +59,9 @@ class _PinScreenState extends State<PinScreen> {
       return;
     }
 
-    // Cancelar cualquier prompt anterior por seguridad
-    try { await _localAuth.stopAuthentication(); } catch (_) {}
+    try {
+      await _localAuth.stopAuthentication();
+    } catch (_) {}
 
     _authInProgress = true;
     bool ok = false;
@@ -69,27 +69,30 @@ class _PinScreenState extends State<PinScreen> {
       ok = await _localAuth.authenticate(
         localizedReason: 'Verifica tu identidad para continuar',
         options: const AuthenticationOptions(
-          biometricOnly: false,   // huella/rostro o PIN/patrón del sistema / passcode (iOS)
-          stickyAuth: false,      // evita prompts pegados al volver del background
+          biometricOnly: false,
+          stickyAuth: false,
           useErrorDialogs: true,
           sensitiveTransaction: false,
         ),
       );
     } on PlatformException catch (e) {
+      // FIX: mounted check antes de usar context en el catch
+      if (!mounted) return;
       _toast(_mapLocalAuthError(e.code), error: true);
     } catch (_) {
+      if (!mounted) return;
       _toast('No se pudo autenticar.', error: true);
     } finally {
       await Future.delayed(const Duration(milliseconds: 200));
+      // FIX: mounted check en finally antes de modificar estado
+      if (!mounted) return;
       _authInProgress = false;
     }
 
     if (!mounted) return;
     if (ok) {
-      // Éxito → cerramos esta pantalla con true (StartGate te manda a Clientes)
       Navigator.pop(context, true);
     } else {
-      // No hacemos pop: el usuario puede reintentar con el botón
       _toast('Autenticación cancelada', error: true);
     }
   }
@@ -119,17 +122,23 @@ class _PinScreenState extends State<PinScreen> {
   void _toast(String msg, {bool error = false}) {
     final snack = SnackBar(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: error ? const Color(0xFFE11D48) : const Color(0xFF22C55E),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      backgroundColor:
+      error ? const Color(0xFFE11D48) : const Color(0xFF22C55E),
+      shape:
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin:
+      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       content: Row(
         children: [
-          Icon(error ? Icons.error_outline : Icons.check_circle, color: Colors.white),
+          Icon(
+              error ? Icons.error_outline : Icons.check_circle,
+              color: Colors.white),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               msg,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w800),
             ),
           ),
         ],
@@ -143,7 +152,6 @@ class _PinScreenState extends State<PinScreen> {
       ..showSnackBar(snack);
   }
 
-  // ===== Banner premium "doble atrás para salir" =====
   void _showExitBanner() {
     final messenger = ScaffoldMessenger.of(context);
     final bottomSafe = MediaQuery.of(context).padding.bottom;
@@ -160,12 +168,19 @@ class _PinScreenState extends State<PinScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             boxShadow: const [
-              BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 12)),
-              BoxShadow(color: Color(0x26000000), blurRadius: 8, offset: Offset(0, 2)),
+              BoxShadow(
+                  color: Color(0x40000000),
+                  blurRadius: 24,
+                  offset: Offset(0, 12)),
+              BoxShadow(
+                  color: Color(0x26000000),
+                  blurRadius: 8,
+                  offset: Offset(0, 2)),
             ],
           ),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            padding:
+            const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
             decoration: BoxDecoration(
               color: const Color(0xFF0B132B),
               borderRadius: BorderRadius.circular(18),
@@ -182,7 +197,8 @@ class _PinScreenState extends State<PinScreen> {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   alignment: Alignment.center,
-                  child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 16),
+                  child: const Icon(Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white, size: 16),
                 ),
                 const SizedBox(width: 12),
                 const Flexible(
@@ -205,17 +221,21 @@ class _PinScreenState extends State<PinScreen> {
     );
   }
 
-  Future<bool> _onWillPop() async {
+  // FIX: WillPopScope → PopScope (WillPopScope deprecado en Flutter 3.12+)
+  // onPopInvoked recibe didPop=true si el pop ya ocurrió, false si fue bloqueado
+  void _onPopInvoked(bool didPop) async {
+    if (didPop) return; // el pop ya se procesó, nada que hacer
+
     final now = DateTime.now();
-    if (_lastBack == null || now.difference(_lastBack!) > const Duration(seconds: 2)) {
+    if (_lastBack == null ||
+        now.difference(_lastBack!) > const Duration(seconds: 2)) {
       _lastBack = now;
       _showExitBanner();
-      // Bloqueamos el pop: no devolvemos resultado a StartGate (así no te manda a Home)
-      return false;
+      // No hacemos pop: bloqueamos la salida la primera vez
+      return;
     }
-    // Segunda vez dentro de la ventana → salir de la app de forma segura
+    // Segunda pulsación dentro de la ventana → cerrar la app
     await SystemNavigator.pop();
-    return false; // no pop de esta ruta (ya cerramos la app)
   }
 
   @override
@@ -226,13 +246,13 @@ class _PinScreenState extends State<PinScreen> {
 
     final String title = _loading ? 'Cargando…' : 'Verifica tu identidad';
 
-    // Posición del panel más arriba (y ajusta si aparece el teclado)
-    final double panelAlignY = tecladoAbierto ? 0.70 : 0.90;
-// 🔥 Ya no estará arriba — queda centrado visualmente
+    // FIX: panel centrado verticalmente (era 0.90 / 0.70, quedaba pegado al fondo)
+    final double panelAlignY = tecladoAbierto ? 0.30 : 0.0;
 
-
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope(
+      // FIX: canPop: false bloquea el pop por defecto; onPopInvoked maneja la lógica
+      canPop: false,
+      onPopInvoked: _onPopInvoked,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         body: Container(
@@ -267,7 +287,7 @@ class _PinScreenState extends State<PinScreen> {
                   ),
                 ),
 
-                // Watermark sutil en el centro
+                // Watermark sutil
                 Positioned.fill(
                   child: IgnorePointer(
                     child: Center(
@@ -280,7 +300,7 @@ class _PinScreenState extends State<PinScreen> {
                   ),
                 ),
 
-                // Panel Glass (subido)
+                // Panel Glass
                 AnimatedAlign(
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeOut,
@@ -288,12 +308,12 @@ class _PinScreenState extends State<PinScreen> {
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
                       maxWidth: 560,
-                      maxHeight: tecladoAbierto ? h * 0.70 : h * 0.58,
+                      maxHeight:
+                      tecladoAbierto ? h * 0.70 : h * 0.58,
                     ),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.18),  // 🔥 cristal más marcado
-
+                        color: Colors.white.withOpacity(0.18),
                         borderRadius: BorderRadius.circular(28),
                         boxShadow: [
                           BoxShadow(
@@ -302,28 +322,33 @@ class _PinScreenState extends State<PinScreen> {
                             offset: const Offset(0, 10),
                           ),
                         ],
-                        border: Border.all(color: Colors.white.withOpacity(0.18)),
+                        border: Border.all(
+                            color: Colors.white.withOpacity(0.18)),
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(28),
                         child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),  // 🔥 premium
-
+                          filter:
+                          ImageFilter.blur(sigmaX: 14, sigmaY: 14),
                           child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+                            padding: const EdgeInsets.fromLTRB(
+                                16, 18, 16, 16),
                             child: SingleChildScrollView(
                               physics: tecladoAbierto
                                   ? const ClampingScrollPhysics()
                                   : const NeverScrollableScrollPhysics(),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                crossAxisAlignment:
+                                CrossAxisAlignment.stretch,
                                 children: [
-                                  // Título (usa tipografía del tema)
                                   Center(
                                     child: Text(
                                       title,
-                                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w900,
                                         shadows: const [
@@ -338,14 +363,15 @@ class _PinScreenState extends State<PinScreen> {
                                   ),
                                   const SizedBox(height: 12),
 
-                                  // Tarjeta blanca
                                   Container(
                                     decoration: BoxDecoration(
                                       color: Colors.white,
-                                      borderRadius: BorderRadius.circular(22),
+                                      borderRadius:
+                                      BorderRadius.circular(22),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withOpacity(0.12),
+                                          color: Colors.black
+                                              .withOpacity(0.12),
                                           blurRadius: 18,
                                           offset: const Offset(0, 10),
                                         ),
@@ -378,18 +404,30 @@ class _PinScreenState extends State<PinScreen> {
                                           width: double.infinity,
                                           height: 50,
                                           child: ElevatedButton.icon(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: AppTheme.gradTop,
-                                              foregroundColor: Colors.white,
-                                              shape: const StadiumBorder(),
+                                            style:
+                                            ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                              AppTheme.gradTop,
+                                              foregroundColor:
+                                              Colors.white,
+                                              shape:
+                                              const StadiumBorder(),
                                               textStyle: const TextStyle(
-                                                fontWeight: FontWeight.w900,
+                                                fontWeight:
+                                                FontWeight.w900,
                                               ),
                                               elevation: 2,
                                             ),
-                                            onPressed: _authInProgress ? null : _triggerAuth,
-                                            icon: const Icon(Icons.verified_user_rounded),
-                                            label: Text(_authInProgress ? 'Verificando…' : 'Desbloquear'),
+                                            onPressed: _authInProgress
+                                                ? null
+                                                : _triggerAuth,
+                                            icon: const Icon(Icons
+                                                .verified_user_rounded),
+                                            label: Text(
+                                              _authInProgress
+                                                  ? 'Verificando…'
+                                                  : 'Desbloquear',
+                                            ),
                                           ),
                                         ),
                                         const SizedBox(height: 6),
@@ -421,8 +459,9 @@ class _PinScreenState extends State<PinScreen> {
                   top: 8,
                   left: 8,
                   child: IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    onPressed: () => _onWillPop(),
+                    icon: const Icon(Icons.arrow_back,
+                        color: Colors.white),
+                    onPressed: () => _onPopInvoked(false),
                   ),
                 ),
               ],
