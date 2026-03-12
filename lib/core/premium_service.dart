@@ -9,7 +9,7 @@ class PremiumService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final InAppPurchase _iap = InAppPurchase.instance;
 
-  static const String _productId = 'premium-mensual';
+  static const String _productId = 'mi_recibo_premium';
 
   // FIX: nullable en lugar de late — evita LateInitializationError si
   // cerrarListener() se llama antes de iniciarListenerCompras()
