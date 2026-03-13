@@ -47,7 +47,6 @@ class PrestamosScreen extends StatelessWidget {
     return a.nombreCompleto.compareTo(b.nombreCompleto);
   }
 
-  // --- BLINDAJE SEGURO PARA FIELDS ---
   int _safeInt(dynamic v) {
     if (v == null) return 0;
     if (v is int) return v;
@@ -68,6 +67,24 @@ class PrestamosScreen extends StatelessWidget {
     if (v is Timestamp) return v.toDate();
     if (v is DateTime) return v;
     return DateTime.now();
+  }
+
+  // FIX: detectar préstamos por campo 'tipo' primero, igual que en
+  // guardar_pago_y_actualizar_kpis y auto_filtro_service.
+  // Antes solo filtraba por prod.isEmpty || prod == 'null' → si el cliente
+  // tenía tipo='prestamo' pero algún valor accidental en 'producto',
+  // desaparecía de la lista de préstamos.
+  bool _esPrestamo(Map<String, dynamic> data) {
+    final tipoField = (data['tipo'] ?? '').toString().toLowerCase().trim();
+
+    // 1) Campo 'tipo' explícito
+    if (tipoField == 'prestamo' || tipoField == 'préstamo') return true;
+    if (tipoField == 'producto' || tipoField == 'fiado' ||
+        tipoField == 'alquiler' || tipoField == 'arriendo') return false;
+
+    // 2) Fallback: si no tiene tipo, inferir por 'producto'
+    final prod = (data['producto'] ?? '').toString().trim().toLowerCase();
+    return prod.isEmpty || prod == 'null';
   }
 
   @override
@@ -100,10 +117,12 @@ class PrestamosScreen extends StatelessWidget {
 
         final docs = snap.data?.docs ?? [];
 
-        final lista = docs.map((d) {
+        final lista = docs.where((d) {
+          final data = d.data() as Map<String, dynamic>? ?? {};
+          return _esPrestamo(data);
+        }).map((d) {
           final data = d.data() as Map<String, dynamic>? ?? {};
 
-          // código visible seguro
           final codigoGuardado = (data['codigo'] as String?)?.trim();
           final codigoVisible = (codigoGuardado != null &&
               codigoGuardado.isNotEmpty)
@@ -113,25 +132,16 @@ class PrestamosScreen extends StatelessWidget {
           return Cliente(
             id: d.id,
             codigo: codigoVisible,
-
-            // --- BLINDAJE TOTAL ---
             nombre: (data['nombre'] ?? '') as String,
             apellido: (data['apellido'] ?? '') as String,
             telefono: (data['telefono'] ?? '') as String,
             direccion: (data['direccion'] as String?),
-
             producto: (data['producto'] as String?)?.trim(),
-
             capitalInicial: _safeInt(data['capitalInicial']),
-            saldoActual: _safeInt(
-                data['salvoActual'] ?? data['saldoActual']), // tolerante
-
+            saldoActual: _safeInt(data['salvoActual'] ?? data['saldoActual']),
             tasaInteres: _safeDouble(data['tasaInteres']),
-
             periodo: (data['periodo'] ?? 'Mensual') as String,
-
             proximaFecha: _safeDate(data['proximaFecha']),
-
             mora: (data['mora'] is Map)
                 ? Map<String, dynamic>.from(data['mora'] as Map)
                 : null,
@@ -140,18 +150,11 @@ class PrestamosScreen extends StatelessWidget {
 
         final q = search.toLowerCase();
         final filtered = lista.where((c) {
-          final prod = (c.producto ?? '').trim().toLowerCase();
-
-          // 🔐 BLINDAJE: préstamos son los que NO tienen producto claro
-          final isPrestamo = prod.isEmpty || prod == 'null';
-
-          final match = c.codigo.toLowerCase().contains(q) ||
+          return c.codigo.toLowerCase().contains(q) ||
               c.nombreCompleto.toLowerCase().contains(q) ||
               c.telefono.contains(q);
-          return isPrestamo && match;
         }).toList()
           ..sort(_compareClientes);
-
 
         if (filtered.isEmpty) {
           return const Center(
@@ -167,8 +170,7 @@ class PrestamosScreen extends StatelessWidget {
           itemBuilder: (_, i) {
             final c = filtered[i];
             final estado = _estadoDe(c);
-            final codigoCorto =
-                'CL-${(i + 1).toString().padLeft(4, '0')}';
+            final codigoCorto = 'CL-${(i + 1).toString().padLeft(4, '0')}';
 
             return GestureDetector(
               onTap: () => onTapCliente(c, codigoCorto),

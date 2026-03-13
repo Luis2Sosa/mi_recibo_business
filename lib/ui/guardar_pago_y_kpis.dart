@@ -29,22 +29,44 @@ Future<void> guardarPagoYActualizarKPIs({
     final cliSnap = await clienteRef.get();
     final m = cliSnap.data() ?? {};
 
-    final texto = '${m['tipo'] ?? ''} ${m['producto'] ?? ''}'.toLowerCase();
-    String categoria = 'prestamo';
+    // FIX Bug 1: detectar categoría por campo 'tipo' primero (fuente de verdad),
+    // luego por el texto del producto como fallback.
+    // Antes solo se usaba texto libre y nombres como "bolso", "ropa", "telefono"
+    // nunca hacían match → todo caía en 'prestamo' → ganancias de producto = $0.
+    String categoria = 'prestamo'; // default
 
-    if (texto.contains('alquiler') ||
-        texto.contains('renta') ||
-        texto.contains('arriendo') ||
-        texto.contains('casa') ||
-        texto.contains('apartamento')) {
-      categoria = 'alquiler';
-    } else if (texto.contains('producto') ||
-        texto.contains('mercancia') ||
-        texto.contains('mercancía') ||
-        texto.contains('articulo') ||
-        texto.contains('artículo') ||
-        texto.contains('venta')) {
+    final tipoDirecto = (m['tipo'] ?? '').toString().toLowerCase().trim();
+
+    if (tipoDirecto == 'producto' ||
+        tipoDirecto == 'fiado' ||
+        tipoDirecto == 'mercancia' ||
+        tipoDirecto == 'venta') {
       categoria = 'producto';
+    } else if (tipoDirecto == 'alquiler' ||
+        tipoDirecto == 'arriendo' ||
+        tipoDirecto == 'renta') {
+      categoria = 'alquiler';
+    } else {
+      // Fallback: buscar en texto combinado
+      final texto =
+      '${m['tipo'] ?? ''} ${m['producto'] ?? ''}'.toLowerCase();
+
+      if (texto.contains('alquiler') ||
+          texto.contains('renta') ||
+          texto.contains('arriendo') ||
+          texto.contains('casa') ||
+          texto.contains('apartamento')) {
+        categoria = 'alquiler';
+      } else if (texto.contains('producto') ||
+          texto.contains('mercancia') ||
+          texto.contains('mercancía') ||
+          texto.contains('articulo') ||
+          texto.contains('artículo') ||
+          texto.contains('venta') ||
+          texto.contains('fiado')) {
+        categoria = 'producto';
+      }
+      // si no hace match → queda 'prestamo'
     }
 
     // ==============================
@@ -57,12 +79,43 @@ Future<void> guardarPagoYActualizarKPIs({
     } else if (categoria == 'alquiler') {
       deltaGanancia = totalPagado;
     } else if (categoria == 'producto') {
-      // No sumar ganancia durante los pagos intermedios —
-      // se registra completa al saldar (ver bloque final más abajo).
+      // Ganancia de producto se consolida al saldar (ver bloque final).
       deltaGanancia = 0;
     }
 
     if (deltaGanancia < 0) deltaGanancia = 0;
+
+    // ==============================
+    // FIX Bug 2: acumular gananciaTotal en el cliente pago a pago
+    // Antes 'gananciaTotal' nunca se escribía durante pagos intermedios,
+    // entonces al saldar siempre encontraba 0 → ganancia registrada = $0.
+    // Ahora calculamos el excedente de cada pago y lo acumulamos.
+    // ==============================
+    if (categoria == 'producto') {
+      final capitalInicial =
+      ((m['capitalInicial'] ?? 0) as num).toInt();
+      final montoTotal =
+      ((m['productoMontoTotal'] ?? m['montoTotal'] ?? 0) as num).toInt();
+
+      int gananciaEstePago = 0;
+
+      if (montoTotal > 0 && capitalInicial > 0 && montoTotal > capitalInicial) {
+        // Ganancia proporcional: del total pagado, qué porcentaje es excedente
+        final excedente = montoTotal - capitalInicial;
+        gananciaEstePago =
+            ((totalPagado * excedente) / montoTotal).round();
+      } else {
+        // Fallback: solo mora cobrada cuenta como ganancia
+        gananciaEstePago = moraCobrada;
+      }
+
+      if (gananciaEstePago > 0) {
+        await clienteRef.set({
+          'gananciaTotal': FieldValue.increment(gananciaEstePago),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    }
 
     // ==============================
     // GUARDAR EL PAGO Y ACTUALIZAR CLIENTE
@@ -123,13 +176,15 @@ Future<void> guardarPagoYActualizarKPIs({
     await EstadisticasTotalesService.ensureStructure(prestamistaId);
 
     if (categoria == 'producto') {
-      final capitalInicial = (m['capitalInicial'] ?? 0) as int;
-      final montoTotal = (m['montoTotal'] ?? 0) as int;
+      final capitalInicial =
+      ((m['capitalInicial'] ?? 0) as num).toInt();
+      final montoTotal =
+      ((m['productoMontoTotal'] ?? m['montoTotal'] ?? 0) as num).toInt();
 
       final pagado = saldoAnterior - saldoNuevo;
       final capitalPagado = montoTotal > 0
           ? ((pagado * capitalInicial) / montoTotal).round()
-          : 0;
+          : pagado;
 
       await summaryRef.set({
         'totalCapitalRecuperado': FieldValue.increment(capitalPagado),
@@ -202,44 +257,49 @@ Future<void> guardarPagoYActualizarKPIs({
 
     // ==============================
     // PRODUCTO SALDADO → GANANCIA TOTAL FINAL
-    // FIX: guard contra doble escritura — verificamos el flag 'gananciaRegistrada'
-    // antes de incrementar. Sin este guard, un retry de red puede sumar
-    // gananciaTotal dos veces en Firestore.
+    // Guard contra doble escritura via flag 'gananciaRegistrada'
     // ==============================
     if (categoria == 'producto' && saldoNuevo <= 0) {
-      // Releer el cliente para obtener el estado más reciente
       final clienteFinal = await clienteRef.get();
       final dataFinal = clienteFinal.data() ?? {};
 
-      // Si la ganancia ya fue registrada en un intento anterior, saltar
       final gananciaYaRegistrada = dataFinal['gananciaRegistrada'] == true;
 
       if (!gananciaYaRegistrada) {
-        final gananciaTotal = (dataFinal['gananciaTotal'] ?? 0) as int;
+        // FIX Bug 2: ahora tiene valor real acumulado pago a pago
+        final gananciaTotal =
+        ((dataFinal['gananciaTotal'] ?? 0) as num).toInt();
 
-        // Marcar primero para que un posible retry no duplique la suma
+        // Marcar primero para evitar duplicados en retry de red
         await clienteRef.set({
           'gananciaRegistrada': true,
         }, SetOptions(merge: true));
 
-        await summaryRef.set({
-          'totalGanancia': FieldValue.increment(gananciaTotal),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        if (gananciaTotal > 0) {
+          await summaryRef.set({
+            'totalGanancia': FieldValue.increment(gananciaTotal),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
-        await db
-            .collection('prestamistas')
-            .doc(prestamistaId)
-            .collection('estadisticas')
-            .doc('producto')
-            .set({
-          'gananciaNeta': FieldValue.increment(gananciaTotal),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+          await db
+              .collection('prestamistas')
+              .doc(prestamistaId)
+              .collection('estadisticas')
+              .doc('producto')
+              .set({
+            'gananciaNeta': FieldValue.increment(gananciaTotal),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
-        print('✅ Producto saldado — ganancia total registrada ($gananciaTotal).');
+          print(
+              '✅ Producto saldado — ganancia total registrada (\$$gananciaTotal).');
+        } else {
+          print(
+              'ℹ️ Producto saldado — gananciaTotal era 0, nada que registrar.');
+        }
       } else {
-        print('ℹ️ Producto saldado — ganancia ya registrada, se omite duplicado.');
+        print(
+            'ℹ️ Producto saldado — ganancia ya registrada, se omite duplicado.');
       }
     }
 

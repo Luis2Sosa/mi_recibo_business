@@ -9,18 +9,12 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
-
-
-
 import '../../core/ads/ads_manager.dart';
 import '../home_screen.dart';
 import '../widgets/charts_common.dart';
 import '../theme/app_theme.dart';
 import './ganancias_screen.dart';
 import './estadisticas_views.dart';
-
-
-// 👇 Conexión a mini-dashboards (sin tocar lógica)
 import './prestamo_estadistica.dart';
 import './producto_estadistica.dart';
 import './alquiler_estadistica.dart';
@@ -33,8 +27,6 @@ int toInt(dynamic v) {
   return int.tryParse(v.toString()) ?? 0;
 }
 
-
-// === Categorías de los filtros
 enum PerfilCategoria { prestamos, productos, alquiler }
 
 class PerfilPrestamistaScreen extends StatefulWidget {
@@ -43,7 +35,6 @@ class PerfilPrestamistaScreen extends StatefulWidget {
   State<PerfilPrestamistaScreen> createState() => _PerfilPrestamistaScreenState();
 }
 
-// Paleta local (consistente con tu app)
 class _Brand {
   static const gradTop = Color(0xFF2458D6);
   static const gradBottom = Color(0xFF0A9A76);
@@ -58,11 +49,7 @@ class _Brand {
   static const divider = Color(0xFFD7E1EE);
 }
 
-// ================================================================
-//                 PERFIL DEL PRESTAMISTA (PREMIUM)
-// ================================================================
 class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
-  // ============== Inputs premium (solo UI) ==============
   Widget _inputPremium({
     required IconData icon,
     required String label,
@@ -94,8 +81,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     );
   }
 
-  // ============== Botón circular premium (filtros) ==============
-  // Íconos siempre blancos; brillo sutil al estar activo.
   Widget _botonCircularPremiumV7({
     required IconData icon,
     required String label,
@@ -129,33 +114,20 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: 14,
-              letterSpacing: .3,
-            ),
-          ),
+          Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: .3)),
         ],
       ),
     );
   }
 
-  // Tabs
-  int _tab = 1; // 0 Perfil | 1 General
+  int _tab = 1;
+  PerfilCategoria? _catSel;
 
-  // Filtro categoría
-  PerfilCategoria? _catSel; // sin selección por defecto
-
-  // Firebase
   final _db = FirebaseFirestore.instance;
   User? get _user => FirebaseAuth.instance.currentUser;
   DocumentReference<Map<String, dynamic>>? get _docPrest =>
       _user == null ? null : _db.collection('prestamistas').doc(_user!.uid);
 
-  // Perfil
   final _nombreCtrl = TextEditingController();
   final _telCtrl = TextEditingController();
   final _empCtrl = TextEditingController();
@@ -163,11 +135,9 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   bool _lockEnabled = false, _backup = false, _notif = true;
   DateTime? _lastBackup;
 
-  // Realtime perfil
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _perfilSub;
   bool _syncingFromFirestore = false;
 
-  // Stats (Actual)
   bool _loadingProfile = true, _loadingStats = true;
   int totalPrestado = 0, totalPendiente = 0, totalRecuperado = 0;
   List<int> pagosMes = [];
@@ -177,7 +147,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   int mayorSaldo = -1;
   String promInteres = '—', proximoVenc = '—';
 
-  // Histórico (lifetime)
   int lifetimePrestado = 0;
   int lifetimeRecuperado = 0;
   int lifetimeGanancia = 0;
@@ -209,7 +178,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       }
       await launchUrl(uriWeb, mode: LaunchMode.externalApplication);
     } catch (_) {
-      _toast('No se pudo abrir WhatsApp', color: _Brand.softRed, icon: Icons.error_outline);
+      if (mounted) _toast('No se pudo abrir WhatsApp', color: _Brand.softRed, icon: Icons.error_outline);
     }
   }
 
@@ -240,7 +209,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     super.dispose();
   }
 
-  // ===== Utils
   String _rd(int v) {
     if (v <= 0) return '\$0';
     final s = v.toString();
@@ -249,10 +217,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     for (int i = s.length - 1; i >= 0; i--) {
       b.write(s[i]);
       c++;
-      if (c == 3 && i != 0) {
-        b.write(',');
-        c = 0;
-      }
+      if (c == 3 && i != 0) { b.write(','); c = 0; }
     }
     return '\$${b.toString().split('').reversed.join()}';
   }
@@ -264,6 +229,9 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   ][d.month - 1]} ${d.year}';
 
   void _toast(String msg, {Color color = _Brand.success, IconData icon = Icons.check_circle}) {
+    // FIX: guard mounted — _toast se llama tras awaits largos y el widget
+    // puede haberse desmontado (navegación, cierre de pantalla, etc.)
+    if (!mounted) return;
     final snack = SnackBar(
       behavior: SnackBarBehavior.floating,
       backgroundColor: color,
@@ -281,7 +249,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       ..showSnackBar(snack);
   }
 
-  // ===== Perfil
   Future<void> _loadProfile() async {
     try {
       final ref = _docPrest;
@@ -411,7 +378,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     _toast('Copia realizada ✅');
   }
 
-  // ===== Stats (cálculos)
   Future<void> _loadStats() async {
     try {
       if (_docPrest == null) return;
@@ -437,7 +403,12 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       double sumaRates = 0.0;
       int nRates = 0;
 
-      // 🔹 Recorrer clientes y sus pagos
+      // FIX: un solo loop sobre clientes — antes se hacían 2 loops separados
+      // sobre cs.docs para pagos, lo que duplicaba las lecturas a Firestore
+      // y causaba que pagosMes contara cada pago dos veces.
+      // Ahora acumulamos todo en un único recorrido.
+      final Map<String, int> porMes = {};
+
       for (final d in cs.docs) {
         final m = d.data();
         final cap = toInt(m['capitalInicial']);
@@ -471,7 +442,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
           }
         }
 
-        // 🔹 Pagos reales (solo estos activan el histórico)
+        // Pagos: único loop, aquí se acumula todo
         final pagos = await d.reference.collection('pagos').get();
         for (final p in pagos.docs) {
           final mp = p.data();
@@ -480,11 +451,14 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
           final int pagoInteres = toInt(mp['pagoInteres']);
           final int saldoAnterior = toInt(mp['saldoAnterior']);
 
-
           if (ts is Timestamp) {
             final dt = ts.toDate();
             if (firstPay == null || dt.isBefore(firstPay!)) firstPay = dt;
             if (lastPay == null || dt.isAfter(lastPay!)) lastPay = dt;
+
+            // Acumular por mes aquí mismo
+            final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
+            porMes[key] = (porMes[key] ?? 0) + totalPagado;
           }
 
           sumPagos += totalPagado;
@@ -499,59 +473,28 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       }
 
       // =====================================================
-      // 🔹 Construcción premium de meses dinámicos (Ene–Dic)
+      // Construcción de meses dinámicos (Ene–Dic)
       // =====================================================
       const mesesTxt = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
-      // 🔸 Si hay pagos, el año base y mes base será el del primer pago
       final baseYear = firstPay?.year ?? now.year;
       final baseMonth = firstPay?.month ?? now.month;
 
-      // 🔸 Generamos los 12 meses del año, pero rotando para comenzar desde el mes del primer pago
       final allMonths = List.generate(12, (i) => DateTime(baseYear, i + 1, 1));
       final monthsList = [
         ...allMonths.sublist(baseMonth - 1),
         ...allMonths.sublist(0, baseMonth - 1)
       ];
 
-      // 🔸 Mapa vacío con todos los meses
-      final Map<String, int> porMes = {
-        for (final m in monthsList) '${m.year}-${m.month.toString().padLeft(2, '0')}': 0
-      };
-
-      // 🔸 Recontar los pagos por mes
-      for (final d in cs.docs) {
-        final pagos = await d.reference.collection('pagos').get();
-        for (final p in pagos.docs) {
-          final mp = p.data();
-          final ts = mp['fecha'];
-          final int totalPagado = toInt(mp['totalPagado']);
-
-          if (ts is Timestamp) {
-            final dt = ts.toDate();
-            final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
-            if (porMes.containsKey(key)) {
-              porMes[key] = (porMes[key] ?? 0) + totalPagado;
-            }
-          }
-        }
-      }
-
-      // =====================================================
-      // 🔹 Cálculos de totales y etiquetas
-      // =====================================================
-      totalPrestado = prestado;
-      totalPendiente = pendiente;
-      totalRecuperado = prestado - pendiente;
-
-      pagosMes = [];
-      pagosMesLabels = [];
+      // Rellenar los meses con los datos ya acumulados
+      final List<int> pagosMesLocal = [];
+      final List<String> labelsLocal = [];
 
       for (final m in monthsList) {
         final key = '${m.year}-${m.month.toString().padLeft(2, '0')}';
         final val = porMes[key] ?? 0;
-        pagosMes.add(val);
-        pagosMesLabels.add(mesesTxt[m.month - 1]);
+        pagosMesLocal.add(val);
+        labelsLocal.add(mesesTxt[m.month - 1]);
         if (val > topMesVal) {
           topMesVal = val;
           topMesKey = '${mesesTxt[m.month - 1]} ${m.year}';
@@ -559,8 +502,17 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       }
 
       // =====================================================
-      // 🔹 Estadísticas generales premium
+      // Totales
+      // FIX: clamp(0) — evita totalRecuperado negativo cuando
+      // saldoActual > capitalInicial por datos corruptos en Firestore
       // =====================================================
+      totalPrestado = prestado;
+      totalPendiente = pendiente;
+      totalRecuperado = (prestado - pendiente).clamp(0, prestado);
+
+      pagosMes = pagosMesLocal;
+      pagosMesLabels = labelsLocal;
+
       mayorNombre = maxSaldo >= 0 ? maxNombre : '—';
       mayorSaldo = maxSaldo;
       promInteres = (nRates > 0) ? '${(sumaRates / nRates).toStringAsFixed(0)}%' : '—';
@@ -570,9 +522,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       clientesPagando = pagando;
       clientesVencidos = vencidos;
 
-      // =====================================================
-      // 🔹 Resumen histórico
-      // =====================================================
       if (countPagos > 0) {
         histPrimerPago = firstPay == null ? '—' : _fmtFecha(firstPay!);
         histUltimoPago = lastPay == null ? '—' : _fmtFecha(lastPay!);
@@ -587,13 +536,8 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     }
   }
 
-
-
-  // ====================== UI ======================
   @override
   Widget build(BuildContext context) {
-    const contentTop = 8.0;
-
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: Container(
@@ -607,7 +551,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-
               final contenido = Stack(
                 children: [
                   Padding(
@@ -618,9 +561,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                       clipBehavior: Clip.antiAlias,
                       child: Center(
                         child: ConstrainedBox(
-                          constraints: const BoxConstraints(
-                            maxWidth: 520,
-                          ),
+                          constraints: const BoxConstraints(maxWidth: 520),
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                             child: ClipRRect(
@@ -634,9 +575,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                                     child: SingleChildScrollView(
                                       child: Column(
                                         children: [
-                                          _loadingProfile
-                                              ? _skeleton()
-                                              : _perfilContent(),
+                                          _loadingProfile ? _skeleton() : _perfilContent(),
                                           const SizedBox(height: 12),
                                           _accountActions(),
                                         ],
@@ -650,9 +589,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                                   children: [
                                     _tabs(),
                                     const SizedBox(height: 12),
-                                    _loadingStats
-                                        ? _skeleton()
-                                        : _generalContent(),
+                                    _loadingStats ? _skeleton() : _generalContent(),
                                   ],
                                 ),
                               ),
@@ -678,8 +615,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     );
   }
 
-
-
   Widget _tabs() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -689,16 +624,10 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
           Text(
             'Panel de control',
             style: GoogleFonts.inter(
-              textStyle: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                letterSpacing: .2,
-              ),
+              textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: .2),
             ),
           ),
           const SizedBox(height: 10),
-
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
@@ -719,7 +648,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     );
   }
 
-
   Widget _tabChip(String label, bool selected, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
@@ -731,44 +659,21 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         decoration: BoxDecoration(
           color: selected ? Colors.white : Colors.white.withOpacity(0.08),
           borderRadius: BorderRadius.circular(28),
-          boxShadow: selected
-              ? [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.18),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ]
-              : null,
+          boxShadow: selected ? [BoxShadow(color: Colors.black.withOpacity(0.18), blurRadius: 14, offset: const Offset(0, 6))] : null,
           border: selected ? null : Border.all(color: Colors.white.withOpacity(0.20), width: 1),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              label == 'Perfil' ? Icons.person_outline : Icons.insights_rounded,
-              size: 18,
-              color: selected ? _Brand.ink : Colors.white,
-            ),
+            Icon(label == 'Perfil' ? Icons.person_outline : Icons.insights_rounded, size: 18, color: selected ? _Brand.ink : Colors.white),
             const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                textStyle: TextStyle(
-                  color: selected ? _Brand.ink : Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
-                ),
-              ),
-            ),
+            Text(label, style: GoogleFonts.inter(textStyle: TextStyle(color: selected ? _Brand.ink : Colors.white, fontWeight: FontWeight.w900, fontSize: 18))),
           ],
         ),
       ),
     );
   }
 
-
-  // ==== Acciones de cuenta
   Widget _accountActions() {
     return Column(
       children: [
@@ -828,9 +733,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             opacity: animation.value,
             child: Center(
               child: Dialog(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                 backgroundColor: Colors.transparent,
                 child: const _DeleteDialogContent(),
               ),
@@ -842,7 +745,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
 
     if (ok == true) await _deleteAccount();
   }
-
 
   Future<void> _reauthWithGoogleIfNeeded(User user) async {
     final google = GoogleSignIn();
@@ -859,15 +761,19 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   Future<void> _deleteAccount() async {
     if (_docPrest == null || _user == null) return;
     try {
-      Future<void> _wipeCollection(CollectionReference col) async {
+      // FIX: reauth PRIMERO antes de borrar datos — si la reauth falla por
+      // 'aborted-by-user' o 'requires-recent-login', los datos no se tocan.
+      // Antes se borraban todos los datos y luego si fallaba la reauth,
+      // el usuario quedaba sin datos pero con cuenta activa.
+      await _reauthWithGoogleIfNeeded(_user!);
+
+      Future<void> wipeCollection(CollectionReference col) async {
         const batchSize = 300;
         while (true) {
           final snap = await col.limit(batchSize).get();
           if (snap.docs.isEmpty) break;
           final batch = _db.batch();
-          for (final d in snap.docs) {
-            batch.delete(d.reference);
-          }
+          for (final d in snap.docs) batch.delete(d.reference);
           await batch.commit();
           if (snap.docs.length < batchSize) break;
         }
@@ -875,16 +781,14 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
 
       final clientes = await _docPrest!.collection('clientes').get();
       for (final c in clientes.docs) {
-        await _wipeCollection(c.reference.collection('pagos'));
+        await wipeCollection(c.reference.collection('pagos'));
         await c.reference.delete();
       }
 
-      await _wipeCollection(_docPrest!.collection('backups'));
-      await _wipeCollection(_docPrest!.collection('historial'));
-      await _wipeCollection(_docPrest!.collection('metrics'));
-
+      await wipeCollection(_docPrest!.collection('backups'));
+      await wipeCollection(_docPrest!.collection('historial'));
+      await wipeCollection(_docPrest!.collection('metrics'));
       await _docPrest!.delete();
-      await _reauthWithGoogleIfNeeded(_user!);
       await _user!.delete();
 
       _toast('Cuenta eliminada', color: _Brand.softRed, icon: Icons.delete_forever);
@@ -904,7 +808,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     }
   }
 
-  // ===== PERFIL (vista)
   Widget _perfilContent() {
     return Column(
       children: [
@@ -986,14 +889,12 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     );
   }
 
-  // ===== GENERAL =====
   Widget _generalContent() {
     final screenWidth = MediaQuery.of(context).size.width;
     final scale = (screenWidth / 400).clamp(0.85, 1.15);
+    double scaledSize(double base) => base * scale;
 
-    double _scaledSize(double baseSize) => baseSize * scale;
-
-    Widget _categoriaCard({
+    Widget categoriaCard({
       required IconData icon,
       required String title,
       required Color color,
@@ -1022,10 +923,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
-                      colors: [
-                        color.withOpacity(0.9),
-                        color.withOpacity(0.6),
-                      ],
+                      colors: [color.withOpacity(0.9), color.withOpacity(0.6)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -1033,20 +931,9 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                   child: Icon(icon, color: Colors.white, size: 18 * scale),
                 ),
                 SizedBox(height: 5 * scale),
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: _scaledSize(12.8),
-                  ),
-                ),
+                Text(title, style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: scaledSize(12.8))),
                 SizedBox(height: 3 * scale),
-                Icon(
-                  Icons.touch_app_rounded,
-                  color: Colors.white.withOpacity(0.85),
-                  size: 13.5 * scale,
-                ),
+                Icon(Icons.touch_app_rounded, color: Colors.white.withOpacity(0.85), size: 13.5 * scale),
               ],
             ),
           ),
@@ -1060,33 +947,12 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _categoriaCard(
-            icon: Icons.request_quote_rounded,
-            title: 'Préstamos',
-            color: const Color(0xFF2563EB),
-            onTap: () {
-              setState(() => _catSel = PerfilCategoria.prestamos);
-              _openPrestamos();
-            },
-          ),
-          _categoriaCard(
-            icon: Icons.shopping_bag_rounded,
-            title: 'Productos',
-            color: const Color(0xFF10B981),
-            onTap: () {
-              setState(() => _catSel = PerfilCategoria.productos);
-              _openProductos();
-            },
-          ),
-          _categoriaCard(
-            icon: Icons.house_rounded,
-            title: 'Alquiler',
-            color: const Color(0xFFF59E0B),
-            onTap: () {
-              setState(() => _catSel = PerfilCategoria.alquiler);
-              _openAlquiler();
-            },
-          ),
+          categoriaCard(icon: Icons.request_quote_rounded, title: 'Préstamos', color: const Color(0xFF2563EB),
+              onTap: () { setState(() => _catSel = PerfilCategoria.prestamos); _openPrestamos(); }),
+          categoriaCard(icon: Icons.shopping_bag_rounded, title: 'Productos', color: const Color(0xFF10B981),
+              onTap: () { setState(() => _catSel = PerfilCategoria.productos); _openProductos(); }),
+          categoriaCard(icon: Icons.house_rounded, title: 'Alquiler', color: const Color(0xFFF59E0B),
+              onTap: () { setState(() => _catSel = PerfilCategoria.alquiler); _openAlquiler(); }),
         ],
       ),
     );
@@ -1104,7 +970,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       mayorSaldo: mayorSaldo,
     );
 
-    // FIX 1: guard pagosMes vacío — evita crash en reduce()
+    // FIX: guard para lista vacía antes de reduce()
     final int maxPagoMes = pagosMes.isEmpty ? 0 : pagosMes.reduce((a, b) => a > b ? a : b);
 
     final chartsCard = Container(
@@ -1117,59 +983,25 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 18, offset: const Offset(0, 6))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Pagos recibidos por mes',
-            style: GoogleFonts.inter(
-              textStyle: TextStyle(
-                fontSize: _scaledSize(17),
-                fontWeight: FontWeight.w900,
-                color: const Color(0xFF1E293B),
-              ),
-            ),
-          ),
+          Text('Pagos recibidos por mes',
+              style: GoogleFonts.inter(textStyle: TextStyle(fontSize: scaledSize(17), fontWeight: FontWeight.w900, color: const Color(0xFF1E293B)))),
           SizedBox(height: 18 * scale),
           SizedBox(
             height: 240 * scale,
             child: Container(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                gradient: const LinearGradient(colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)], begin: Alignment.topLeft, end: Alignment.bottomRight),
                 borderRadius: BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.12),
-                    blurRadius: 12,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 12, offset: const Offset(0, 5))],
               ),
               padding: EdgeInsets.fromLTRB(16 * scale, 16 * scale, 16 * scale, 12 * scale),
               child: pagosMes.isEmpty
-              // FIX 1b: si no hay datos, mostramos estado vacío en lugar de crashear
-                  ? Center(
-                child: Text(
-                  'Sin pagos registrados',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: _scaledSize(14),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              )
+                  ? Center(child: Text('Sin pagos registrados', style: TextStyle(color: Colors.white70, fontSize: scaledSize(14), fontWeight: FontWeight.w600)))
                   : Column(
                 children: [
                   Container(
@@ -1177,23 +1009,11 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.15),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 8, offset: const Offset(0, 4))],
                     ),
                     child: Text(
-                      // FIX 1c: usa maxPagoMes ya calculado con guard
                       '\$${NumberFormat("#,###", "en_US").format(maxPagoMes)}',
-                      style: TextStyle(
-                        fontSize: _scaledSize(22),
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFF1E3A8A),
-                        letterSpacing: 0.3,
-                      ),
+                      style: TextStyle(fontSize: scaledSize(22), fontWeight: FontWeight.w900, color: const Color(0xFF1E3A8A), letterSpacing: 0.3),
                     ),
                   ),
                   SizedBox(height: 10 * scale),
@@ -1206,10 +1026,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                             show: true,
                             drawVerticalLine: false,
                             horizontalInterval: 1000,
-                            getDrawingHorizontalLine: (value) => FlLine(
-                              color: Colors.white.withOpacity(0.08),
-                              strokeWidth: 1,
-                            ),
+                            getDrawingHorizontalLine: (value) => FlLine(color: Colors.white.withOpacity(0.08), strokeWidth: 1),
                           ),
                           titlesData: FlTitlesData(
                             leftTitles: AxisTitles(
@@ -1217,26 +1034,13 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                                 showTitles: true,
                                 reservedSize: 40 * scale,
                                 getTitlesWidget: (value, _) {
-                                  // FIX 1d: usa maxPagoMes ya calculado con guard
                                   final resto = maxPagoMes % 1000;
                                   final maxRedondeado = maxPagoMes - resto;
                                   if (value == 0) {
-                                    return Text(
-                                      '0k',
-                                      style: TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: _scaledSize(12),
-                                      ),
-                                    );
-                                  } else if (value == maxRedondeado.toDouble()) {
-                                    return Text(
-                                      '${(maxRedondeado / 1000).toStringAsFixed(0)}k',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: _scaledSize(12),
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    );
+                                    return Text('0k', style: TextStyle(color: Colors.white70, fontSize: scaledSize(12)));
+                                  } else if (maxRedondeado > 0 && value == maxRedondeado.toDouble()) {
+                                    return Text('${(maxRedondeado / 1000).toStringAsFixed(0)}k',
+                                        style: TextStyle(color: Colors.white, fontSize: scaledSize(12), fontWeight: FontWeight.bold));
                                   }
                                   return const SizedBox.shrink();
                                 },
@@ -1248,24 +1052,19 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                                 reservedSize: 38 * scale,
                                 getTitlesWidget: (value, _) {
                                   final idx = value.toInt();
-                                  // FIX 2: guard para indexOf devolviendo -1
+                                  // FIX: indexOf puede devolver -1 si el label no existe
+                                  // (mes del primer pago no está en la lista).
+                                  // Antes si devolvía -1, sublist(-1) lanzaba RangeError.
                                   final rawStart = pagosMesLabels.indexOf('Nov');
                                   final start = rawStart < 0 ? 0 : rawStart;
                                   final rotado = [
                                     ...pagosMesLabels.sublist(start),
-                                    ...pagosMesLabels.sublist(0, start)
+                                    ...pagosMesLabels.sublist(0, start),
                                   ];
                                   if (idx < 6 && idx < rotado.length) {
                                     return Padding(
                                       padding: EdgeInsets.only(right: idx == 5 ? 6 : 0, top: 2),
-                                      child: Text(
-                                        rotado[idx],
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: _scaledSize(12),
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
+                                      child: Text(rotado[idx], style: TextStyle(color: Colors.white70, fontSize: scaledSize(12), fontWeight: FontWeight.w500)),
                                     );
                                   }
                                   return const SizedBox.shrink();
@@ -1279,7 +1078,8 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                           minX: 0,
                           maxX: 5,
                           minY: 0,
-                          // FIX 1e: usa maxPagoMes ya calculado con guard
+                          // FIX: maxY nunca puede ser 0.0 — fl_chart lanza excepción
+                          // cuando maxY == minY (ambos 0). Usamos 1.0 como mínimo.
                           maxY: (() {
                             final resto = maxPagoMes % 1000;
                             final maxRedondeado = maxPagoMes - resto;
@@ -1303,10 +1103,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                               belowBarData: BarAreaData(
                                 show: true,
                                 gradient: LinearGradient(
-                                  colors: [
-                                    Colors.white.withOpacity(0.15),
-                                    Colors.white.withOpacity(0.05),
-                                  ],
+                                  colors: [Colors.white.withOpacity(0.15), Colors.white.withOpacity(0.05)],
                                   begin: Alignment.topCenter,
                                   end: Alignment.bottomCenter,
                                 ),
@@ -1326,25 +1123,13 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             ),
           ),
           SizedBox(height: 28 * scale),
-          Text(
-            'Distribución de clientes',
-            style: GoogleFonts.inter(
-              textStyle: TextStyle(
-                fontSize: _scaledSize(17),
-                fontWeight: FontWeight.w900,
-                color: const Color(0xFF1E293B),
-              ),
-            ),
-          ),
+          Text('Distribución de clientes',
+              style: GoogleFonts.inter(textStyle: TextStyle(fontSize: scaledSize(17), fontWeight: FontWeight.w900, color: const Color(0xFF1E293B)))),
           SizedBox(height: 14 * scale),
           Container(
             padding: EdgeInsets.all(20 * scale),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              gradient: const LinearGradient(colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)], begin: Alignment.topLeft, end: Alignment.bottomRight),
               borderRadius: BorderRadius.circular(22),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
@@ -1366,18 +1151,9 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            AppTheme.gradTop.withOpacity(.95),
-            AppTheme.gradBottom.withOpacity(.95),
-          ],
+          colors: [AppTheme.gradTop.withOpacity(.95), AppTheme.gradBottom.withOpacity(.95)],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.gradTop.withOpacity(.25),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: AppTheme.gradTop.withOpacity(.25), blurRadius: 16, offset: const Offset(0, 6))],
         border: Border.all(color: Colors.white.withOpacity(.25), width: 1),
       ),
       child: Column(
@@ -1387,45 +1163,17 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             children: [
               Container(
                 padding: EdgeInsets.all(10 * scale),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(.15),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(.45),
-                    width: 1.2,
-                  ),
-                ),
-                child: Icon(
-                  Icons.delete_sweep_rounded,
-                  color: Colors.white,
-                  size: 22 * scale,
-                ),
+                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(.15), border: Border.all(color: Colors.white.withOpacity(.45), width: 1.2)),
+                child: Icon(Icons.delete_sweep_rounded, color: Colors.white, size: 22 * scale),
               ),
               SizedBox(width: 10 * scale),
-              Expanded(
-                child: Text(
-                  'Borrar historial',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: _scaledSize(16),
-                  ),
-                ),
-              ),
+              Expanded(child: Text('Borrar historial', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: scaledSize(16)))),
             ],
           ),
           SizedBox(height: 8 * scale),
           Text(
-            'Reinicia tus estadísticas generales sin afectar tus clientes ni pagos. '
-                'Podrás confirmar antes de borrar.',
-            style: TextStyle(
-              color: Colors.white.withOpacity(.92),
-              fontWeight: FontWeight.w700,
-              fontSize: _scaledSize(14),
-              height: 1.35,
-            ),
+            'Reinicia tus estadísticas generales sin afectar tus clientes ni pagos. Podrás confirmar antes de borrar.',
+            style: TextStyle(color: Colors.white.withOpacity(.92), fontWeight: FontWeight.w700, fontSize: scaledSize(14), height: 1.35),
           ),
           SizedBox(height: 14 * scale),
           Align(
@@ -1433,10 +1181,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             child: ElevatedButton.icon(
               onPressed: _confirmBorrarHistorial,
               icon: Icon(Icons.delete_sweep_rounded, size: 22 * scale),
-              label: Text(
-                'Borrar historial',
-                style: TextStyle(fontSize: _scaledSize(16)),
-              ),
+              label: Text('Borrar historial', style: TextStyle(fontSize: scaledSize(16))),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFE11D48),
                 foregroundColor: Colors.white,
@@ -1444,9 +1189,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                 elevation: 6,
                 shadowColor: const Color(0xFFE11D48).withOpacity(0.4),
                 padding: EdgeInsets.symmetric(horizontal: 28 * scale, vertical: 14 * scale),
-                textStyle: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                ),
+                textStyle: const TextStyle(fontWeight: FontWeight.w900),
               ),
             ),
           ),
@@ -1469,7 +1212,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     );
   }
 
-  // ===== Dona
   Widget _donutSection() {
     final total = clientesAlDia + clientesPagando + clientesVencidos;
     if (total == 0) return _emptyChart('Sin datos aún');
@@ -1496,12 +1238,11 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             LegendDot('Vencidos', _Brand.softRed),
             LegendDot('Pagando', _Brand.primary),
           ],
-        )
+        ),
       ],
     );
   }
 
-  // ===== key/value + switches + skeleton
   Widget _switchRow({required String title, required bool value, required ValueChanged<bool> onChanged}) {
     return Row(
       children: [
@@ -1532,62 +1273,31 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     ),
   );
 
-  // ======= Navegación a pantallas
   void _openGananciaClientes() {
-    if (_docPrest == null) {
-      _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
-      return;
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => GananciaPrestamoScreen(docPrest: _docPrest!),
-      ),
-    );
+    if (_docPrest == null) { _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline); return; }
+    Navigator.push(context, MaterialPageRoute(builder: (_) => GananciaPrestamoScreen(docPrest: _docPrest!)));
   }
 
   void _openGanancias() {
-    if (_docPrest == null) {
-      _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
-      return;
-    }
+    if (_docPrest == null) { _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline); return; }
     Navigator.push(context, MaterialPageRoute(builder: (_) => GananciasScreen(docPrest: _docPrest!)));
   }
 
   void _openPrestamos() {
-    if (_docPrest == null) {
-      _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
-      return;
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const PanelPrestamosScreen()),
-    );
+    if (_docPrest == null) { _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline); return; }
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const PanelPrestamosScreen()));
   }
 
   void _openProductos() {
-    if (_docPrest == null) {
-      _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
-      return;
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const ProductoEstadisticaScreen()),
-    );
+    if (_docPrest == null) { _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline); return; }
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductoEstadisticaScreen()));
   }
 
   void _openAlquiler() {
-    if (_docPrest == null) {
-      _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline);
-      return;
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const AlquilerEstadisticaScreen()),
-    );
+    if (_docPrest == null) { _toast('No hay usuario autenticado', color: _Brand.softRed, icon: Icons.error_outline); return; }
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const AlquilerEstadisticaScreen()));
   }
 
-  // ===== Helpers de UI
   Widget _card({required Widget child}) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1625,15 +1335,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             children: const [
               Icon(Icons.delete_sweep_rounded, color: Color(0xFFE11D48), size: 56),
               SizedBox(height: 10),
-              Text(
-                '¿Borrar historial?',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 20,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
+              Text('¿Borrar historial?', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: Color(0xFF0F172A))),
             ],
           ),
           content: const Text(
@@ -1647,22 +1349,12 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              style: TextButton.styleFrom(
-                backgroundColor: const Color(0xFFF1F5F9),
-                foregroundColor: Colors.black87,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: const StadiumBorder(),
-              ),
+              style: TextButton.styleFrom(backgroundColor: const Color(0xFFF1F5F9), foregroundColor: Colors.black87, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12), shape: const StadiumBorder()),
               child: const Text('Cancelar', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              style: TextButton.styleFrom(
-                backgroundColor: const Color(0xFFE11D48),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 12),
-                shape: const StadiumBorder(),
-              ),
+              style: TextButton.styleFrom(backgroundColor: const Color(0xFFE11D48), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 12), shape: const StadiumBorder()),
               child: const Text('Borrar', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
@@ -1677,7 +1369,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     if (_docPrest == null) return;
 
     try {
-      // 🔹 Solo reiniciamos estadísticas visuales y acumulados del resumen general
       await _docPrest!.collection('metrics').doc('summary').set({
         'totalCapitalRecuperado': 0,
         'totalGanancia': 0,
@@ -1690,38 +1381,24 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // 🔹 Reiniciamos solo los datos visuales locales
-      setState(() {
-        pagosMes = List.filled(12, 0);
-        pagosMesLabels = [
-          'Ene','Feb','Mar','Abr','May','Jun','Jul',
-          'Ago','Sep','Oct','Nov','Dic'
-        ];
-        lifetimeRecuperado = 0;
-        lifetimePagosProm = 0;
-        histPrimerPago = '—';
-        histUltimoPago = '—';
-        histMesTop = '—';
-      });
+      if (mounted) {
+        setState(() {
+          pagosMes = List.filled(12, 0);
+          pagosMesLabels = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+          lifetimeRecuperado = 0;
+          lifetimePagosProm = 0;
+          histPrimerPago = '—';
+          histUltimoPago = '—';
+          histMesTop = '—';
+        });
+      }
 
-      // 🔹 Confirmación visual
-      _toast(
-        'Estadísticas reiniciadas correctamente',
-        color: _Brand.softRed,
-        icon: Icons.check_circle_outline_rounded,
-      );
-
+      _toast('Estadísticas reiniciadas correctamente', color: _Brand.softRed, icon: Icons.check_circle_outline_rounded);
     } catch (e) {
-      print('Error al borrar histórico: $e');
-      _toast(
-        'No se pudo borrar el histórico',
-        color: _Brand.softRed,
-        icon: Icons.error_outline,
-      );
+      _toast('No se pudo borrar el histórico', color: _Brand.softRed, icon: Icons.error_outline);
     }
   }
 
-  // Placeholder sin datos
   Widget _emptyChart(String t) {
     return Container(
       height: 160,
@@ -1731,7 +1408,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     );
   }
 
-  // Gráfico de barras simple
   Widget _barChart({required List<int> values, required List<String> labels}) {
     if (values.isEmpty) return _emptyChart('Sin datos aún');
 
@@ -1743,17 +1419,12 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     final maxV = values.reduce((a, b) => a > b ? a : b).toDouble().clamp(1.0, 999999.0);
 
     double niceMax;
-    if (maxV <= 20000) {
-      niceMax = 20000;
-    } else if (maxV <= 40000) {
-      niceMax = 40000;
-    } else if (maxV <= 60000) {
-      niceMax = 60000;
-    } else if (maxV <= 100000) {
-      niceMax = 100000;
-    } else {
-      niceMax = (maxV / 10000.0).ceil() * 10000;
-    }
+    if (maxV <= 20000) niceMax = 20000;
+    else if (maxV <= 40000) niceMax = 40000;
+    else if (maxV <= 60000) niceMax = 60000;
+    else if (maxV <= 100000) niceMax = 100000;
+    else niceMax = (maxV / 10000.0).ceil() * 10000;
+
     final ticks = [0.2, 0.4, 0.6, 1.0];
     final tickLabels = ticks.map((t) => _rd((niceMax * t).round())).toList();
 
@@ -1761,7 +1432,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
       height: chartH,
       child: Row(
         children: [
-          // Eje Y
           SizedBox(
             width: axisLeftW,
             child: Column(
@@ -1772,11 +1442,8 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                       children: List.generate(ticks.length, (i) {
                         final y = (1 - ticks[i]) * (cs.maxHeight - bottomLabelH - topPad) + topPad;
                         return Positioned(
-                          left: 0,
-                          right: 6,
-                          top: y - 8,
-                          child: Text(tickLabels[i], textAlign: TextAlign.right,
-                              style: const TextStyle(fontSize: 11, color: _Brand.inkDim, height: 1)),
+                          left: 0, right: 6, top: y - 8,
+                          child: Text(tickLabels[i], textAlign: TextAlign.right, style: const TextStyle(fontSize: 11, color: _Brand.inkDim, height: 1)),
                         );
                       }),
                     );
@@ -1787,8 +1454,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             ),
           ),
           const SizedBox(width: 6),
-
-          // Área de barras
           Expanded(
             child: LayoutBuilder(builder: (c, cs) {
               final barAreaH = cs.maxHeight - bottomLabelH - topPad;
@@ -1848,7 +1513,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     );
   }
 
-  // Botón de filtro premium con pill "Toca para ver"
   Widget _filtroBoton({
     required String label,
     required IconData icon,
@@ -1856,7 +1520,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     required VoidCallback onTap,
     required List<Color> gradiente,
   }) {
-    final bool isActive = activo == true;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -1864,35 +1527,33 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         constraints: const BoxConstraints(minHeight: 56),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          gradient: isActive ? LinearGradient(colors: gradiente) : const LinearGradient(colors: [Colors.white, Color(0xFFF1F5F9)]),
+          gradient: activo ? LinearGradient(colors: gradiente) : const LinearGradient(colors: [Colors.white, Color(0xFFF1F5F9)]),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: isActive ? Colors.transparent : const Color(0xFFE2E8F0), width: 1.2),
-          boxShadow: [if (isActive) BoxShadow(color: gradiente.last.withOpacity(0.35), blurRadius: 12, offset: const Offset(0, 4))],
+          border: Border.all(color: activo ? Colors.transparent : const Color(0xFFE2E8F0), width: 1.2),
+          boxShadow: [if (activo) BoxShadow(color: gradiente.last.withOpacity(0.35), blurRadius: 12, offset: const Offset(0, 4))],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
-              Icon(icon, size: 18, color: isActive ? Colors.white : const Color(0xFF475569)),
+              Icon(icon, size: 18, color: activo ? Colors.white : const Color(0xFF475569)),
               const SizedBox(width: 6),
-              Flexible(
-                child: Text(label, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: isActive ? Colors.white : const Color(0xFF1E293B), fontWeight: FontWeight.w800, fontSize: 14)),
-              ),
+              Flexible(child: Text(label, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: activo ? Colors.white : const Color(0xFF1E293B), fontWeight: FontWeight.w800, fontSize: 14))),
             ]),
             const SizedBox(height: 6),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: isActive ? Colors.white.withOpacity(.95) : const Color(0xFFFFFFFF),
+                color: activo ? Colors.white.withOpacity(.95) : Colors.white,
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: isActive ? Colors.white : const Color(0xFFE2E8F0)),
+                border: Border.all(color: activo ? Colors.white : const Color(0xFFE2E8F0)),
                 boxShadow: [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 6, offset: const Offset(0, 2))],
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.touch_app_outlined, size: 10, color: isActive ? gradiente.first : const Color(0xFF2563EB)),
+                Icon(Icons.touch_app_outlined, size: 10, color: activo ? gradiente.first : const Color(0xFF2563EB)),
                 const SizedBox(width: 4),
-                Text('Toca para ver', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: isActive ? gradiente.first : const Color(0xFF1E293B))),
+                Text('Toca para ver', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: activo ? gradiente.first : const Color(0xFF1E293B))),
               ]),
             ),
           ],
@@ -1902,9 +1563,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   }
 }
 
-// =======================================================
-// 🎨 Mini gráfico de líneas suaves (Pagos por mes)
-// =======================================================
 class _MiniLineChartPainter extends CustomPainter {
   final List<int> values;
   _MiniLineChartPainter(this.values);
@@ -1912,7 +1570,6 @@ class _MiniLineChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (values.isEmpty) return;
-
     final maxVal = values.reduce((a, b) => a > b ? a : b).toDouble().clamp(1.0, 999999.0);
     final paintLine = Paint()
       ..strokeWidth = 3
@@ -1925,10 +1582,8 @@ class _MiniLineChartPainter extends CustomPainter {
     for (int i = 0; i < values.length; i++) {
       final x = i * stepX;
       final y = size.height - (values[i] / maxVal) * (size.height - 10);
-      if (i == 0) path.moveTo(x, y);
-      else path.lineTo(x, y);
+      if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
     }
-
     canvas.drawPath(path, paintLine);
 
     final dotPaint = Paint()..color = const Color(0xFF2563EB);
@@ -1943,9 +1598,6 @@ class _MiniLineChartPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
-// =======================================================
-// 🎨 Banner premium animado de eliminación de cuenta
-// =======================================================
 class _DeleteDialogContent extends StatefulWidget {
   const _DeleteDialogContent();
 
@@ -1960,8 +1612,7 @@ class _DeleteDialogContentState extends State<_DeleteDialogContent>
   @override
   void initState() {
     super.initState();
-    _controller =
-    AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
       ..repeat(reverse: true);
   }
 
@@ -1976,18 +1627,8 @@ class _DeleteDialogContentState extends State<_DeleteDialogContent>
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_Brand.gradTop, _Brand.gradBottom],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_Brand.gradTop, _Brand.gradBottom]),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 6))],
       ),
       padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
       child: Column(
@@ -2001,43 +1642,18 @@ class _DeleteDialogContentState extends State<_DeleteDialogContent>
                 color: Colors.white.withOpacity(0.1),
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.25),
-                    blurRadius: 15,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 15, offset: const Offset(0, 6))],
               ),
-              child: const Icon(
-                Icons.delete_forever_rounded,
-                size: 48,
-                color: Colors.white,
-              ),
+              child: const Icon(Icons.delete_forever_rounded, size: 48, color: Colors.white),
             ),
           ),
-
           const SizedBox(height: 20),
-          Text(
-            'Eliminar cuenta',
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: 22,
-              letterSpacing: .3,
-            ),
-          ),
+          Text('Eliminar cuenta', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: .3)),
           const SizedBox(height: 12),
           Text(
-            'Esto borrará todos tus datos y tu usuario.\n'
-                'Esta acción no se puede deshacer.\n¿Deseas continuar?',
+            'Esto borrará todos tus datos y tu usuario.\nEsta acción no se puede deshacer.\n¿Deseas continuar?',
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              color: Colors.white.withOpacity(.9),
-              fontWeight: FontWeight.w600,
-              fontSize: 15,
-              height: 1.4,
-            ),
+            style: GoogleFonts.inter(color: Colors.white.withOpacity(.9), fontWeight: FontWeight.w600, fontSize: 15, height: 1.4),
           ),
           const SizedBox(height: 26),
           Row(
@@ -2045,34 +1661,16 @@ class _DeleteDialogContentState extends State<_DeleteDialogContent>
               Expanded(
                 child: TextButton(
                   onPressed: () => Navigator.pop(context, false),
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.white.withOpacity(.15),
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: const Text('Cancelar',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15)),
+                  style: TextButton.styleFrom(backgroundColor: Colors.white.withOpacity(.15), shape: const StadiumBorder(), padding: const EdgeInsets.symmetric(vertical: 14)),
+                  child: const Text('Cancelar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: TextButton(
                   onPressed: () => Navigator.pop(context, true),
-                  style: TextButton.styleFrom(
-                    backgroundColor: _Brand.softRed,
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shadowColor: _Brand.softRed,
-                    elevation: 8,
-                  ),
-                  child: const Text('Eliminar',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15)),
+                  style: TextButton.styleFrom(backgroundColor: _Brand.softRed, shape: const StadiumBorder(), padding: const EdgeInsets.symmetric(vertical: 14), shadowColor: _Brand.softRed, elevation: 8),
+                  child: const Text('Eliminar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
                 ),
               ),
             ],

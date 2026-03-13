@@ -33,7 +33,6 @@ class _ProductoEstadisticaScreenState
   void initState() {
     super.initState();
 
-    // 🚀 Mostrar anuncio al entrar (mismo sistema que préstamos)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = context;
       Future.delayed(const Duration(milliseconds: 200), () {
@@ -46,26 +45,11 @@ class _ProductoEstadisticaScreenState
     _cargarDatosProductos();
   }
 
-
-  // ===================== 🔹 CARGAR CLIENTES Y PAGOS REALES (PRODUCTOS/FIADOS) 🔹 =====================
   Future<void> _cargarDatosProductos() async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
 
     try {
-      // ✅ Leer total invertido desde metrics/summary
-      final summaryRef = FirebaseFirestore.instance
-          .collection('prestamistas')
-          .doc(uid)
-          .collection('metrics')
-          .doc('summary');
-
-      final summaryDoc = await summaryRef.get();
-
-      final totalInvertidoFirestore = double.tryParse(
-        (summaryDoc.data()?['totalCapitalInvertido'] ?? 0).toString(),
-      ) ?? 0.0;
-
       final db = FirebaseFirestore.instance;
       final clientesSnap = await db
           .collection('prestamistas')
@@ -76,7 +60,6 @@ class _ProductoEstadisticaScreenState
       double sumaInvertido = 0;
       int activos = 0;
 
-      // 🔹 Lista temporal para todos los movimientos
       final List<Map<String, dynamic>> movimientos = [];
 
       for (final c in clientesSnap.docs) {
@@ -84,10 +67,8 @@ class _ProductoEstadisticaScreenState
         final tipo = (data['tipo'] ?? '').toString().toLowerCase();
         final estado = (data['estado'] ?? '').toString().toLowerCase();
 
-        // ✅ Solo productos o fiados
         if (tipo != 'producto' && tipo != 'fiado') continue;
 
-        // ✅ Solo clientes activos o al día
         final esValido = estado.contains('activo') ||
             estado.contains('al_dia') ||
             estado.contains('al día') ||
@@ -96,7 +77,6 @@ class _ProductoEstadisticaScreenState
 
         activos++;
 
-        // ✅ Cálculo de capital invertido
         final capitalInicial =
             double.tryParse((data['capitalInicial'] ?? 0).toString()) ?? 0.0;
         final saldoActual =
@@ -105,20 +85,16 @@ class _ProductoEstadisticaScreenState
 
         sumaInvertido += capital;
 
-        // 🔹 Pagos recientes (máximo 6)
         final pagosSnap = await c.reference
             .collection('pagos')
             .orderBy('fecha', descending: true)
             .limit(6)
             .get();
 
-        // 🔹 Siempre agregar el registro del cliente agregado
         if (data['createdAt'] != null) {
           final nombre = (data['nombre'] ?? '').toString();
           final primerNombre =
-          nombre
-              .split(' ')
-              .isNotEmpty ? nombre.split(' ')[0] : nombre;
+          nombre.split(' ').isNotEmpty ? nombre.split(' ')[0] : nombre;
           movimientos.add({
             'monto': 0,
             'fecha': (data['createdAt'] as Timestamp).toDate(),
@@ -127,15 +103,12 @@ class _ProductoEstadisticaScreenState
           });
         }
 
-        // 🔹 Luego agregar los pagos (si existen)
         if (pagosSnap.docs.isNotEmpty) {
           for (final p in pagosSnap.docs) {
             final d = p.data();
             final nombre = (data['nombre'] ?? '').toString();
             final primerNombre =
-            nombre
-                .split(' ')
-                .isNotEmpty ? nombre.split(' ')[0] : nombre;
+            nombre.split(' ').isNotEmpty ? nombre.split(' ')[0] : nombre;
 
             movimientos.add({
               'monto': ((d['totalPagado'] ?? d['pago'] ?? 0) as num).toDouble(),
@@ -149,19 +122,14 @@ class _ProductoEstadisticaScreenState
         }
       }
 
-      // 🔹 Ordenar cronológicamente (más recientes arriba)
       movimientos.sort((a, b) => b['fecha'].compareTo(a['fecha']));
 
-// 🔹 Tomar los 3 más recientes, pero permitir rotación del cliente agregado
       ultimosMovimientos = [];
-
       for (final mov in movimientos) {
         ultimosMovimientos.add(mov);
         if (ultimosMovimientos.length >= 3) break;
       }
 
-
-      // 🔹 Datos para gráfico
       final serie = movimientos.take(6).toList();
       final puntos = <FlSpot>[];
       double x = 0;
@@ -175,10 +143,12 @@ class _ProductoEstadisticaScreenState
         puntos.add(FlSpot(2, sumaInvertido));
       }
 
-      // ✅ Actualizar estado
       setState(() {
         clientesActivos = activos;
-        totalInvertido = totalInvertidoFirestore;
+        // FIX: usar sumaInvertido calculado localmente.
+        // Antes leía 'totalCapitalInvertido' de Firestore, campo que nunca
+        // se escribe en ningún lado → siempre mostraba $0.
+        totalInvertido = sumaInvertido;
         promedioPorCliente = activos > 0 ? (sumaInvertido / activos) : 0;
         graficoData = puntos;
         cargando = false;
@@ -193,8 +163,6 @@ class _ProductoEstadisticaScreenState
     }
   }
 
-
-  // ===================== 🔹 FORMATO MONEDA 🔹 =====================
   String _fmt(num valor) {
     final f =
     NumberFormat.currency(locale: 'es_DO', symbol: '\$', decimalDigits: 0);
@@ -217,7 +185,7 @@ class _ProductoEstadisticaScreenState
     return Scaffold(
       backgroundColor: const Color(0xFF102019),
       body: SafeArea(
-        bottom: false, // 👈 evita desbordamientos por la barra inferior
+        bottom: false,
         child: cargando
             ? const Center(
           child: CircularProgressIndicator(color: Colors.greenAccent),
@@ -230,8 +198,6 @@ class _ProductoEstadisticaScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 10),
-
-                // ======== ENCABEZADO ========
                 Row(
                   mainAxisAlignment: MainAxisAlignment.start,
                   children: const [
@@ -245,11 +211,7 @@ class _ProductoEstadisticaScreenState
                     ),
                   ],
                 ),
-
-
                 const SizedBox(height: 10),
-
-                // ======== TARJETAS KPI ========
                 _tile(
                   "Total invertido",
                   _fmt(totalInvertido),
@@ -267,12 +229,9 @@ class _ProductoEstadisticaScreenState
                   _fmt(promedioPorCliente),
                   const Color(0xFF22C55E),
                 ),
-
-
                 const SizedBox(height: 20),
                 _graficoCard(),
                 const SizedBox(height: 20),
-
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
@@ -287,20 +246,17 @@ class _ProductoEstadisticaScreenState
                 const SizedBox(height: 10),
                 _movimientosCard(),
                 const SizedBox(height: 20),
-
-                // ======== BOTÓN FINAL ========
                 GestureDetector(
                   onTap: () {
                     final uid = _auth.currentUser!.uid;
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            GananciaProductoScreen(
-                              docPrest: FirebaseFirestore.instance
-                                  .collection('prestamistas')
-                                  .doc(uid),
-                            ),
+                        builder: (_) => GananciaProductoScreen(
+                          docPrest: FirebaseFirestore.instance
+                              .collection('prestamistas')
+                              .doc(uid),
+                        ),
                       ),
                     );
                   },
@@ -343,13 +299,11 @@ class _ProductoEstadisticaScreenState
                                 Shadow(
                                   offset: Offset(0, 1),
                                   blurRadius: 1.5,
-                                  color: Colors
-                                      .black38, // 👈 mejora contraste sin dañar el verde
+                                  color: Colors.black38,
                                 ),
                               ],
                             ),
                           ),
-
                         ],
                       ),
                     ),
@@ -364,7 +318,6 @@ class _ProductoEstadisticaScreenState
     );
   }
 
-  // ================= TARJETA KPI =================
   Widget _tile(String titulo, String valor, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
@@ -405,7 +358,6 @@ class _ProductoEstadisticaScreenState
     );
   }
 
-  // ================= GRÁFICO =================
   Widget _graficoCard() {
     final tieneProductos = graficoData.isNotEmpty;
 
@@ -468,16 +420,15 @@ class _ProductoEstadisticaScreenState
     );
   }
 
-  // ================= MOVIMIENTOS =================
   Widget _movimientosCard() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (ultimosMovimientos.isEmpty)
-        // 🔸 Si no hay movimientos
           Center(
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
+              padding:
+              const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(.12),
                 borderRadius: BorderRadius.circular(18),
@@ -495,7 +446,6 @@ class _ProductoEstadisticaScreenState
             ),
           )
         else
-        // 🔸 Mostrar las 3 tarjetas dinámicas
           ...ultimosMovimientos.take(3).map((m) {
             final fecha = DateFormat('dd/MM/yyyy').format(m['fecha']);
             final monto = _fmt(m['monto']);
@@ -505,7 +455,8 @@ class _ProductoEstadisticaScreenState
               duration: const Duration(milliseconds: 400),
               curve: Curves.easeOut,
               margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              padding:
+              const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 color: Colors.white.withOpacity(0.1),
@@ -513,7 +464,6 @@ class _ProductoEstadisticaScreenState
                 boxShadow: [
                   BoxShadow(
                     color: Colors.greenAccent.withOpacity(0.15),
-
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -522,7 +472,6 @@ class _ProductoEstadisticaScreenState
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // 🔹 Lado izquierdo: icono y descripción
                   Row(
                     children: [
                       Icon(
@@ -546,8 +495,6 @@ class _ProductoEstadisticaScreenState
                       ),
                     ],
                   ),
-
-                  // 🔹 Lado derecho: monto (solo si no es cliente nuevo) y fecha
                   Row(
                     children: [
                       if (!esNuevo) ...[
@@ -579,9 +526,6 @@ class _ProductoEstadisticaScreenState
   }
 }
 
-// ======================================================
-// 🌊 ANIMACIÓN SUAVE DE CRECIMIENTO (VERDE)
-// ======================================================
 class _AnimatedGrowthBackground extends StatefulWidget {
   final double cambio;
   const _AnimatedGrowthBackground(this.cambio);
@@ -591,8 +535,7 @@ class _AnimatedGrowthBackground extends StatefulWidget {
       _AnimatedGrowthBackgroundState();
 }
 
-class _AnimatedGrowthBackgroundState
-    extends State<_AnimatedGrowthBackground>
+class _AnimatedGrowthBackgroundState extends State<_AnimatedGrowthBackground>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
@@ -656,8 +599,7 @@ class _WavePainter extends CustomPainter {
     for (double x = 0; x <= size.width; x++) {
       final y = midY -
           (sin(x / size.width * pi) * elevacion) +
-          sin((x / size.width * frequency * 2 * pi) +
-              (progress * 2 * pi)) *
+          sin((x / size.width * frequency * 2 * pi) + (progress * 2 * pi)) *
               amplitude;
       if (x == 0) {
         path.moveTo(0, y);

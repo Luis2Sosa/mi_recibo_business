@@ -25,7 +25,6 @@ class AutoFiltroService {
 
     if (qs.docs.isEmpty) return preferenciaActual ?? FiltroClientes.prestamos;
 
-    // Contadores por sección
     final Map<FiltroClientes, int> urgentes = {
       FiltroClientes.prestamos: 0,
       FiltroClientes.productos: 0,
@@ -52,8 +51,26 @@ class AutoFiltroService {
           s.contains('aparta estudio');
     }
 
+    // FIX: consultar el campo 'tipo' primero, igual que en guardar_pago_y_actualizar_kpis.
+    // Antes solo revisaba el campo 'producto' → si tipo='producto' pero producto='bolso',
+    // 'bolso' no hacía match con _esArriendo y caía bien en .productos, pero si
+    // producto estaba vacío y tipo='producto', caía en .prestamos incorrectamente.
     FiltroClientes _tipoDe(Map<String, dynamic> data) {
+      final tipoField = (data['tipo'] ?? '').toString().toLowerCase().trim();
       final p = (data['producto'] as String?)?.trim() ?? '';
+
+      // 1) Detectar por campo 'tipo' primero
+      if (tipoField == 'alquiler' || tipoField == 'arriendo') {
+        return FiltroClientes.alquiler;
+      }
+      if (tipoField == 'producto' || tipoField == 'fiado') {
+        return FiltroClientes.productos;
+      }
+      if (tipoField == 'prestamo' || tipoField == 'préstamo') {
+        return FiltroClientes.prestamos;
+      }
+
+      // 2) Fallback: inferir por texto del campo 'producto'
       if (_esArriendo(p)) return FiltroClientes.alquiler;
       if (p.isNotEmpty) return FiltroClientes.productos;
       return FiltroClientes.prestamos;
@@ -69,18 +86,15 @@ class AutoFiltroService {
     for (final d in qs.docs) {
       final data = d.data() as Map<String, dynamic>;
 
-      // saldoActual como int seguro (soporta posible typo 'salvoActual')
       final dynamic rawSaldo = data['salvoActual'] ?? data['saldoActual'] ?? 0;
       final int saldoActual = (rawSaldo is int) ? rawSaldo : int.tryParse('$rawSaldo') ?? 0;
 
-      if (saldoActual <= 0) continue; // ignorar saldados
+      if (saldoActual <= 0) continue;
 
       final filtro = _tipoDe(data);
 
-      // Todo con saldo > 0 cuenta como activo
       activos[filtro] = (activos[filtro] ?? 0) + 1;
 
-      // proximaFecha a DateTime (si no hay fecha válida, no se considera "urgente")
       final rawPF = data['proximaFecha'];
       DateTime? prox;
       if (rawPF is Timestamp) {
@@ -89,30 +103,24 @@ class AutoFiltroService {
         prox = DateTime.tryParse(rawPF);
       }
 
-      if (prox == null) {
-        // Sin fecha válida: no sumar a urgentes
-        continue;
-      }
+      if (prox == null) continue;
 
       final dd = _diasHasta(prox);
 
-      // Urgente = vencido (dd<0) o dd==0 (hoy) o dd==1..2 (pronto)
       if (dd <= 2) {
         urgentes[filtro] = (urgentes[filtro] ?? 0) + 1;
       }
     }
 
-    // 1) Priorizar por URGENTES
     final totalUrgentes = urgentes.values.fold<int>(0, (a, b) => a + b);
     if (totalUrgentes > 0) {
       return _maxConEmpate(
         mapa: urgentes,
         preferencia: preferenciaActual,
-        desempateSecundario: activos, // si empata en urgentes, mirar activos
+        desempateSecundario: activos,
       );
     }
 
-    // 2) Si no hay urgentes, ir por MÁS ACTIVOS
     final totalActivos = activos.values.fold<int>(0, (a, b) => a + b);
     if (totalActivos > 0) {
       return _maxConEmpate(
@@ -121,7 +129,6 @@ class AutoFiltroService {
       );
     }
 
-    // 3) Nada: preferencia o default
     return preferenciaActual ?? FiltroClientes.prestamos;
   }
 

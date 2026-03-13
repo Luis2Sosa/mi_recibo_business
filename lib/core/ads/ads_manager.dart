@@ -17,25 +17,21 @@ class AdsManager {
     _entradas[screenName] = 0;
   }
 
-
   static Future<bool> _esPremium() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return false;
 
-      // 👉 Verificar si el usuario está REGISTRADO en Firestore
       final snap = await FirebaseFirestore.instance
           .collection('prestamistas')
           .doc(user.uid)
           .get();
 
       if (!snap.exists) {
-        // ❌ El usuario NO está registrado todavía
         debugPrint("⛔ Usuario sin registro — No mostrar anuncios");
-        return true; // Tratamos como PREMIUM para BLOQUEAR anuncios
+        return true;
       }
 
-      // 👉 Luego verificar si es Premium
       final premiumService = PremiumService();
       final activo = await premiumService.esPremiumActivo(user.uid);
 
@@ -48,53 +44,48 @@ class AdsManager {
     }
   }
 
-
-
   /// 👉 Función MAESTRA
   /// Regla: 1 anuncio → 3 entradas libres → anuncio → repetir
   static Future<void> showEveryFiveEntries(
       BuildContext context, String screenName) async {
-
     final esPro = await _esPremium();
-    if (esPro) return; // Premium NO ve anuncios
+    if (esPro) return;
 
-    // Inicializar contador si no existe
     _entradas.putIfAbsent(screenName, () => 0);
-
-    // Incrementar contador
     _entradas[screenName] = _entradas[screenName]! + 1;
     final int count = _entradas[screenName]!;
     debugPrint("📌 Entradas en $screenName: $count");
 
-    // 1️⃣ Primera entrada → anuncio después de 3 segundos
     if (count == 1) {
       Future.delayed(const Duration(seconds: 3), () {
+        // FIX: guard mounted antes de usar context en callbacks asíncronos.
+        // Sin esto, si el usuario navega fuera durante el delay, el context
+        // ya no existe y ScaffoldMessenger lanza una excepción.
+        if (!context.mounted) return;
         showAd(context, 'Primer acceso: $screenName');
       });
       return;
     }
 
-    // 2️⃣ Entradas 2, 3 y 4 → NO ANUNCIO
-    if (count >= 2 && count <= 4) {
-      return;
-    }
+    if (count >= 2 && count <= 4) return;
 
-    // 3️⃣ Entrada 5 → anuncio + reinicio del ciclo
     if (count == 5) {
       Future.delayed(const Duration(seconds: 3), () {
+        if (!context.mounted) return; // FIX: mismo guard
         showAd(context, 'Reingreso #5: $screenName');
       });
-
-      // RESET SEGURO (vuelve a 0)
       _entradas[screenName] = 0;
     }
   }
-
 
   /// 👉 Mostrar anuncio (simulado)
   static Future<void> showAd(BuildContext context, String adName) async {
     final esPro = await _esPremium();
     if (esPro) return;
+
+    // FIX: verificar mounted después del await — el context pudo haberse
+    // desmontado mientras esperaba _esPremium()
+    if (!context.mounted) return;
 
     debugPrint('🔸 Mostrar anuncio: $adName');
 
@@ -129,6 +120,7 @@ class AdsManager {
     final lastShown = _shownAds[block];
     if (lastShown == null || now.difference(lastShown).inHours >= 4) {
       Future.delayed(const Duration(minutes: 3), () {
+        if (!context.mounted) return; // FIX: guard mounted
         showAd(context, 'Bloque diario: $block');
         _shownAds[block] = DateTime.now();
       });
@@ -142,16 +134,18 @@ class AdsManager {
     if (esPro) return;
 
     await Future.delayed(const Duration(seconds: 2));
+
+    if (!context.mounted) return; // FIX: guard mounted tras el delay
     showAd(context, 'Anuncio después de $action');
   }
 
   /// 👉 Anuncio en pantallas valiosas
   static Future<void> showOnValuableScreen(
       BuildContext context, String screenName) async {
-
     final esPro = await _esPremium();
     if (esPro) return;
 
+    if (!context.mounted) return; // FIX: guard mounted tras el await
     showAd(context, 'Pantalla: $screenName');
   }
 }

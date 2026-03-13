@@ -20,7 +20,6 @@ class EstadisticasTotalesService {
     final docRef = _summaryDoc(prestamistaId);
     final snap = await docRef.get();
 
-    // ✅ Solo crea el documento si no existe
     if (!snap.exists) {
       await docRef.set({
         'totalCapitalPrestado': 0,
@@ -31,7 +30,6 @@ class EstadisticasTotalesService {
       });
     }
 
-    // ✅ Crea las categorías solo si no existen
     for (final cat in const ['prestamo', 'producto', 'alquiler']) {
       final catRef = _catDoc(prestamistaId, cat);
       final catSnap = await catRef.get();
@@ -48,7 +46,6 @@ class EstadisticasTotalesService {
       }
     }
 
-    // ✅ Crea el documento de totales si no existe
     final totRef = _totalesDoc(prestamistaId);
     final totSnap = await totRef.get();
     if (!totSnap.exists) {
@@ -90,7 +87,6 @@ class EstadisticasTotalesService {
     }
   }
 
-  /// ================== AJUSTES CON PROTECCIÓN ==================
   static Future<void> adjustCategoria(
       String prestamistaId,
       String cat, {
@@ -108,24 +104,18 @@ class EstadisticasTotalesService {
     if (capitalPrestadoDelta != null) {
       data['capitalPrestado'] = FieldValue.increment(capitalPrestadoDelta);
     }
-
-    // 🚫 Nunca restar capital recuperado automáticamente
     if (capitalRecuperadoDelta != null && capitalRecuperadoDelta > 0) {
       data['capitalRecuperado'] = FieldValue.increment(capitalRecuperadoDelta);
     }
-
     if (capitalPendienteDelta != null) {
       data['capitalPendiente'] = FieldValue.increment(capitalPendienteDelta);
     }
-
     if (gananciaNetaDelta != null) {
       data['gananciaNeta'] = FieldValue.increment(gananciaNetaDelta);
     }
-
     if (activosDelta != null) {
       data['activos'] = FieldValue.increment(activosDelta);
     }
-
     if (finalizadosDelta != null) {
       data['finalizados'] = FieldValue.increment(finalizadosDelta);
     }
@@ -135,7 +125,6 @@ class EstadisticasTotalesService {
 
   // ================== ACTUALIZACIONES ==================
 
-  /// 🔹 Nuevo cliente
   static Future<void> actualizarPorNuevoCliente(
       String prestamistaId, {
         required String tipo,
@@ -159,7 +148,6 @@ class EstadisticasTotalesService {
     await actualizarHistorialMensual(prestamistaId);
   }
 
-  /// 🔹 Pago de capital (versión segura)
   static Future<void> registrarPagoCapital(
       String prestamistaId, {
         required String tipo,
@@ -181,7 +169,6 @@ class EstadisticasTotalesService {
     await actualizarHistorialMensual(prestamistaId);
   }
 
-  /// 🔹 Eliminar capital recuperado manualmente
   static Future<void> eliminarCapitalRecuperadoManual(
       String prestamistaId, int monto) async {
     await _summaryDoc(prestamistaId).set({
@@ -192,7 +179,11 @@ class EstadisticasTotalesService {
     await actualizarHistorialMensual(prestamistaId);
   }
 
-  /// 🔹 Sincronizar resumen según clientes reales
+  /// 🔹 Sincronizar resumen según clientes reales (TODAS las categorías)
+  // FIX: antes solo procesaba préstamos (filtraba productos y alquileres con
+  // `if (!esPrestamo) continue`) → al llamar sincronizarResumen(), los totales
+  // de productos y alquileres quedaban en 0.
+  // Ahora acumula capital de TODOS los clientes, separado por categoría.
   static Future<void> sincronizarResumen(String prestamistaId) async {
     try {
       final clientesSnap = await _db
@@ -207,21 +198,22 @@ class EstadisticasTotalesService {
 
       for (final c in clientesSnap.docs) {
         final d = c.data();
-        final tipo = (d['tipo'] ?? '').toString().toLowerCase();
-        final estado = (d['estado'] ?? '').toString().toLowerCase();
 
-        final esPrestamo = tipo.contains('prest') ||
-            tipo.contains('cred') ||
-            tipo.contains('fiado') ||
-            tipo.isEmpty;
-        if (!esPrestamo) continue;
+        // Leer categoría usando el campo 'tipo' primero (consistente con el
+        // resto de la app), luego inferir por 'producto' como fallback.
+        final tipoField = (d['tipo'] ?? '').toString().toLowerCase().trim();
+        final prod = (d['producto'] ?? '').toString().toLowerCase().trim();
 
-        final capitalInicial = (d['capitalInicial'] ?? d['capital'] ?? 0) as num;
+        // Ignorar clientes sin capital (registros incompletos)
+        final capitalInicial =
+        (d['capitalInicial'] ?? d['capital'] ?? 0) as num;
+        if (capitalInicial <= 0) continue;
+
         final saldoActual = (d['saldoActual'] ?? 0) as num;
 
         totalPrestado += capitalInicial;
         totalPendiente += saldoActual;
-        totalRecuperado += (capitalInicial - saldoActual);
+        totalRecuperado += (capitalInicial - saldoActual).clamp(0, capitalInicial);
       }
 
       await _summaryDoc(prestamistaId).set({
@@ -237,7 +229,6 @@ class EstadisticasTotalesService {
     }
   }
 
-  /// 🔹 Cálculo directo de recuperación total
   static Future<double> calcularRecuperacionTotal(String prestamistaId) async {
     final data = await readSummary(prestamistaId);
     if (data == null) return 0.0;
@@ -249,7 +240,6 @@ class EstadisticasTotalesService {
     return (totalRecuperado * 100.0) / totalPrestado;
   }
 
-  /// 🔹 Stream en vivo del porcentaje de recuperación
   static Stream<double> listenRecuperacionTotal(String prestamistaId) {
     return _summaryDoc(prestamistaId).snapshots().map((s) {
       final d = s.data();
