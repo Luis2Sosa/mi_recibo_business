@@ -86,6 +86,7 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
   late DateTime _proximaFecha;
   bool _tieneCambios = false;
 
+
   String? _fechaPrimerPago;
   bool _esPremium = false;
   int _totalPrestado = 0;
@@ -847,308 +848,309 @@ class _ClienteDetalleScreenState extends State<ClienteDetalleScreen> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(22),
-                      child: SingleChildScrollView(
-                        physics: const ClampingScrollPhysics(),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+                      child: Stack(
+                        children: [
+                          SingleChildScrollView(
+                            physics: const ClampingScrollPhysics(),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
 
-                            // ════════════════════════════════════════════
-                            // CABECERA PREMIUM — gradiente azul profundo
-                            // ════════════════════════════════════════════
-                            Container(
-                              width: double.infinity,
-                              padding: EdgeInsets.fromLTRB(hPad, 22, hPad, 22),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft, end: Alignment.bottomRight,
-                                  colors: _esPrestamo
-                                      ? [const Color(0xFF1E3A8A), const Color(0xFF2563EB)]
-                                      : _esAlquiler
-                                      ? [const Color(0xFF92400E), const Color(0xFFF59E0B)]
-                                      : [const Color(0xFF065F46), const Color(0xFF22C55E)],
-                                ),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  _avatar(30),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          widget.nombreCompleto,
-                                          maxLines: 2, overflow: TextOverflow.ellipsis,
-                                          style: GoogleFonts.inter(
-                                            fontSize: (screenW * 0.052).clamp(17.0, 22.0),
-                                            fontWeight: FontWeight.w900, color: Colors.white, height: 1.2, letterSpacing: 0.2,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        // Teléfono bajo el nombre
-                                        Row(children: [
-                                          const Icon(Icons.phone_rounded, size: 13, color: Colors.white54),
-                                          const SizedBox(width: 4),
-                                          Text(widget.telefono,
-                                              style: const TextStyle(fontSize: 12, color: Colors.white60, fontWeight: FontWeight.w600)),
-                                        ]),
-                                        const SizedBox(height: 8),
-                                        Wrap(spacing: 6, runSpacing: 4, children: [_tipoBadge(), _statusBadge()]),
-                                      ],
+                                // ════════════════════════════════════════════
+                                // CABECERA PREMIUM — gradiente azul profundo
+                                // ════════════════════════════════════════════
+                                Container(
+                                  width: double.infinity,
+                                  padding: EdgeInsets.fromLTRB(hPad, 22, hPad, 22),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft, end: Alignment.bottomRight,
+                                      colors: _esPrestamo
+                                          ? [const Color(0xFF1E3A8A), const Color(0xFF3B82F6)]
+                                          : _esAlquiler
+                                          ? [const Color(0xFF78350F), const Color(0xFFB45309)]
+                                          : [const Color(0xFF14532D), const Color(0xFF16A34A)],
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-
-                            Padding(
-                              padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-
-                                  // ── Contacto / info adicional ────────────
-                                  if ((widget.direccion ?? '').trim().isNotEmpty ||
-                                      (_nota ?? '').isNotEmpty ||
-                                      !_esPrestamo)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3))],
-                                      ),
-                                      child: Column(
-                                        children: [
-                                          if ((widget.direccion ?? '').trim().isNotEmpty) ...[
-                                            _filaInfo(Icons.location_on_rounded, widget.direccion!, const Color(0xFFDC2626), maxLines: 2),
-                                          ],
-                                          if ((widget.direccion ?? '').trim().isNotEmpty && (_nota ?? '').isNotEmpty)
-                                            const Divider(height: 14, thickness: 0.8, color: Color(0xFFE2E8F0)),
-                                          if ((_nota ?? '').isNotEmpty) ...[
-                                            _filaInfo(Icons.sticky_note_2_rounded, _nota!, const Color(0xFFF59E0B), maxLines: 3),
-                                          ],
-                                          if (!_esPrestamo) ...[
-                                            if ((widget.direccion ?? '').trim().isNotEmpty || (_nota ?? '').isNotEmpty)
-                                              const Divider(height: 14, thickness: 0.8, color: Color(0xFFE2E8F0)),
-                                            FutureBuilder<DocumentSnapshot>(
-                                              key: ValueKey(widget.id),
-                                              future: _clienteRef.get(),
-                                              builder: (context, snapshot) {
-                                                String productosTexto = widget.producto;
-                                                if (snapshot.hasData) {
-                                                  final data = snapshot.data!.data() as Map<String, dynamic>?;
-                                                  final prods = data?['productos'];
-                                                  if (prods is List && prods.isNotEmpty) {
-                                                    productosTexto = prods
-                                                        .map((p) => p is Map && p.containsKey('nombre') ? p['nombre'].toString() : p.toString())
-                                                        .take(4).join(' / ');
-                                                  }
-                                                }
-                                                return _filaInfo(_iconoProducto(), productosTexto, const Color(0xFF7C3AED), maxLines: 2);
-                                              },
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      _avatar(30),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              widget.nombreCompleto,
+                                              maxLines: 2, overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.inter(
+                                                fontSize: (screenW * 0.052).clamp(17.0, 22.0),
+                                                fontWeight: FontWeight.w900, color: Colors.white, height: 1.2, letterSpacing: 0.2,
+                                              ),
                                             ),
+                                            const SizedBox(height: 8),
+                                            // Teléfono bajo el nombre
+                                            Row(children: [
+                                              const Icon(Icons.phone_rounded, size: 13, color: Colors.white54),
+                                              const SizedBox(width: 4),
+                                              Text(widget.telefono,
+                                                  style: const TextStyle(fontSize: 12, color: Colors.white60, fontWeight: FontWeight.w600)),
+                                            ]),
+                                            const SizedBox(height: 8),
+                                            Wrap(spacing: 6, runSpacing: 4, children: [_tipoBadge(), _statusBadge()]),
                                           ],
-                                        ],
-                                      ),
-                                    ),
-
-                                  if ((widget.direccion ?? '').trim().isNotEmpty ||
-                                      (_nota ?? '').isNotEmpty ||
-                                      !_esPrestamo)
-                                    const SizedBox(height: 14),
-
-                                  // ════════════════════════════════════════
-                                  // SALDO DESTACADO — tarjeta prominente
-                                  // ════════════════════════════════════════
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: saldado
-                                            ? [const Color(0xFFEFF6FF), const Color(0xFFDBEAFE)]
-                                            : _saldoActual > 0
-                                            ? [const Color(0xFFFFF1F2), const Color(0xFFFFE4E6)]
-                                            : [const Color(0xFFF0FDF4), const Color(0xFFDCFCE7)],
-                                        begin: Alignment.topLeft, end: Alignment.bottomRight,
-                                      ),
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(color: saldado ? const Color(0xFFBFDBFE) : _saldoActual > 0 ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0)),
-                                      boxShadow: [BoxShadow(color: saldoColor.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 4))],
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: 48, height: 48,
-                                          decoration: BoxDecoration(shape: BoxShape.circle, color: saldoColor.withOpacity(0.12)),
-                                          child: Icon(saldado ? Icons.verified_rounded : Icons.account_balance_wallet_rounded, color: saldoColor, size: 24),
                                         ),
-                                        const SizedBox(width: 14),
-                                        Expanded(
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                Padding(
+                                  padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+
+                                      // ── Contacto / info adicional ────────────
+                                      if ((widget.direccion ?? '').trim().isNotEmpty ||
+                                          (_nota ?? '').isNotEmpty ||
+                                          !_esPrestamo)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(color: const Color(0xFFE5E7EB)),
+                                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3))],
+                                          ),
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              Text('Saldo pendiente',
-                                                  style: GoogleFonts.inter(fontSize: 12, color: saldoColor.withOpacity(0.70), fontWeight: FontWeight.w600)),
-                                              const SizedBox(height: 3),
-                                              Text(saldado ? 'Saldado ✓' : _rd(_saldoActual),
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 26, fontWeight: FontWeight.w900, color: saldoColor,
-                                                    fontFeatures: const [FontFeature.tabularFigures()], height: 1.1,
-                                                  )),
+                                              if ((widget.direccion ?? '').trim().isNotEmpty) ...[
+                                                _filaInfo(Icons.location_on_rounded, widget.direccion!, const Color(0xFFDC2626), maxLines: 2),
+                                              ],
+                                              if ((widget.direccion ?? '').trim().isNotEmpty && (_nota ?? '').isNotEmpty)
+                                                const Divider(height: 14, thickness: 0.8, color: Color(0xFFE2E8F0)),
+                                              if ((_nota ?? '').isNotEmpty) ...[
+                                                _filaInfo(Icons.sticky_note_2_rounded, _nota!, const Color(0xFFF59E0B), maxLines: 3),
+                                              ],
+                                              if (!_esPrestamo) ...[
+                                                if ((widget.direccion ?? '').trim().isNotEmpty || (_nota ?? '').isNotEmpty)
+                                                  const Divider(height: 14, thickness: 0.8, color: Color(0xFFE2E8F0)),
+                                                FutureBuilder<DocumentSnapshot>(
+                                                  key: ValueKey(widget.id),
+                                                  future: _clienteRef.get(),
+                                                  builder: (context, snapshot) {
+                                                    String productosTexto = widget.producto;
+                                                    if (snapshot.hasData) {
+                                                      final data = snapshot.data!.data() as Map<String, dynamic>?;
+                                                      final prods = data?['productos'];
+                                                      if (prods is List && prods.isNotEmpty) {
+                                                        productosTexto = prods
+                                                            .map((p) => p is Map && p.containsKey('nombre') ? p['nombre'].toString() : p.toString())
+                                                            .take(4).join(' / ');
+                                                      }
+                                                    }
+                                                    return _filaInfo(_iconoProducto(), productosTexto, const Color(0xFF7C3AED), maxLines: 2);
+                                                  },
+                                                ),
+                                              ],
                                             ],
                                           ),
                                         ),
-                                        // Mini chip de mora si aplica
-                                        if (_moraAcumulada > 0)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFE11D48).withOpacity(0.08),
-                                              borderRadius: BorderRadius.circular(12),
-                                              border: Border.all(color: const Color(0xFFE11D48).withOpacity(0.25)),
+
+                                      if ((widget.direccion ?? '').trim().isNotEmpty ||
+                                          (_nota ?? '').isNotEmpty ||
+                                          !_esPrestamo)
+                                        const SizedBox(height: 14),
+
+                                      // ════════════════════════════════════════
+                                      // SALDO DESTACADO — tarjeta prominente
+                                      // ════════════════════════════════════════
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: saldado
+                                                ? [const Color(0xFFEFF6FF), const Color(0xFFDBEAFE)]
+                                                : _saldoActual > 0
+                                                ? [const Color(0xFFFFF1F2), const Color(0xFFFFE4E6)]
+                                                : [const Color(0xFFF0FDF4), const Color(0xFFDCFCE7)],
+                                            begin: Alignment.topLeft, end: Alignment.bottomRight,
+                                          ),
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(color: saldado ? const Color(0xFFBFDBFE) : _saldoActual > 0 ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0)),
+                                          boxShadow: [BoxShadow(color: saldoColor.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 4))],
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 48, height: 48,
+                                              decoration: BoxDecoration(shape: BoxShape.circle, color: saldoColor.withOpacity(0.12)),
+                                              child: Icon(saldado ? Icons.verified_rounded : Icons.account_balance_wallet_rounded, color: saldoColor, size: 24),
                                             ),
-                                            child: Column(children: [
-                                              const Text('Mora', style: TextStyle(fontSize: 10, color: Color(0xFFE11D48), fontWeight: FontWeight.w700)),
-                                              const SizedBox(height: 2),
-                                              Text(_rd(_moraAcumulada),
-                                                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w900, color: const Color(0xFFE11D48))),
-                                            ]),
+                                            const SizedBox(width: 14),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text('Saldo pendiente',
+                                                      style: GoogleFonts.inter(fontSize: 12, color: saldoColor.withOpacity(0.70), fontWeight: FontWeight.w600)),
+                                                  const SizedBox(height: 3),
+                                                  Text(saldado ? 'Saldado ✓' : _rd(_saldoActual),
+                                                      style: GoogleFonts.inter(
+                                                        fontSize: 26, fontWeight: FontWeight.w900, color: saldoColor,
+                                                        fontFeatures: const [FontFeature.tabularFigures()], height: 1.1,
+                                                      )),
+                                                ],
+                                              ),
+                                            ),
+                                            // Mini chip de mora si aplica
+                                            if (_moraAcumulada > 0)
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFE11D48).withOpacity(0.08),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  border: Border.all(color: const Color(0xFFE11D48).withOpacity(0.25)),
+                                                ),
+                                                child: Column(children: [
+                                                  const Text('Mora', style: TextStyle(fontSize: 10, color: Color(0xFFE11D48), fontWeight: FontWeight.w700)),
+                                                  const SizedBox(height: 2),
+                                                  Text(_rd(_moraAcumulada),
+                                                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w900, color: const Color(0xFFE11D48))),
+                                                ]),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+
+                                      const SizedBox(height: 14),
+
+                                      // ── Tabla financiera ─────────────────────
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3))],
+                                        ),
+                                        child: Column(children: [
+                                          _filaTabla(
+                                            icon: Icons.calendar_month_rounded, iconColor: const Color(0xFF6366F1),
+                                            label: 'Primer pago', value: _fechaPrimerPago ?? 'Sin registro',
+                                            valueColor: const Color(0xFF0F172A),
+                                            isLast: _saldoActual <= 0 && !(_esProducto && _pagoInicial > 0),
                                           ),
-                                      ],
-                                    ),
-                                  ),
+                                          if (_esProducto && _pagoInicial > 0)
+                                            _filaTabla(
+                                              icon: Icons.payments_rounded, iconColor: const Color(0xFF059669),
+                                              label: 'Pago inicial', value: _rd(_pagoInicial), valueColor: const Color(0xFF059669),
+                                            ),
+                                          if (_saldoActual > 0 && _esPrestamo)
+                                            _filaTabla(
+                                              icon: Icons.percent_rounded, iconColor: const Color(0xFF22C55E),
+                                              label: 'Interés ${widget.periodo.toLowerCase()}',
+                                              value: _rd((_saldoActual * (widget.tasaInteres / 100)).round()),
+                                              valueColor: const Color(0xFF16A34A),
+                                            ),
+                                          if (_saldoActual > 0)
+                                            _filaTabla(
+                                              icon: Icons.event_rounded, iconColor: const Color(0xFF2563EB),
+                                              label: 'Próxima fecha', value: _fmtFecha(_proximaFecha),
+                                              valueColor: const Color(0xFF1D4ED8), isLast: true,
+                                            ),
 
-                                  const SizedBox(height: 14),
-
-                                  // ── Tabla financiera ─────────────────────
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(color: const Color(0xFFE5E7EB)),
-                                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3))],
-                                    ),
-                                    child: Column(children: [
-                                      _filaTabla(
-                                        icon: Icons.calendar_month_rounded, iconColor: const Color(0xFF6366F1),
-                                        label: 'Primer pago', value: _fechaPrimerPago ?? 'Sin registro', valueColor: const Color(0xFF0F172A),
+                                        ]),
                                       ),
-                                      if (_esProducto && _pagoInicial > 0)
-                                        _filaTabla(
-                                          icon: Icons.payments_rounded, iconColor: const Color(0xFF059669),
-                                          label: 'Pago inicial', value: _rd(_pagoInicial), valueColor: const Color(0xFF059669),
-                                        ),
-                                      if (_saldoActual > 0 && _esPrestamo)
-                                        _filaTabla(
-                                          icon: Icons.percent_rounded, iconColor: const Color(0xFF22C55E),
-                                          label: 'Interés ${widget.periodo.toLowerCase()}',
-                                          value: _rd((_saldoActual * (widget.tasaInteres / 100)).round()),
-                                          valueColor: const Color(0xFF16A34A),
-                                        ),
-                                      if (_saldoActual > 0)
-                                        _filaTabla(
-                                          icon: Icons.event_rounded, iconColor: const Color(0xFF2563EB),
-                                          label: 'Próxima fecha', value: _fmtFecha(_proximaFecha),
-                                          valueColor: const Color(0xFF1D4ED8), isLast: true,
-                                        ),
-                                      if (_saldoActual <= 0)
-                                        _filaTabla(
-                                          icon: Icons.event_rounded, iconColor: const Color(0xFF2563EB),
-                                          label: 'Primer pago', value: _fechaPrimerPago ?? '—',
-                                          valueColor: const Color(0xFF1D4ED8), isLast: true,
-                                        ),
-                                    ]),
-                                  ),
 
-                                  SizedBox(height: (screenH * 0.022).clamp(14.0, 22.0)),
+                                      SizedBox(height: (screenH * 0.022).clamp(14.0, 22.0)),
 
-                                  // ── Botón Registrar pago ─────────────────
-                                  _actionButton(
-                                    label: 'Registrar pago', icon: Icons.add_card_rounded,
-                                    bgColor: saldado ? azul.withOpacity(0.42) : azul,
-                                    fgColor: Colors.white, isBusy: _btnPagoBusy,
-                                    onPressed: () async {
-                                      if (saldado) { HapticFeedback.selectionClick(); _showSaldadoBanner(); return; }
-                                      if (_btnPagoBusy) return;
-                                      HapticFeedback.lightImpact();
-                                      setState(() => _btnPagoBusy = true);
-                                      await _registrarPagoFlow(context);
-                                      if (mounted) setState(() => _btnPagoBusy = false);
-                                    },
-                                  ),
-
-                                  const SizedBox(height: 10),
-
-                                  // ── Botón Ver historial ──────────────────
-                                  _actionButton(
-                                    label: 'Ver historial', icon: Icons.history_rounded,
-                                    bgColor: verde, fgColor: Colors.white,
-                                    onPressed: () {
-                                      HapticFeedback.lightImpact();
-                                      Navigator.push(context, MaterialPageRoute(
-                                        builder: (_) => HistorialScreen(
-                                          idCliente: widget.id,
-                                          nombreCliente: widget.nombreCompleto,
-                                          producto: widget.producto,
-                                        ),
-                                      ));
-                                    },
-                                  ),
-
-                                  const SizedBox(height: 10),
-
-                                  // ── Botón WhatsApp ───────────────────────
-                                  SizedBox(
-                                    width: double.infinity,
-                                    height: (screenH * 0.068).clamp(48.0, 58.0),
-                                    child: OutlinedButton(
-                                      style: OutlinedButton.styleFrom(
-                                        side: BorderSide(color: saldado ? const Color(0xFF94A3B8) : azul, width: 1.5),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                        foregroundColor: saldado ? const Color(0xFF64748B) : azul,
-                                        backgroundColor: Colors.white,
+                                      // ── Botón Registrar pago ─────────────────
+                                      _actionButton(
+                                        label: 'Registrar pago', icon: Icons.add_card_rounded,
+                                        bgColor: saldado ? azul.withOpacity(0.42) : azul,
+                                        fgColor: Colors.white, isBusy: _btnPagoBusy,
+                                        onPressed: () async {
+                                          if (saldado) { HapticFeedback.selectionClick(); _showSaldadoBanner(); return; }
+                                          if (_btnPagoBusy) return;
+                                          HapticFeedback.lightImpact();
+                                          setState(() => _btnPagoBusy = true);
+                                          await _registrarPagoFlow(context);
+                                          if (mounted) setState(() => _btnPagoBusy = false);
+                                        },
                                       ),
-                                      onPressed: () {
-                                        HapticFeedback.selectionClick();
-                                        if (saldado) { _showSaldadoBanner(); return; }
-                                        _abrirMenuRecordatorio();
-                                      },
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Opacity(opacity: saldado ? 0.5 : 1, child: _waIcon(size: 18)),
-                                          const SizedBox(width: 8),
-                                          Flexible(
-                                            child: Text('Recordatorio por WhatsApp',
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: (screenW * 0.036).clamp(12.0, 15.0),
-                                                  color: saldado ? const Color(0xFF64748B) : azul,
-                                                )),
+
+                                      const SizedBox(height: 10),
+
+                                      // ── Botón Ver historial ──────────────────
+                                      _actionButton(
+                                        label: 'Ver historial', icon: Icons.history_rounded,
+                                        bgColor: verde, fgColor: Colors.white,
+                                        onPressed: () {
+                                          HapticFeedback.lightImpact();
+                                          Navigator.push(context, MaterialPageRoute(
+                                            builder: (_) => HistorialScreen(
+                                              idCliente: widget.id,
+                                              nombreCliente: widget.nombreCompleto,
+                                              producto: widget.producto,
+                                            ),
+                                          ));
+                                        },
+                                      ),
+
+                                      const SizedBox(height: 10),
+
+                                      // ── Botón WhatsApp ───────────────────────
+                                      SizedBox(
+                                        width: double.infinity,
+                                        height: (screenH * 0.068).clamp(48.0, 58.0),
+                                        child: OutlinedButton(
+                                          style: OutlinedButton.styleFrom(
+                                            side: BorderSide(color: saldado ? const Color(0xFF94A3B8) : azul, width: 1.5),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                            foregroundColor: saldado ? const Color(0xFF64748B) : azul,
+                                            backgroundColor: Colors.white,
                                           ),
-                                        ],
+                                          onPressed: () {
+                                            HapticFeedback.selectionClick();
+                                            if (saldado) { _showSaldadoBanner(); return; }
+                                            _abrirMenuRecordatorio();
+                                          },
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Opacity(opacity: saldado ? 0.5 : 1, child: _waIcon(size: 18)),
+                                              const SizedBox(width: 8),
+                                              Flexible(
+                                                child: Text('Recordatorio por WhatsApp',
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.w700,
+                                                      fontSize: (screenW * 0.036).clamp(12.0, 15.0),
+                                                      color: saldado ? const Color(0xFF64748B) : azul,
+                                                    )),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  ),
 
-                                  SizedBox(height: botPad > 0 ? botPad : 8),
-                                ],
-                              ),
+                                      SizedBox(height: botPad > 0 ? botPad : 8),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-
                     ),
                   ),
                 ),
               ),
+
             ],
           ),
         ),
