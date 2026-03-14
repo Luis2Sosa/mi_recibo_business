@@ -123,6 +123,10 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   int _tab = 1;
   PerfilCategoria? _catSel;
 
+  // ── Scroll hint ────────────────────────────────────────────────────────
+  final ScrollController _resumenScrollCtrl = ScrollController();
+  bool _showScrollHint = true;
+
   final _db = FirebaseFirestore.instance;
   User? get _user => FirebaseAuth.instance.currentUser;
   DocumentReference<Map<String, dynamic>>? get _docPrest =>
@@ -160,6 +164,14 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     super.initState();
     _cargarTodo();
     _listenPerfilRealtime();
+    _resumenScrollCtrl.addListener(() {
+      if (!_showScrollHint) return;
+      final pos = _resumenScrollCtrl.position;
+      // Ocultar solo cuando llega al final (últimos 32px)
+      if (pos.pixels >= pos.maxScrollExtent - 32) {
+        setState(() => _showScrollHint = false);
+      }
+    });
   }
 
   Future<void> _abrirWhatsAppConTexto(String texto) async {
@@ -202,6 +214,7 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   @override
   void dispose() {
     _perfilSub?.cancel();
+    _resumenScrollCtrl.dispose();
     _nombreCtrl.dispose();
     _telCtrl.dispose();
     _empCtrl.dispose();
@@ -584,14 +597,29 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
                                   ),
                                 ],
                               )
-                                  : SingleChildScrollView(
-                                child: Column(
-                                  children: [
-                                    _tabs(),
-                                    const SizedBox(height: 12),
-                                    _loadingStats ? _skeleton() : _generalContent(),
-                                  ],
-                                ),
+                                  : Stack(
+                                children: [
+                                  SingleChildScrollView(
+                                    controller: _resumenScrollCtrl,
+                                    child: Column(
+                                      children: [
+                                        _tabs(),
+                                        const SizedBox(height: 12),
+                                        _loadingStats ? _skeleton() : _generalContent(),
+                                        // Espacio extra para que el último card no quede pegado al fade
+                                        const SizedBox(height: 60),
+                                      ],
+                                    ),
+                                  ),
+                                  // ── Scroll hint: degradado + flecha pulsante ──
+                                  if (_showScrollHint && !_loadingStats)
+                                    Positioned(
+                                      left: 0, right: 0, bottom: 0,
+                                      child: IgnorePointer(
+                                        child: _ScrollHintOverlay(),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           ),
@@ -1674,6 +1702,107 @@ class _DeleteDialogContentState extends State<_DeleteDialogContent>
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCROLL HINT — degradado inferior + flecha pulsante
+// Aparece al entrar al tab Resumen y desaparece al primer scroll (>20px).
+// ═══════════════════════════════════════════════════════════════════════════
+class _ScrollHintOverlay extends StatefulWidget {
+  const _ScrollHintOverlay();
+  @override
+  State<_ScrollHintOverlay> createState() => _ScrollHintOverlayState();
+}
+
+class _ScrollHintOverlayState extends State<_ScrollHintOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _bounceCtrl;
+  late Animation<double> _bounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _bounceCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+
+    _bounce = Tween<double>(begin: 0, end: 6).animate(
+      CurvedAnimation(parent: _bounceCtrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _bounceCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 80,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Degradado de desvanecimiento
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Color(0x990A9A76), // coincide con gradBottom de _Brand
+                ],
+                stops: [0.0, 1.0],
+              ),
+            ),
+          ),
+
+          // Flecha pulsante
+          Positioned(
+            bottom: 12,
+            child: AnimatedBuilder(
+              animation: _bounce,
+              builder: (_, __) => Transform.translate(
+                offset: Offset(0, _bounce.value),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'desliza',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.18),
+                        border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.2),
+                      ),
+                      child: const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),

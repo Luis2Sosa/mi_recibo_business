@@ -7,14 +7,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mi_recibo/ui/premium/pantalla_bloqueo_premium.dart';
 
-
-
 class _BrandX {
   static const ink = Color(0xFF0F172A);
   static const inkDim = Color(0xFF64748B);
   static const divider = Color(0xFFD7E1EE);
 }
-
 
 /// ==== HISTÓRICO ====
 class EstadisticasHistoricoView extends StatelessWidget {
@@ -29,10 +26,8 @@ class EstadisticasHistoricoView extends StatelessWidget {
   final VoidCallback onOpenGananciaClientes;
   final String Function(int) rd;
 
-  /// Para flecha de tendencia en Recuperación (opcional).
   final double? previousRecoveryPercent;
 
-  // 🔹 Campos nuevos para “Cliente con mayor deuda”
   final String mayorNombre;
   final int mayorSaldo;
 
@@ -51,19 +46,16 @@ class EstadisticasHistoricoView extends StatelessWidget {
     required this.mayorSaldo,
   });
 
-
   @override
   Widget build(BuildContext context) {
     final double rawRate =
     lifetimePrestado > 0 ? (lifetimeRecuperado * 100 / lifetimePrestado) : 0.0;
-    final double recRate = rawRate.clamp(0.0, 100.0); // 0–100
-    final int pendienteHist = math.max(
-        lifetimePrestado - lifetimeRecuperado, 0);
+    final double recRate = rawRate.clamp(0.0, 100.0);
+    final int pendienteHist = math.max(lifetimePrestado - lifetimeRecuperado, 0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // === ÚNICO GRID DE KPIs (4) ===
         GridView.count(
           shrinkWrap: true,
           crossAxisCount: 2,
@@ -72,7 +64,6 @@ class EstadisticasHistoricoView extends StatelessWidget {
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
           children: [
-            // 1️⃣ Ganancias totales
             KPIPremiumCard(
               title: 'Ganancias totales',
               subtitle: 'Toca para ver',
@@ -82,15 +73,10 @@ class EstadisticasHistoricoView extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (_) => const PantallaBloqueoPremium(destino: 'totales'),
-
                   ),
                 );
               },
             ),
-
-
-
-            // 2️⃣ Total capital recuperado
             Builder(
               builder: (context) {
                 final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -99,8 +85,8 @@ class EstadisticasHistoricoView extends StatelessWidget {
                     title: 'Total capital recuperado',
                     value: rd(lifetimeRecuperado),
                     activo: lifetimeRecuperado > 0,
-                    invertida: false, // sube
-                    colorBase: const Color(0xFF00C853), // verde premium
+                    invertida: false,
+                    colorBase: const Color(0xFF00C853),
                   );
                 }
 
@@ -131,18 +117,13 @@ class EstadisticasHistoricoView extends StatelessWidget {
                 );
               },
             ),
-
-            // 3️⃣ Total capital pendiente
             _KPIFintechPremium(
               title: 'Total capital pendiente',
               value: rd(pendienteHist),
               activo: pendienteHist > 0,
-              invertida: true, // baja
-              colorBase: const Color(0xFF8B0000), // rojo vino elegante
+              invertida: true,
+              colorBase: const Color(0xFF8B0000),
             ),
-
-
-            // 4️⃣ Recuperación — tarjeta vasija (agua roja <50, verde >=50)
             RecoveryFillCard(
               percent: recRate,
               previousPercent: previousRecoveryPercent ?? recRate,
@@ -150,7 +131,6 @@ class EstadisticasHistoricoView extends StatelessWidget {
           ],
         ),
 
-        // 🧾 Bloque “Cliente con mayor deuda” (transparencia final, tono premium sutil)
         const SizedBox(height: 20),
         Container(
           padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 18),
@@ -159,53 +139,32 @@ class EstadisticasHistoricoView extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Color(0xA62B2F3A), // mismo tono gris azulado, 65 % opaco
-                Color(0xA63B4250), // ligeramente más claro, también 65 %
-              ],
+              colors: [Color(0xA62B2F3A), Color(0xA63B4250)],
             ),
             border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(.08),
-                blurRadius: 5,
-                offset: const Offset(0, 3),
-              ),
-            ],
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(.08), blurRadius: 5, offset: const Offset(0, 3))],
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // 🔹 Información del cliente (alineación vertical premium)
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
                       'Cliente con mayor deuda',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14.5,
-                        letterSpacing: 0.3,
-                      ),
+                      style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w600, fontSize: 14.5, letterSpacing: 0.3),
                     ),
-                    const SizedBox(height: 10), // 💨 más espacio para que respire
+                    const SizedBox(height: 10),
                     Text(
                       mayorNombre.isNotEmpty ? mayorNombre : '—',
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
-                        fontSize: 21, // 🔹 un poco más grande
+                        fontSize: 21,
                         letterSpacing: 0.5,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black38, // 💎 sutil relieve
-                            blurRadius: 4,
-                            offset: Offset(1, 1),
-                          ),
-                        ],
+                        shadows: [Shadow(color: Colors.black38, blurRadius: 4, offset: Offset(1, 1))],
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -218,19 +177,12 @@ class EstadisticasHistoricoView extends StatelessWidget {
                       ),
                       child: Text(
                         'Saldo: ${rd(mayorSaldo)}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                        ),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
                       ),
                     ),
                   ],
                 ),
               ),
-
-
-              // ⚠️ Ícono de alerta elegante y discreto
               Container(
                 margin: const EdgeInsets.only(left: 12),
                 padding: const EdgeInsets.all(10),
@@ -239,101 +191,57 @@ class EstadisticasHistoricoView extends StatelessWidget {
                   color: Colors.white.withOpacity(0.03),
                   border: Border.all(color: Colors.white.withOpacity(0.12), width: 1),
                 ),
-                child: const Icon(
-                  Icons.warning_amber_rounded,
-                  color: Color(0xFFFFD66B),
-                  size: 24,
-                ),
+                child: const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFD66B), size: 24),
               ),
             ],
           ),
-
         ),
 
-
-
-
         const SizedBox(height: 20),
-
-        // 🌤️ Bloque moderno y equilibrado — Resumen histórico visible
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 2),
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.38), // 💡 visibilidad mejorada
+            color: Colors.white.withOpacity(0.38),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: Colors.white.withOpacity(0.55)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(.10),
-                blurRadius: 12,
-                offset: const Offset(0, 5),
-              ),
-            ],
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(.10), blurRadius: 12, offset: const Offset(0, 5))],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Resumen histórico',
-                style: TextStyle(
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                ),
-              ),
+              const Text('Resumen histórico', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w800, fontSize: 16)),
               const SizedBox(height: 12),
-
-              // Primera fila
               Row(
                 children: [
-                  _miniStatBalanced(
-                    icon: Icons.calendar_today_rounded,
-                    label: 'Primer pago',
-                    value: histPrimerPago,
-                  ),
+                  _miniStatBalanced(icon: Icons.calendar_today_rounded, label: 'Primer pago', value: histPrimerPago),
                   const SizedBox(width: 10),
-                  _miniStatBalanced(
-                    icon: Icons.payments_rounded,
-                    label: 'Último pago',
-                    value: histUltimoPago,
-                  ),
+                  _miniStatBalanced(icon: Icons.payments_rounded, label: 'Último pago', value: histUltimoPago),
                 ],
               ),
-
               const SizedBox(height: 10),
-
-              // Segunda fila
               Row(
                 children: [
-                  _miniStatBalanced(
-                    icon: Icons.trending_up_rounded,
-                    label: 'Mes con más cobros',
-                    value: histMesTop,
-                  ),
+                  _miniStatBalanced(icon: Icons.trending_up_rounded, label: 'Mes con más cobros', value: histMesTop),
                   const SizedBox(width: 10),
                   _miniStatBalanced(
                     icon: Icons.water_drop_rounded,
                     label: 'Recuperación histórica',
-                    value: lifetimePrestado > 0
-                        ? '${recRate.toStringAsFixed(0)}%'
-                        : '—',
+                    value: lifetimePrestado > 0 ? '${recRate.toStringAsFixed(0)}%' : '—',
                   ),
                 ],
               ),
             ],
           ),
         ),
-
-
-
       ],
     );
   }
 }
-  /// ===== KPI “tarjeta vasija” (llena toda la tarjeta) =====
+
+/// ===== KPI "tarjeta vasija" =====
 class RecoveryFillCard extends StatefulWidget {
-  final double percent;        // 0–100
+  final double percent;
   final double previousPercent;
 
   const RecoveryFillCard({
@@ -348,10 +256,10 @@ class RecoveryFillCard extends StatefulWidget {
 
 class _RecoveryFillCardState extends State<RecoveryFillCard>
     with TickerProviderStateMixin {
-  late AnimationController _fillCtrl; // anima el nivel (0..1)
-  late AnimationController _waveCtrl; // olas
-  late AnimationController _tapCtrl;  // micro-pulso
-  late Animation<double> _level;      // 0..1
+  late AnimationController _fillCtrl;
+  late AnimationController _waveCtrl;
+  late AnimationController _tapCtrl;
+  late Animation<double> _level;
 
   @override
   void initState() {
@@ -364,9 +272,8 @@ class _RecoveryFillCardState extends State<RecoveryFillCard>
         .drive(Tween<double>(begin: from, end: to));
     _fillCtrl.forward();
 
-    // Fase continua: nunca resetea, no hay “corte” visible en el loop.
     _waveCtrl = AnimationController.unbounded(vsync: this)
-      ..animateWith(_LinearWaveSimulation(speed: 1.0)); // radianes/segundo aprox.
+      ..animateWith(_LinearWaveSimulation(speed: 1.0));
 
     _tapCtrl = AnimationController(
       vsync: this,
@@ -401,16 +308,9 @@ class _RecoveryFillCardState extends State<RecoveryFillCard>
     final pct = widget.percent.clamp(0, 100);
     final pctText = pct.toStringAsFixed(0);
 
-    // Agua: roja <50, verde >=50
     final bool good = pct >= 50;
     final Color water = good ? const Color(0xFF16A34A) : const Color(0xFFE11D48);
-    final List<Color> cardGrad = const [
-      Color(0xFF2C2F3A), // gris azulado profundo
-      Color(0xFF3E4452), // tono más claro
-    ];
-
-
-    // Porcentaje: verde/rojo con borde negro (stroke)
+    final List<Color> cardGrad = const [Color(0xFF2C2F3A), Color(0xFF3E4452)];
     final Color pctFill = good ? const Color(0xFF16A34A) : const Color(0xFFE11D48);
 
     return GestureDetector(
@@ -423,59 +323,45 @@ class _RecoveryFillCardState extends State<RecoveryFillCard>
           borderRadius: BorderRadius.circular(18),
           child: Stack(
             children: [
-              // Fondo y agua
-              CustomPaint(
-                painter: _FullCardWaterPainter(
-                  levelListenable: _level,
-                  waveListenable: _waveCtrl,
-                  cardGradient: cardGrad,
-                  waterColor: water,
+              // FIX: SizedBox.expand() garantiza que CustomPaint siempre tenga
+              // constraints finitas dentro del Stack → nunca pinta área 0×0.
+              // Sin este fix, en algunos Android el fondo de agua queda invisible.
+              SizedBox.expand(
+                child: CustomPaint(
+                  painter: _FullCardWaterPainter(
+                    levelListenable: _level,
+                    waveListenable: _waveCtrl,
+                    cardGradient: cardGrad,
+                    waterColor: water,
+                  ),
                 ),
-                child: const SizedBox.expand(),
               ),
 
-              // Borde + sombra premium
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: Colors.white.withOpacity(.65), width: 1.4),
-                  boxShadow: [
-                    BoxShadow(
-                      color: water.withOpacity(.18),
-                      blurRadius: 22,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
+                  boxShadow: [BoxShadow(color: water.withOpacity(.18), blurRadius: 22, offset: const Offset(0, 8))],
                 ),
               ),
 
-              // Contenido
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween, // ← evita overflow
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Fila superior: solo el título centrado
                     Center(
                       child: Text(
                         'Recuperación total',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white, // ✅ blanco elegante
-                          shadows: const [
-                            Shadow(
-                              color: Colors.black45,
-                              blurRadius: 4,
-                              offset: Offset(1, 1),
-                            ),
-                          ],
+                          color: Colors.white,
+                          shadows: const [Shadow(color: Colors.black45, blurRadius: 4, offset: Offset(1, 1))],
                         ),
                       ),
                     ),
-
-                    // % centrado con borde negro y relleno verde/rojo
                     Center(
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
@@ -497,11 +383,7 @@ class _RecoveryFillCardState extends State<RecoveryFillCard>
                             Text(
                               '$pctText%',
                               style: GoogleFonts.inter(
-                                textStyle: TextStyle(
-                                  fontSize: 40,
-                                  fontWeight: FontWeight.w900,
-                                  color: pctFill,
-                                ),
+                                textStyle: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: pctFill),
                               ),
                             ),
                           ],
@@ -517,36 +399,12 @@ class _RecoveryFillCardState extends State<RecoveryFillCard>
       ),
     );
   }
-
-  // Flecha siempre visible: ↑ si >=50, ↓ si <50 (mismo estilo que Ganancias)
-  Widget _trendChipAlways({required bool good}) {
-    final icon = good ? Icons.trending_up : Icons.trending_down;
-    final color = good ? const Color(0xFF16A34A) : const Color(0xFFE11D48);
-
-    return Container(
-      height: 28,
-      width: 28,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white.withOpacity(.80),
-        border: Border.all(color: Colors.white, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(.18),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Icon(icon, size: 18, color: color),
-    );
-  }
 }
 
 /// Pinta la tarjeta completa con fondo premium y agua llenando desde abajo
 class _FullCardWaterPainter extends CustomPainter {
-  final Animation<double> levelListenable; // 0..1
-  final Animation<double> waveListenable;  // 0..1
+  final Animation<double> levelListenable;
+  final Animation<double> waveListenable;
   final List<Color> cardGradient;
   final Color waterColor;
 
@@ -562,7 +420,6 @@ class _FullCardWaterPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
-    // Fondo premium
     final bg = Paint()
       ..isAntiAlias = true
       ..shader = LinearGradient(
@@ -572,38 +429,31 @@ class _FullCardWaterPainter extends CustomPainter {
       ).createShader(Offset.zero & size);
     canvas.drawRect(Offset.zero & size, bg);
 
-    // Nivel de agua (0..1)
     final level = levelListenable.value.clamp(0.0, 1.0);
     final waterTop = h * (1 - level);
 
-    // Fase continua (viene del controller unbounded)
     final t = waveListenable.value;
     final amp1 = 8.0;
     final amp2 = 5.0;
-    // Frecuencias fijas: movimiento uniforme (sin depender del nivel)
     const double omega1 = 2.2;
     const double omega2 = 1.6;
     final phase1 = t * omega1;
     final phase2 = -t * omega2;
 
-    Paint _waterPaint(double opacityTop, double opacityBottom) {
+    Paint waterPaint(double opacityTop, double opacityBottom) {
       return Paint()
         ..isAntiAlias = true
         ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            waterColor.withOpacity(opacityTop),
-            waterColor.withOpacity(opacityBottom),
-          ],
+          colors: [waterColor.withOpacity(opacityTop), waterColor.withOpacity(opacityBottom)],
         ).createShader(Rect.fromLTWH(0, waterTop - 10, w, h - waterTop + 10));
     }
 
-    // === Onda extendida para eliminar el "corte" (overdraw) ===
-    Path _wave(double phase, double amp, double y0, double w, double h) {
-      final double wavelength = w;     // 1 período = ancho del card
-      final double startX = -wavelength;      // empieza fuera de la izquierda
-      final double endX   = w + wavelength;   // termina fuera de la derecha
+    Path makeWave(double phase, double amp, double y0, double w, double h) {
+      final double wavelength = w;
+      final double startX = -wavelength;
+      final double endX = w + wavelength;
 
       final p = Path()..moveTo(startX, h);
       double y(double x) => y0 + math.sin((x / wavelength * 2 * math.pi) + phase) * amp;
@@ -617,18 +467,12 @@ class _FullCardWaterPainter extends CustomPainter {
       return p;
     }
 
-    // Construimos olas (trasera y delantera)
-    final Path backWave  = _wave(phase2, amp2, waterTop - 4, w, h);
-    final Path frontWave = _wave(phase1, amp1, waterTop, w, h);
+    final Path backWave = makeWave(phase2, amp2, waterTop - 4, w, h);
+    final Path frontWave = makeWave(phase1, amp1, waterTop, w, h);
 
-    final Paint backPaint  = _waterPaint(.25, .65);
-    final Paint frontPaint = _waterPaint(.40, .85);
+    canvas.drawPath(backWave, waterPaint(.25, .65));
+    canvas.drawPath(frontWave, waterPaint(.40, .85));
 
-    // Dibuja primero la ola de atrás y luego la delantera (profundidad correcta)
-    canvas.drawPath(backWave, backPaint);
-    canvas.drawPath(frontWave, frontPaint);
-
-    // Highlight del borde del agua (sobre la ola delantera)
     final edge = Paint()
       ..isAntiAlias = true
       ..color = Colors.white.withOpacity(.35)
@@ -638,11 +482,7 @@ class _FullCardWaterPainter extends CustomPainter {
     final edgePath = Path();
     for (double x = 0; x <= w; x += 4) {
       final y = waterTop + math.sin((x / w * 2 * math.pi) + phase1) * amp1;
-      if (x == 0) {
-        edgePath.moveTo(x, y);
-      } else {
-        edgePath.lineTo(x, y);
-      }
+      if (x == 0) edgePath.moveTo(x, y); else edgePath.lineTo(x, y);
     }
     canvas.drawPath(edgePath, edge);
   }
@@ -651,7 +491,6 @@ class _FullCardWaterPainter extends CustomPainter {
   bool shouldRepaint(covariant _FullCardWaterPainter old) => true;
 }
 
-/// ====== UI Helpers ======
 Widget _kpiGlass({
   required String title,
   required String value,
@@ -678,9 +517,7 @@ Widget _kpiGlass({
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(
-                textStyle: const TextStyle(color: _BrandX.inkDim, fontWeight: FontWeight.w700, fontSize: 14),
-              ),
+              style: GoogleFonts.inter(textStyle: const TextStyle(color: _BrandX.inkDim, fontWeight: FontWeight.w700, fontSize: 14)),
             ),
           ),
         ),
@@ -690,14 +527,8 @@ Widget _kpiGlass({
             child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.center,
-              child: Text(
-                value,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                style: GoogleFonts.inter(
-                  textStyle: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: accent),
-                ),
-              ),
+              child: Text(value, textAlign: TextAlign.center, maxLines: 1,
+                  style: GoogleFonts.inter(textStyle: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: accent))),
             ),
           ),
         ),
@@ -727,18 +558,19 @@ class KPIPremiumCard extends StatefulWidget {
 class _KPIPremiumCardState extends State<KPIPremiumCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _shineCtrl;
-  bool _shining = false;
 
   @override
   void initState() {
     super.initState();
+    // Brillo premium: el barrido dura 600ms, luego pausa ~2.5s antes de repetir.
+    // Simulamos la pausa haciendo que la animación dure 3.1s en total pero
+    // el brillo solo es visible durante la primera fracción del ciclo (pos < 1.2).
+    // Resultado: barrido rápido y elegante, pausa larga → efecto Apple/Samsung.
     _shineCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 5), // 💎 brillo lento, elegante y fluido
-    );
-
+      duration: const Duration(milliseconds: 3100),
+    )..repeat();
   }
-
 
   @override
   void dispose() {
@@ -755,33 +587,24 @@ class _KPIPremiumCardState extends State<KPIPremiumCard>
         animation: _shineCtrl,
         builder: (context, child) {
           final double t = _shineCtrl.value;
-          final double pos = (t * 2.4) - 1.2; // recorre diagonalmente
+          // El barrido ocurre solo en el primer 20% del ciclo (≈600ms),
+          // el resto (≈2.5s) es pausa invisible → efecto premium con respiro.
+          final double pos = (t * 12.0) - 1.2;
 
           return Container(
             constraints: const BoxConstraints(minHeight: 120, maxHeight: 150),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
               gradient: const LinearGradient(
-                colors: [
-                  Color(0xFF0D1B2A),
-                  Color(0xFF1E2A78),
-                  Color(0xFF431F91),
-                ],
+                colors: [Color(0xFF0D1B2A), Color(0xFF1E2A78), Color(0xFF431F91)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               border: Border.all(color: Colors.white.withOpacity(.15), width: 1.4),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(.25),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(.25), blurRadius: 20, offset: const Offset(0, 8))],
             ),
             child: Stack(
               children: [
-                // ✨ Brillo diagonal que cruza toda la tarjeta (visible al pasar)
                 if (t > 0 && t < 1)
                   Positioned.fill(
                     child: ClipRRect(
@@ -791,11 +614,7 @@ class _KPIPremiumCardState extends State<KPIPremiumCard>
                           return LinearGradient(
                             begin: Alignment(-1.5 + pos, -1),
                             end: Alignment(1.5 + pos, 1),
-                            colors: [
-                              Colors.transparent,
-                              Colors.white.withOpacity(0.9),
-                              Colors.transparent,
-                            ],
+                            colors: [Colors.transparent, Colors.white.withOpacity(0.9), Colors.transparent],
                             stops: const [0.35, 0.5, 0.65],
                           ).createShader(rect);
                         },
@@ -804,8 +623,6 @@ class _KPIPremiumCardState extends State<KPIPremiumCard>
                       ),
                     ),
                   ),
-
-                // 📱 Contenido
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                   child: FittedBox(
@@ -821,12 +638,7 @@ class _KPIPremiumCardState extends State<KPIPremiumCard>
                           textAlign: TextAlign.center,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 17,
-                            letterSpacing: 0.3,
-                          ),
+                          style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17, letterSpacing: 0.3),
                         ),
                         const SizedBox(height: 6),
                         Container(
@@ -839,17 +651,9 @@ class _KPIPremiumCardState extends State<KPIPremiumCard>
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.touch_app_rounded,
-                                  size: 14, color: Colors.white70),
+                              const Icon(Icons.touch_app_rounded, size: 14, color: Colors.white70),
                               const SizedBox(width: 5),
-                              Text(
-                                widget.subtitle,
-                                style: GoogleFonts.inter(
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                ),
-                              ),
+                              Text(widget.subtitle, style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: Colors.white, fontSize: 13)),
                             ],
                           ),
                         ),
@@ -865,8 +669,6 @@ class _KPIPremiumCardState extends State<KPIPremiumCard>
     );
   }
 }
-
-
 
 Widget _card({required Widget child}) {
   return Container(
@@ -890,19 +692,14 @@ Widget _kv(String k, String v) {
       Flexible(
         child: Align(
           alignment: Alignment.center,
-          child: Text(
-            v,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w900, color: _BrandX.ink),
-          ),
+          child: Text(v, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w900, color: _BrandX.ink)),
         ),
       ),
     ],
   );
 }
 
-/// ===== Card premium público =====
 class PremiumDeleteCard extends StatelessWidget {
   final VoidCallback? onTap;
   const PremiumDeleteCard({super.key, this.onTap});
@@ -918,18 +715,9 @@ class PremiumDeleteCard extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            AppTheme.gradTop.withOpacity(.95),
-            AppTheme.gradBottom.withOpacity(.95),
-          ],
+          colors: [AppTheme.gradTop.withOpacity(.95), AppTheme.gradBottom.withOpacity(.95)],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.gradTop.withOpacity(.25),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: AppTheme.gradTop.withOpacity(.25), blurRadius: 16, offset: const Offset(0, 6))],
         border: Border.all(color: Colors.white.withOpacity(.25), width: 1),
       ),
       child: Column(
@@ -952,9 +740,7 @@ class PremiumDeleteCard extends StatelessWidget {
                   'Borrar histórico',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    textStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16),
-                  ),
+                  style: GoogleFonts.inter(textStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
                 ),
               ),
             ],
@@ -990,10 +776,10 @@ class PremiumDeleteCard extends StatelessWidget {
 }
 
 class _LinearWaveSimulation extends Simulation {
-  final double speed; // rad/s
+  final double speed;
   _LinearWaveSimulation({this.speed = 2.0});
   @override
-  double x(double time) => speed * time; // fase crece linealmente
+  double x(double time) => speed * time;
   @override
   double dx(double time) => speed;
   @override
@@ -1018,29 +804,14 @@ Widget _miniStatBalanced({
         children: [
           Icon(icon, color: Colors.blueAccent.shade700, size: 18),
           const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.black87,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.black,
-              fontSize: 14.5,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          Text(label, style: const TextStyle(color: Colors.black87, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(value, style: const TextStyle(color: Colors.black, fontSize: 14.5, fontWeight: FontWeight.w900)),
         ],
       ),
     ),
   );
 }
 
-// 💎 KPI con fondo animado tipo Fintech Premium
 class _KPIFintechPremium extends StatefulWidget {
   final String title;
   final String value;
@@ -1067,19 +838,17 @@ class _KPIFintechPremiumState extends State<_KPIFintechPremium>
   @override
   void initState() {
     super.initState();
-
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 3), // ✅ velocidad fija y estable
-    )..repeat(); // ✅ sin Timer, sin saltos, sin diferencias entre celulares
+      duration: const Duration(seconds: 3),
+    )..repeat();
   }
 
   @override
   void dispose() {
-    _ctrl.dispose(); // ✅ se elimina el MISMO controller que se crea
+    _ctrl.dispose();
     super.dispose();
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -1087,23 +856,24 @@ class _KPIFintechPremiumState extends State<_KPIFintechPremium>
       borderRadius: BorderRadius.circular(20),
       child: Stack(
         children: [
-          // Fondo animado Fintech
-          AnimatedBuilder(
-            animation: _ctrl,
-            builder: (context, _) {
-              return CustomPaint(
-                painter: _KPIBackgroundFintechPainter(
-                  anim: _ctrl.value,
-                  activo: widget.activo,
-                  invertida: widget.invertida,
-                  colorBase: widget.colorBase,
-                ),
-                size: Size.infinite,
-              );
-            },
+          // FIX: SizedBox.expand() garantiza constraints finitas para CustomPaint
+          // dentro del Stack. Sin esto, en algunos Android el CustomPaint recibe
+          // Size(0,0) y el fondo animado queda invisible (tarjeta en negro puro).
+          SizedBox.expand(
+            child: AnimatedBuilder(
+              animation: _ctrl,
+              builder: (context, _) {
+                return CustomPaint(
+                  painter: _KPIBackgroundFintechPainter(
+                    anim: _ctrl.value,
+                    activo: widget.activo,
+                    invertida: widget.invertida,
+                    colorBase: widget.colorBase,
+                  ),
+                );
+              },
+            ),
           ),
-
-          // Contenido visible
           Center(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1118,13 +888,7 @@ class _KPIFintechPremiumState extends State<_KPIFintechPremium>
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
                         fontSize: 13.5,
-                        shadows: const [
-                          Shadow(
-                            color: Colors.black54,
-                            blurRadius: 6,
-                            offset: Offset(1, 1),
-                          ),
-                        ],
+                        shadows: const [Shadow(color: Colors.black54, blurRadius: 6, offset: Offset(1, 1))],
                       ),
                     ),
                   ),
@@ -1135,13 +899,7 @@ class _KPIFintechPremiumState extends State<_KPIFintechPremium>
                       fontSize: 34,
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
-                      shadows: const [
-                        Shadow(
-                          color: Colors.black54,
-                          blurRadius: 8,
-                          offset: Offset(1, 1),
-                        ),
-                      ],
+                      shadows: const [Shadow(color: Colors.black54, blurRadius: 8, offset: Offset(1, 1))],
                     ),
                   ),
                 ],
@@ -1154,12 +912,10 @@ class _KPIFintechPremiumState extends State<_KPIFintechPremium>
   }
 }
 
-
-// 💎 Fondo Premium tipo Fintech: curva viva + pulso de luz diagonal
 class _KPIBackgroundFintechPainter extends CustomPainter {
   final double anim;
   final bool activo;
-  final bool invertida; // false = sube, true = baja
+  final bool invertida;
   final Color colorBase;
 
   _KPIBackgroundFintechPainter({
@@ -1174,77 +930,52 @@ class _KPIBackgroundFintechPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
-    // 🔹 Fondo degradado base
     final gradient = Paint()
       ..shader = LinearGradient(
-        colors: [
-          colorBase.withOpacity(0.95),
-          colorBase.withOpacity(0.75),
-        ],
+        colors: [colorBase.withOpacity(0.95), colorBase.withOpacity(0.75)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ).createShader(Rect.fromLTWH(0, 0, w, h));
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), const Radius.circular(18)),
-      gradient,
-    );
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), const Radius.circular(18)), gradient);
 
     if (!activo) return;
 
-    // 🔹 Curva animada (onda suave tipo gráfico)
     final path = Path();
     final curvePaint = Paint()
       ..color = Colors.white.withOpacity(0.25)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5;
 
-    final steps = 30;
+    const steps = 30;
     final amplitude = invertida ? -8.0 : 8.0;
     final baseY = h * 0.6;
 
     for (int i = 0; i <= steps; i++) {
       final x = w * (i / steps);
-      final y = baseY +
-          math.sin((i / steps * 2 * math.pi) + anim * 2 * math.pi) * amplitude;
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
+      final y = baseY + math.sin((i / steps * 2 * math.pi) + anim * 2 * math.pi) * amplitude;
+      if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
     }
-
     canvas.drawPath(path, curvePaint);
 
-    // 🌈 Pulso de luz diagonal premium con entrada/salida suave
-    final double cycle = (anim % 1.0); // animación continua
-    final double lightOffset = (cycle * 3.4) - 1.7; // recorre de fuera a fuera
+    final double cycle = (anim % 1.0);
+    final double lightOffset = (cycle * 3.4) - 1.7;
 
-// 🔹 Curva de opacidad suave (entra y sale gradualmente)
     double smoothOpacity(double x) {
-      if (x < 0.15) return x / 0.15; // fade in suave
-      if (x > 0.85) return (1.0 - x) / 0.15; // fade out suave
-      return 1.0; // brillo máximo estable
+      if (x < 0.15) return x / 0.15;
+      if (x > 0.85) return (1.0 - x) / 0.15;
+      return 1.0;
     }
 
     final double fade = smoothOpacity(cycle);
-
     final lightPaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment(-1.7 + lightOffset, -1.7),
         end: Alignment(1.7 + lightOffset, 1.7),
-        colors: [
-          Colors.white.withOpacity(0.0),
-          Colors.white.withOpacity(0.18 * fade),
-          Colors.white.withOpacity(0.0),
-        ],
+        colors: [Colors.white.withOpacity(0.0), Colors.white.withOpacity(0.18 * fade), Colors.white.withOpacity(0.0)],
         stops: const [0.3, 0.5, 0.7],
       ).createShader(Rect.fromLTWH(0, 0, w, h));
 
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), const Radius.circular(18)),
-      lightPaint,
-    );
-
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), const Radius.circular(18)), lightPaint);
   }
 
   @override
