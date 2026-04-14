@@ -14,15 +14,21 @@ class TelefonoInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
-    final text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    var newText = '';
-    for (int i = 0; i < text.length; i++) {
-      newText += text[i];
-      if (i == 2 || i == 5) newText += '-';
+    final oldDigits = oldValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final newDigits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+    // Si está borrando, dejar actuar al sistema sin reformatear
+    if (newDigits.length < oldDigits.length) return newValue;
+
+    var formatted = '';
+    for (int i = 0; i < newDigits.length && i < 10; i++) {
+      formatted += newDigits[i];
+      if (i == 2 || i == 5) formatted += '-';
     }
+
     return TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newText.length),
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }
@@ -393,7 +399,6 @@ class _AgregarClienteProductoScreenState
         docRef = await clientesRef.add(data);
       }
 
-      // Registro de pago inicial si aplica
       if (pagoInicial > 0) {
         await docRef.collection('pagos').add({
           'fecha': FieldValue.serverTimestamp(),
@@ -414,7 +419,7 @@ class _AgregarClienteProductoScreenState
             builder: (_) => ReciboScreen(
               empresa: "Mi Recibo Business",
               servidor: FirebaseAuth.instance.currentUser?.displayName ?? "Usuario",
-              telefonoServidor: "809-000-0000", // 👈 Número del prestamista
+              telefonoServidor: "809-000-0000",
               cliente: "${_nombreCtrl.text} ${_apellidoCtrl.text}",
               telefonoCliente: _telefonoCtrl.text,
               producto: _productos.isNotEmpty ? _productos.first['nombre']!.text : "Producto",

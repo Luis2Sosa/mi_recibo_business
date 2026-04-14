@@ -12,15 +12,21 @@ class TelefonoInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
-    final text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    var newText = '';
-    for (int i = 0; i < text.length; i++) {
-      newText += text[i];
-      if (i == 2 || i == 5) newText += '-';
+    final oldDigits = oldValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final newDigits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+    // Si está borrando, dejar actuar al sistema sin reformatear
+    if (newDigits.length < oldDigits.length) return newValue;
+
+    var formatted = '';
+    for (int i = 0; i < newDigits.length && i < 10; i++) {
+      formatted += newDigits[i];
+      if (i == 2 || i == 5) formatted += '-';
     }
+
     return TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newText.length),
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }
@@ -33,7 +39,6 @@ class AgregarClientePrestamoScreen extends StatefulWidget {
   final String? initDireccion;
   final String? initNota;
   final String? initProducto;
-  // --- Nombres corregidos para eliminar el error en clientes_screen ---
   final int? initCapital;
   final double? initTasa;
   final String? initPeriodo;
@@ -48,9 +53,9 @@ class AgregarClientePrestamoScreen extends StatefulWidget {
     this.initDireccion,
     this.initNota,
     this.initProducto,
-    this.initCapital, // <--- Ahora sí coincide con tu otro archivo
-    this.initTasa,    // <--- Ahora sí coincide con tu otro archivo
-    this.initPeriodo, // <--- Ahora sí coincide con tu otro archivo
+    this.initCapital,
+    this.initTasa,
+    this.initPeriodo,
     this.initProximaFecha,
   });
 
@@ -85,8 +90,6 @@ class _AgregarClientePrestamoScreenState
     _telefonoCtrl = TextEditingController(text: widget.initTelefono ?? '');
     _direccionCtrl = TextEditingController(text: widget.initDireccion ?? '');
     _notaCtrl = TextEditingController(text: widget.initNota ?? '');
-
-    // Inicialización usando los nombres correctos del widget
     _capitalCtrl = TextEditingController(text: widget.initCapital?.toString() ?? '');
     _tasaCtrl = TextEditingController(text: widget.initTasa?.toString() ?? '');
     _periodo = widget.initPeriodo ?? 'Mensual';

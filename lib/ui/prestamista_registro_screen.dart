@@ -10,15 +10,20 @@ import 'clientes/clientes_screen.dart';
 // =====================
 class TelefonoFormatter extends TextInputFormatter {
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    String numbers = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    String formatted = '';
-    for (int i = 0; i < numbers.length; i++) {
-      formatted += numbers[i];
-      if (i == 2 || i == 5) {
-        if (i != numbers.length - 1) formatted += '-';
-      }
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final oldDigits = oldValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final newDigits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+    // Si está borrando, dejar actuar al sistema sin reformatear
+    if (newDigits.length < oldDigits.length) return newValue;
+
+    var formatted = '';
+    for (int i = 0; i < newDigits.length && i < 10; i++) {
+      formatted += newDigits[i];
+      if (i == 2 || i == 5) formatted += '-';
     }
+
     return TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
@@ -87,7 +92,6 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
     return (nombre, apellido);
   }
 
-  // Lógica de guardado separada para limpiar el build
   Future<void> _handleRegistro() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
@@ -160,7 +164,6 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
     final double kb = MediaQuery.of(context).viewInsets.bottom;
 
     return Scaffold(
-      // Importante: Dejamos que el Scaffold maneje el espacio del teclado
       resizeToAvoidBottomInset: true,
       body: Container(
         width: double.infinity,
@@ -179,7 +182,6 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
               child: Column(
                 children: [
-                  // 1. LOGO: Se oculta automáticamente cuando sale el teclado
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 250),
                     height: kb > 0 ? 0 : (isSmall ? 180 : 250),
@@ -194,8 +196,6 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                       ),
                     ),
                   ),
-
-                  // 2. TÍTULO
                   Padding(
                     padding: const EdgeInsets.only(bottom: 15),
                     child: Text(
@@ -210,8 +210,6 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                       ),
                     ),
                   ),
-
-                  // 3. TARJETA DE FORMULARIO
                   Container(
                     width: double.infinity,
                     constraints: const BoxConstraints(maxWidth: 500),
@@ -267,8 +265,6 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                             textInputAction: TextInputAction.done,
                           ),
                           const SizedBox(height: 26),
-
-                          // BOTÓN SIGUIENTE
                           SizedBox(
                             width: double.infinity,
                             height: 60,
@@ -290,7 +286,7 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 40), // Espacio para que el scroll respire al final
+                  const SizedBox(height: 40),
                 ],
               ),
             ),

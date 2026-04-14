@@ -12,15 +12,21 @@ class TelefonoInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
-    final text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    var newText = '';
-    for (int i = 0; i < text.length; i++) {
-      newText += text[i];
-      if (i == 2 || i == 5) newText += '-';
+    final oldDigits = oldValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final newDigits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+    // Si está borrando, dejar actuar al sistema sin reformatear
+    if (newDigits.length < oldDigits.length) return newValue;
+
+    var formatted = '';
+    for (int i = 0; i < newDigits.length && i < 10; i++) {
+      formatted += newDigits[i];
+      if (i == 2 || i == 5) formatted += '-';
     }
+
     return TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newText.length),
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }
@@ -66,7 +72,7 @@ class _AgregarClienteAlquilerScreenState
   late final TextEditingController _apellidoCtrl;
   late final TextEditingController _telefonoCtrl;
   late final TextEditingController _direccionCtrl;
-  late final TextEditingController _notaCtrl; // Reincorporado correctamente
+  late final TextEditingController _notaCtrl;
   late final TextEditingController _inmuebleCtrl;
   late final TextEditingController _montoCtrl;
 
@@ -86,7 +92,7 @@ class _AgregarClienteAlquilerScreenState
     _apellidoCtrl = TextEditingController(text: widget.initApellido ?? '');
     _telefonoCtrl = TextEditingController(text: widget.initTelefono ?? '');
     _direccionCtrl = TextEditingController(text: widget.initDireccion ?? '');
-    _notaCtrl = TextEditingController(text: widget.initNota ?? ''); // Carga la nota
+    _notaCtrl = TextEditingController(text: widget.initNota ?? '');
     _inmuebleCtrl = TextEditingController(text: widget.initProducto ?? '');
     _montoCtrl = TextEditingController(text: widget.initCapital?.toString() ?? '');
     _proximaFecha = widget.initProximaFecha;
@@ -180,7 +186,6 @@ class _AgregarClienteAlquilerScreenState
                 const SizedBox(height: 12),
                 TextFormField(controller: _montoCtrl, keyboardType: TextInputType.number, decoration: _deco('Monto mensual (\$)', icon: Icons.payments_rounded), validator: (v) => v!.isEmpty ? 'Obligatorio' : null),
                 const SizedBox(height: 12),
-                // 📝 CAMPO DE NOTA RE-AGREGADO
                 TextFormField(
                   controller: _notaCtrl,
                   textCapitalization: TextCapitalization.sentences,
@@ -282,7 +287,7 @@ class _AgregarClienteAlquilerScreenState
       'apellido': _apellidoCtrl.text.trim(),
       'telefono': _telefonoCtrl.text.trim(),
       'direccion': _direccionCtrl.text.trim(),
-      'nota': _notaCtrl.text.trim(), // Se guarda la nota correctamente
+      'nota': _notaCtrl.text.trim(),
       'producto': _inmuebleCtrl.text.trim(),
       'capitalInicial': monto,
       'saldoActual': monto,
