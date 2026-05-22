@@ -288,7 +288,7 @@ class _AgregarClienteAlquilerScreenState
       'telefono': _telefonoCtrl.text.trim(),
       'direccion': _direccionCtrl.text.trim(),
       'nota': _notaCtrl.text.trim(),
-      'producto': _inmuebleCtrl.text.trim(),
+      'producto': 'Alquiler - ${_inmuebleCtrl.text.trim()}',
       'capitalInicial': monto,
       'saldoActual': monto,
       'tipo': 'alquiler',
