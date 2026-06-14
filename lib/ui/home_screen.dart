@@ -9,7 +9,7 @@ import 'package:mi_recibo/ui/sobre_mi_recibo_screen.dart';
 import '../core/ads/ads_manager.dart';
 import 'prestamista_registro_screen.dart';
 import 'clientes/clientes_screen.dart';
-import 'pin_screen.dart'; // Gate de PIN/huella
+import 'pin_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,47 +19,27 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // ===== Layout consts =====
-  static const double logoTop = -50;
-  static const double logoSize = 400;
-  static const double sloganTop = 205;
-  static const double buttonsTop = 420;
-
-  // ===== State =====
   bool _cargando = false;
 
-  // ===== Utils =====
   void _showSnack(String msg) {
     if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger
+    ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text(
-            msg,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-        ),
-      );
+      ..showSnackBar(SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w700)),
+      ));
   }
 
   Future<void> _googleSignOutSilently() async {
-    try {
-      await GoogleSignIn().signOut();
-    } catch (_) {}
+    try { await GoogleSignIn().signOut(); } catch (_) {}
   }
 
   Future<UserCredential> _loginConGoogle() async {
     await _googleSignOutSilently();
-
     final google = GoogleSignIn();
     final googleUser = await google.signIn();
-    if (googleUser == null) {
-      throw const _UiFriendlyAuthError('Inicio cancelado por el usuario');
-    }
-
+    if (googleUser == null) throw const _UiFriendlyAuthError('Inicio cancelado por el usuario');
     final googleAuth = await googleUser.authentication;
     final credential = GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
@@ -72,18 +52,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (e is _UiFriendlyAuthError) return e.message;
     if (e is FirebaseAuthException) {
       switch (e.code) {
-        case 'network-request-failed':
-          return 'Sin conexión. Intenta de nuevo.';
-        case 'account-exists-with-different-credential':
-          return 'Tu correo ya está vinculado con otro método.';
-        case 'user-disabled':
-          return 'Tu cuenta está deshabilitada.';
-        case 'invalid-credential':
-          return 'Credenciales inválidas. Intenta de nuevo.';
-        case 'operation-not-allowed':
-          return 'Método de acceso no habilitado.';
-        default:
-          return 'No se pudo iniciar sesión. (${e.code})';
+        case 'network-request-failed': return 'Sin conexión. Intenta de nuevo.';
+        case 'account-exists-with-different-credential': return 'Tu correo ya está vinculado con otro método.';
+        case 'user-disabled': return 'Tu cuenta está deshabilitada.';
+        case 'invalid-credential': return 'Credenciales inválidas. Intenta de nuevo.';
+        case 'operation-not-allowed': return 'Método de acceso no habilitado.';
+        default: return 'No se pudo iniciar sesión. (${e.code})';
       }
     }
     return 'Ocurrió un error. Intenta de nuevo.';
@@ -98,7 +72,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }, SetOptions(merge: true));
   }
 
-  // ===== Login de Prestamista (Soy Negocio) =====
   Future<void> _manejarLoginPrestamista() async {
     if (_cargando) return;
     HapticFeedback.lightImpact();
@@ -107,16 +80,13 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final cred = await _loginConGoogle();
       final user = cred.user;
-      if (user == null) {
-        throw const _UiFriendlyAuthError('No se pudo obtener el usuario.');
-      }
+      if (user == null) throw const _UiFriendlyAuthError('No se pudo obtener el usuario.');
 
       final docRef = FirebaseFirestore.instance.collection('prestamistas').doc(user.uid);
       final snap = await docRef.get(const GetOptions(source: Source.server));
 
       if (!mounted) return;
 
-      // DATOS NOMBRE COMPLETO
       final nombreCompleto = (user.displayName ?? '').trim();
       String? nombre;
       String? apellido;
@@ -126,21 +96,14 @@ class _HomeScreenState extends State<HomeScreen> {
         apellido = p.length > 1 ? p.sublist(1).join(' ') : null;
       }
 
-      // SI NO EXISTE → REGISTRO
       if (!snap.exists) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const PrestamistaRegistroScreen(),
-            settings: RouteSettings(arguments: {
-              'nombreCompleto': nombreCompleto,
-              'nombre': nombre,
-              'apellido': apellido,
-              'email': user.email,
-              'fotoUrl': user.photoURL,
-            }),
-          ),
-        );
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => const PrestamistaRegistroScreen(),
+          settings: RouteSettings(arguments: {
+            'nombreCompleto': nombreCompleto, 'nombre': nombre,
+            'apellido': apellido, 'email': user.email, 'fotoUrl': user.photoURL,
+          }),
+        ));
         return;
       }
 
@@ -148,52 +111,33 @@ class _HomeScreenState extends State<HomeScreen> {
       final settings = (data['settings'] as Map?) ?? {};
       final String telefono = (data['telefono'] ?? '').toString().trim();
 
-      // INCOMPLETO → REGISTRO
       if (telefono.isEmpty) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const PrestamistaRegistroScreen(),
-            settings: RouteSettings(arguments: {
-              'nombreCompleto': nombreCompleto,
-              'nombre': nombre,
-              'apellido': apellido,
-              'email': user.email,
-              'fotoUrl': user.photoURL,
-            }),
-          ),
-        );
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => const PrestamistaRegistroScreen(),
+          settings: RouteSettings(arguments: {
+            'nombreCompleto': nombreCompleto, 'nombre': nombre,
+            'apellido': apellido, 'email': user.email, 'fotoUrl': user.photoURL,
+          }),
+        ));
         return;
       }
 
-      // COMPLETO → GUARDAR META
       await _persistirMetadatos(user);
 
-      // PIN / HUELLITA
       final bool lockEnabled = settings['lockEnabled'] == true;
       final bool pinEnabled = settings['pinEnabled'] == true;
       final String? pinCode = (settings['pinCode'] as String?)?.trim();
-
       final bool requiereGate = lockEnabled || (pinEnabled && pinCode != null && pinCode.isNotEmpty);
 
       if (requiereGate) {
-        final ok = await Navigator.push<bool>(
-          context,
-          MaterialPageRoute(builder: (_) => const PinScreen()),
-        );
+        final ok = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => const PinScreen()));
         if (ok == true && mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const ClientesScreen()),
-          );
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ClientesScreen()));
         } else {
           _showSnack('Autenticación requerida.');
         }
       } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const ClientesScreen()),
-        );
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ClientesScreen()));
       }
     } catch (e) {
       if (!mounted) return;
@@ -208,20 +152,14 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final user = FirebaseAuth.instance.currentUser;
-
-      // ❌ Si NO hay usuario → no mostrar anuncios
       if (user == null) return;
-
-      // ✔️ Solo mostrar si el usuario YA está registrado
       await AdsManager.handleDailyAd(context);
     });
   }
 
-
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final bool isSmall = size.height < 700;
 
     return PopScope(
       canPop: !_cargando,
@@ -229,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         body: Stack(
           children: [
-            // 1. FONDO
+            // ── Fondo degradado ──────────────────────────────────────────
             Container(
               width: double.infinity,
               height: double.infinity,
@@ -237,89 +175,164 @@ class _HomeScreenState extends State<HomeScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Color(0xFF2458D6), Color(0xFF0A9A76)],
+                  colors: [Color(0xFF1A3FAA), Color(0xFF0E8A6A)],
                 ),
               ),
             ),
 
-            // 2. CONTENIDO ADAPTABLE
+            // ── Círculo decorativo superior izquierdo ────────────────────
+            Positioned(
+              top: -80, left: -80,
+              child: Container(
+                width: 260, height: 260,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.06),
+                ),
+              ),
+            ),
+
+            // ── Círculo decorativo inferior derecho ──────────────────────
+            Positioned(
+              bottom: -60, right: -60,
+              child: Container(
+                width: 220, height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.05),
+                ),
+              ),
+            ),
+
+            // ── Contenido principal ──────────────────────────────────────
             SafeArea(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Column(
-                    children: [
-                      // LOGO
-                      ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxHeight: isSmall ? size.height * 0.30 : 280,
-                        ),
-                        child: const Center(
-                          child: Image(
-                            image: AssetImage('assets/images/logoB.png'),
+              child: Column(
+                children: [
+                  // Parte superior: logo + eslogan
+                  Expanded(
+                    flex: 5,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 28),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Logo
+                          Image(
+                            image: const AssetImage('assets/images/logoB.png'),
+                            height: size.height * 0.40,
                             fit: BoxFit.contain,
                           ),
-                        ),
-                      ),
 
-                      // Usamos un offset negativo para subir SOLO las letras del eslogan
-                      Transform.translate(
-                        offset: const Offset(0, -35), // 👈 Esto sube el eslogan. Si lo quieres más arriba, pon -45
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 340),
-                          child: Text(
-                            'Más que un recibo, la gestión que tu negocio merece',
-                            style: GoogleFonts.playfairDisplay(
-                              textStyle: TextStyle(
-                                fontSize: size.width * 0.065,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                                fontStyle: FontStyle.italic,
-                              ),
+                          const SizedBox(height: 24),
+
+                          Transform.translate(
+                            offset: const Offset(0, -50),
+                            child: Column(
+                              children: [
+                                // Línea divisora sutil
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Divider(
+                                        color: Colors.white.withOpacity(0.25),
+                                        thickness: 1,
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                      child: Container(
+                                        width: 6,
+                                        height: 6,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Colors.white.withOpacity(0.50),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Divider(
+                                        color: Colors.white.withOpacity(0.25),
+                                        thickness: 1,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 20),
+
+                                Text(
+                                  'Más que un recibo,\nla gestión que tu negocio merece',
+                                  style: GoogleFonts.playfairDisplay(
+                                    fontSize: size.width * 0.055,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                    fontStyle: FontStyle.italic,
+                                    height: 1.45,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+
+                                const SizedBox(height: 14),
+
+                                Text(
+                                  'Gestión inteligente para tu negocio',
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    color: Colors.white.withOpacity(0.70),
+                                    fontWeight: FontWeight.w500,
+                                    letterSpacing: 0.3,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Parte inferior: botones
+                  Expanded(
+                    flex: 3,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 28),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Botón Google
+                          _googleButton(
+                            labelIdle: 'Continuar con Google',
+                            loading: _cargando,
+                            onTap: _cargando ? null : _manejarLoginPrestamista,
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Botón Sobre Mi Recibo
+                          _aboutButton(context),
+
+                          const SizedBox(height: 28),
+
+                          // Pie legal
+                          Text(
+                            'Al continuar aceptas nuestros Términos y Política de Privacidad',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.white.withOpacity(0.45),
+                              height: 1.4,
                             ),
                             textAlign: TextAlign.center,
                           ),
-                        ),
+                        ],
                       ),
-
-                      // Espacio entre eslogan y botón de Google (ajustado para compensar la subida)
-                      SizedBox(height: size.height * 0.04),
-
-                      // BOTÓN GOOGLE
-                      _googleButton(
-                        labelIdle: 'Continuar con Google',
-                        loading: _cargando,
-                        onTap: _cargando ? null : _manejarLoginPrestamista,
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      Text(
-                        'Gestión inteligente para tu negocio',
-                        style: GoogleFonts.playfairDisplay(
-                          textStyle: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-
-                      SizedBox(height: size.height * (isSmall ? 0.05 : 0.10)),
-
-                      _aboutButton(context),
-
-                      const SizedBox(height: 30),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
 
-            // 3. OVERLAY DE CARGA
+            // ── Overlay de carga ─────────────────────────────────────────
             if (_cargando)
               Positioned.fill(
                 child: AbsorbPointer(
@@ -345,27 +358,31 @@ class _HomeScreenState extends State<HomeScreen> {
   }) {
     return SizedBox(
       width: double.infinity,
-      height: 60,
+      height: 56,
       child: ElevatedButton(
         onPressed: onTap,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFFFFFFF),
-          foregroundColor: const Color(0xff4285F4),
-          shape: const StadiumBorder(),
-          elevation: 6,
-          shadowColor: Colors.black.withOpacity(0.25),
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF1A3FAA),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 4,
+          shadowColor: Colors.black.withOpacity(0.20),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset('assets/images/google_logo.png', height: 24, width: 24),
+            Image.asset('assets/images/google_logo.png', height: 22, width: 22),
             const SizedBox(width: 12),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 180),
               child: Text(
                 loading ? 'Entrando…' : labelIdle,
-                key: ValueKey(loading ? 'loading' : 'idle-$labelIdle'),
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                key: ValueKey(loading ? 'loading' : 'idle'),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A3FAA),
+                ),
               ),
             ),
           ],
@@ -375,62 +392,37 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _aboutButton(BuildContext context) {
-    return Center(
-      child: SizedBox(
-        width: 260,
-        height: 48,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: const Color(0xFF0F2A45), // ⭐ Azul petróleo igual al logo
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0F2A45).withOpacity(0.25),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: OutlinedButton(
+        onPressed: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const SobreMiReciboScreen()));
+        },
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: Colors.white.withOpacity(0.35), width: 1.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          foregroundColor: Colors.white,
+          backgroundColor: Colors.white.withOpacity(0.08),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(Icons.info_outline_rounded, color: Colors.white, size: 18),
+            SizedBox(width: 10),
+            Text(
+              'Sobre Mi Recibo Business',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
               ),
-            ],
-          ),
-          child: ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SobreMiReciboScreen()),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              shadowColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Icon(
-                  Icons.info_outline_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                SizedBox(width: 10),
-                Text(
-                  'Sobre Mi Recibo Business',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          ],
         ),
       ),
     );
   }
-
 }
 
 class _UiFriendlyAuthError implements Exception {

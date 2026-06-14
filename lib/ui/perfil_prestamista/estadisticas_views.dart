@@ -841,7 +841,8 @@ class _KPIFintechPremiumState extends State<_KPIFintechPremium>
     _ctrl = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 3),
-    )..repeat();
+    )
+      ..repeat();
   }
 
   @override
@@ -856,9 +857,6 @@ class _KPIFintechPremiumState extends State<_KPIFintechPremium>
       borderRadius: BorderRadius.circular(20),
       child: Stack(
         children: [
-          // FIX: SizedBox.expand() garantiza constraints finitas para CustomPaint
-          // dentro del Stack. Sin esto, en algunos Android el CustomPaint recibe
-          // Size(0,0) y el fondo animado queda invisible (tarjeta en negro puro).
           SizedBox.expand(
             child: AnimatedBuilder(
               animation: _ctrl,
@@ -874,9 +872,10 @@ class _KPIFintechPremiumState extends State<_KPIFintechPremium>
               },
             ),
           ),
+
           Center(
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -884,22 +883,46 @@ class _KPIFintechPremiumState extends State<_KPIFintechPremium>
                     fit: BoxFit.scaleDown,
                     child: Text(
                       widget.title,
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
                       style: GoogleFonts.inter(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
                         fontSize: 13.5,
-                        shadows: const [Shadow(color: Colors.black54, blurRadius: 6, offset: Offset(1, 1))],
+                        shadows: const [
+                          Shadow(
+                            color: Colors.black54,
+                            blurRadius: 6,
+                            offset: Offset(1, 1),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.value,
-                    style: GoogleFonts.inter(
-                      fontSize: 34,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      shadows: const [Shadow(color: Colors.black54, blurRadius: 8, offset: Offset(1, 1))],
+
+                  const SizedBox(height: 2),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        widget.value,
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          shadows: const [
+                            Shadow(
+                              color: Colors.black54,
+                              blurRadius: 8,
+                              offset: Offset(1, 1),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ],

@@ -12,18 +12,27 @@ class TelefonoInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
-    final oldDigits = oldValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final newDigits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
 
-    // Si está borrando, dejar actuar al sistema sin reformatear
-    if (newDigits.length < oldDigits.length) return newValue;
-
-    var formatted = '';
-    for (int i = 0; i < newDigits.length && i < 10; i++) {
-      formatted += newDigits[i];
-      if (i == 2 || i == 5) formatted += '-';
+    // Si está borrando, reformatear con dígitos restantes para limpiar guiones
+    if (newValue.text.length < oldValue.text.length) {
+      return _buildValue(digits);
     }
 
+    // Limitar a 10 dígitos — rechazar el carácter extra
+    if (digits.length > 10) {
+      return oldValue;
+    }
+
+    return _buildValue(digits);
+  }
+
+  TextEditingValue _buildValue(String digits) {
+    var formatted = '';
+    for (int i = 0; i < digits.length; i++) {
+      if (i == 3 || i == 6) formatted += '-';
+      formatted += digits[i];
+    }
     return TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
