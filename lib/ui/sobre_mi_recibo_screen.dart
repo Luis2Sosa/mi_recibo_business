@@ -28,129 +28,127 @@ class _SobreMiReciboScreenState extends State<SobreMiReciboScreen>
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF0D1B2A), Color(0xFF1E2A78), Color(0xFF431F91)],
+            colors: [Color(0xFF0D1B2A), Color(0xFF1A2E6E), Color(0xFF0D1B2A)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
+            stops: [0.0, 0.5, 1.0],
           ),
         ),
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
 
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 10),
+
                   FadeInDown(
-                    duration: const Duration(milliseconds: 800),
+                    duration: const Duration(milliseconds: 600),
                     child: _header(),
                   ),
 
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 22),
+
                   FadeInUp(
-                    delay: const Duration(milliseconds: 200),
+                    delay: const Duration(milliseconds: 150),
+                    duration: const Duration(milliseconds: 500),
                     child: _intro(),
                   ),
 
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 32),
+
                   FadeInUp(
-                    delay: const Duration(milliseconds: 300),
-                    child: _sectionTitle("Soy Negocio"),
+                    delay: const Duration(milliseconds: 200),
+                    child: _sectionLabel('¿Qué puedes gestionar?'),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 280),
+                    child: _featureCard(
+                      color: const Color(0xFF3B82F6),
+                      icon: Icons.request_quote_rounded,
+                      title: 'Préstamos',
+                      bullets: const [
+                        'Controla préstamos personales, intereses y fechas de cobro.',
+                        'Registra abonos y genera recibos profesionales.',
+                        'Seguimiento individual de cada cliente con historial completo.',
+                      ],
+                    ),
                   ),
 
                   const SizedBox(height: 12),
-                  FadeInUp(
-                    delay: const Duration(milliseconds: 400),
-                    child: _haloCard(
-                      context,
-                      color: const Color(0xFF2563EB),
-                      icon: Icons.request_quote_rounded,
-                      title: "Préstamos",
-                      bullets: const [
-                        "Controla préstamos personales, intereses y fechas de cobro.",
-                        "Registra abonos y genera recibos profesionales.",
-                        "Recibe recordatorios automáticos y controla cada cliente.",
-                      ],
-                    ),
-                  ),
 
-                  const SizedBox(height: 14),
                   FadeInUp(
-                    delay: const Duration(milliseconds: 500),
-                    child: _haloCard(
-                      context,
+                    delay: const Duration(milliseconds: 340),
+                    child: _featureCard(
                       color: const Color(0xFF22C55E),
                       icon: Icons.shopping_bag_rounded,
-                      title: "Venta de productos fiados o alquiler de equipos",
+                      title: 'Productos y ventas fiadas',
                       bullets: const [
-                        "Control total de ventas fiadas y pagos pendientes.",
-                        "Administra alquileres de vehículos o artículos por días.",
-                        "Alertas automáticas y recibos profesionales.",
+                        'Control total de ventas fiadas y pagos pendientes.',
+                        'Registra múltiples productos por cliente.',
+                        'Recibos automáticos y alertas de vencimiento.',
                       ],
                     ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 400),
+                    child: _featureCard(
+                      color: const Color(0xFFF59E0B),
+                      icon: Icons.house_rounded,
+                      title: 'Alquiler de inmuebles',
+                      bullets: const [
+                        'Casas, locales o habitaciones con cobros mensuales.',
+                        'Historial completo de pagos por propiedad.',
+                        'Control de vencimientos con recordatorios automáticos.',
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 450),
+                    child: _sectionLabel('¿Por qué Mi Recibo Business?'),
                   ),
 
                   const SizedBox(height: 14),
+
                   FadeInUp(
-                    delay: const Duration(milliseconds: 600),
-                    child: _haloCard(
-                      context,
-                      color: const Color(0xFFF59E0B),
-                      icon: Icons.house_rounded,
-                      title: "Alquiler de inmuebles",
-                      bullets: const [
-                        "Casas, locales o habitaciones con cobros mensuales.",
-                        "Historial completo de pagos y recibos.",
-                        "Control de fechas de vencimiento con recordatorios.",
-                      ],
-                    ),
+                    delay: const Duration(milliseconds: 500),
+                    child: _benefitsBlock(),
                   ),
 
-                  // 🔥 SIN SECCIÓN “SOY TRABAJADOR INDEPENDIENTE”
+                  const SizedBox(height: 32),
 
-                  const SizedBox(height: 35),
                   FadeInUp(
-                    delay: const Duration(milliseconds: 700),
-                    child: const _BenefitsBlock(),
+                    delay: const Duration(milliseconds: 560),
+                    child: _sectionLabel('Plan Premium'),
                   ),
 
-                  const SizedBox(height: 35),
+                  const SizedBox(height: 14),
+
                   FadeInUp(
-                    delay: const Duration(milliseconds: 850),
+                    delay: const Duration(milliseconds: 620),
                     child: const _PremiumPanel(),
                   ),
 
-                  const SizedBox(height: 50),
-                  // ⭐ SELLO DE AUTOR – SOSA TECH LAB
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 25, top: 10),
-                      child: Column(
-                        children: [
-                          Text(
-                            "Sosa Tech Lab",
-                            style: GoogleFonts.poppins(
-                              color: Colors.white.withOpacity(0.85),
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "© 2025",
-                            style: GoogleFonts.inter(
-                              color: Colors.white54,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  const SizedBox(height: 40),
+
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 680),
+                    child: _footer(),
                   ),
 
+                  const SizedBox(height: 30),
                 ],
               ),
             ),
@@ -161,249 +159,305 @@ class _SobreMiReciboScreenState extends State<SobreMiReciboScreen>
   }
 
   Widget _header() {
-    return Center(
-      child: Text(
-        "Sobre Mi Recibo Business",
-        textAlign: TextAlign.center,
-        style: GoogleFonts.poppins(
-          color: Colors.white,
-          fontWeight: FontWeight.w900,
-          fontSize: 26,
-          letterSpacing: 0.4,
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withOpacity(0.18)),
+          ),
+          child: Text(
+            'PRESENTACIÓN',
+            style: GoogleFonts.inter(
+              color: Colors.white60,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 2.0,
+            ),
+          ),
         ),
-      ),
+        const SizedBox(height: 14),
+        Text(
+          'Mi Recibo Business',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.playfairDisplay(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 30,
+            height: 1.2,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'La gestión que tu negocio merece',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(
+            color: Colors.white.withOpacity(0.55),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 
   Widget _intro() {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        color: Colors.white.withOpacity(0.06),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.25)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Text(
-        "Mi Recibo Business es una herramienta profesional diseñada para gestionar clientes, pagos y recibos con la máxima eficiencia. "
-            "Permite controlar préstamos, productos y alquileres, generar recibos automáticos y mantener un historial completo de cada cliente.\n\n"
-            "La aplicación no mueve dinero ni realiza transacciones bancarias: su propósito es ayudarte a llevar el control financiero de tu negocio y mostrar una imagen profesional ante tus clientes.",
-        textAlign: TextAlign.center,   // 👈 ESTA ES LA CLAVE
-        style: GoogleFonts.inter(
-          color: Colors.white,
-          fontWeight: FontWeight.w600,
-          fontSize: 15.5,
-          height: 1.5,
-        ),
-      ),
-
-    );
-  }
-
-  Widget _sectionTitle(String text) {
-    return Center(
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.poppins(
-          color: Colors.white,
-          fontWeight: FontWeight.w900,
-          fontSize: 22,
-        ),
-      ),
-    );
-  }
-
-
-  Widget _haloCard(
-      BuildContext context, {
-        required Color color,
-        required IconData icon,
-        required String title,
-        required List<String> bullets,
-      }) {
-
-    final bg = color.withOpacity(.25);
-    final border = color.withOpacity(.55);
-    final chipBg = color.withOpacity(.22);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(.18),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.poppins(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 17.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                for (final b in bullets) ...[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 18,
-                        height: 18,
-                        margin: const EdgeInsets.only(top: 3),
-                        decoration: BoxDecoration(
-                          color: chipBg,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: border.withOpacity(.5)),
-                        ),
-                        child: Icon(Icons.check_rounded, size: 14, color: color),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          b,
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14.5,
-                            height: 1.4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [color, color.withOpacity(.78)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(.3),
-                  blurRadius: 14,
-                  offset: const Offset(0, 8),
-                )
-              ],
-            ),
-            child: Icon(icon, color: Colors.white, size: 22),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// =================== BLOQUE DE BENEFICIOS ===================
-class _BenefitsBlock extends StatelessWidget {
-  const _BenefitsBlock();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(.25),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          _BenefitRow(
-            icon: Icons.verified_rounded,
-            text:
-            'Recibos elegantes y consistentes, listos para enviar por WhatsApp.',
+        children: [
+          Container(
+            width: 52, height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF3B82F6).withOpacity(0.15),
+              border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.35)),
+            ),
+            child: const Icon(Icons.receipt_long_rounded, color: Color(0xFF60A5FA), size: 26),
           ),
-          SizedBox(height: 10),
-
-          _BenefitRow(
-            icon: Icons.alarm_rounded,
-            text:
-            'Recordatorios automáticos de vencimientos según tipo de negocio.',
+          const SizedBox(height: 14),
+          Text(
+            'Mi Recibo Business es una herramienta profesional diseñada para gestionar clientes, pagos y recibos con la máxima eficiencia. '
+                'Controla préstamos, productos y alquileres, genera recibos automáticos y mantén un historial completo de cada cliente.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              color: Colors.white.withOpacity(0.85),
+              fontSize: 14.5,
+              height: 1.6,
+              fontWeight: FontWeight.w400,
+            ),
           ),
-          SizedBox(height: 10),
-
-          _BenefitRow(
-            icon: Icons.analytics_rounded,
-            text:
-            'Panel de control con métricas visuales y claras.',
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF3B82F6).withOpacity(0.10),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.25)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, color: Color(0xFF60A5FA), size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'La app no mueve dinero ni realiza transacciones bancarias.',
+                    style: GoogleFonts.inter(
+                      color: const Color(0xFF93C5FD),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          SizedBox(height: 12),
-
-          _FooterQuote(),
         ],
       ),
     );
   }
-}
 
-class _BenefitRow extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _BenefitRow({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _sectionLabel(String text) {
     return Row(
       children: [
         Container(
-          width: 28,
-          height: 28,
-          decoration: const BoxDecoration(
-            color: Colors.white24,
-            shape: BoxShape.circle,
+          width: 3, height: 18,
+          decoration: BoxDecoration(
+            color: const Color(0xFF3B82F6),
+            borderRadius: BorderRadius.circular(99),
           ),
-          child: Center(child: Icon(icon, color: Colors.white, size: 18)),
         ),
         const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            text,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              fontSize: 15.5,
-              height: 1.35,
+        Text(
+          text,
+          style: GoogleFonts.poppins(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _featureCard({
+    required Color color,
+    required IconData icon,
+    required String title,
+    required List<String> bullets,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.30)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38, height: 38,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: color.withOpacity(0.30)),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ...bullets.map((b) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 7),
+                  child: Container(
+                    width: 5, height: 5,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    b,
+                    style: GoogleFonts.inter(
+                      color: Colors.white.withOpacity(0.75),
+                      fontSize: 13.5,
+                      height: 1.5,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ),
+              ],
             ),
+          )),
+        ],
+      ),
+    );
+  }
+
+  Widget _benefitsBlock() {
+    final items = [
+      (Icons.verified_rounded,   const Color(0xFF3B82F6), 'Recibos elegantes listos para compartir por WhatsApp al instante.'),
+      (Icons.alarm_rounded,      const Color(0xFF22C55E), 'Recordatorios automáticos de vencimientos según el tipo de negocio.'),
+      (Icons.analytics_rounded,  const Color(0xFFF59E0B), 'Panel de control con métricas claras de tu cartera de clientes.'),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
+      ),
+      child: Column(
+        children: [
+          for (int i = 0; i < items.length; i++) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: items[i].$2.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: items[i].$2.withOpacity(0.25)),
+                  ),
+                  child: Icon(items[i].$1, color: items[i].$2, size: 18),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      items[i].$3,
+                      style: GoogleFonts.inter(
+                        color: Colors.white.withOpacity(0.80),
+                        fontSize: 14,
+                        height: 1.5,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (i < items.length - 1) ...[
+              const SizedBox(height: 4),
+              Divider(color: Colors.white.withOpacity(0.07), height: 20),
+            ],
+          ],
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+            ),
+            child: Text(
+              '"Más que un recibo: la herramienta que organiza y profesionaliza tu negocio."',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.playfairDisplay(
+                color: Colors.white.withOpacity(0.65),
+                fontStyle: FontStyle.italic,
+                fontSize: 13.5,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _footer() {
+    return Column(
+      children: [
+        Divider(color: Colors.white.withOpacity(0.10)),
+        const SizedBox(height: 16),
+        Text(
+          'Sosa Tech Lab',
+          style: GoogleFonts.poppins(
+            color: Colors.white.withOpacity(0.65),
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '© 2025 · Todos los derechos reservados',
+          style: GoogleFonts.inter(
+            color: Colors.white.withOpacity(0.30),
+            fontSize: 12,
           ),
         ),
       ],
@@ -411,105 +465,106 @@ class _BenefitRow extends StatelessWidget {
   }
 }
 
-class _FooterQuote extends StatelessWidget {
-  const _FooterQuote();
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      'Más que un recibo: la herramienta que organiza y profesionaliza tu negocio.',
-      textAlign: TextAlign.center,
-      style: GoogleFonts.poppins(
-        color: Colors.white.withOpacity(.95),
-        fontStyle: FontStyle.italic,
-        fontSize: 13.5,
-        height: 1.3,
-        fontWeight: FontWeight.w800,
-      ),
-    );
-  }
-}
-
-// =================== BLOQUE PREMIUM =================== p
+// ═══════════════════════════════════════════════════
+// PANEL PREMIUM
+// ═══════════════════════════════════════════════════
 class _PremiumPanel extends StatelessWidget {
   const _PremiumPanel();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 28),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: Colors.white.withOpacity(0.06), width: 1.2),
+        color: const Color(0xFF0B1120),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE0B85A).withOpacity(0.40)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFE0B85A).withOpacity(0.07),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 90,
-            height: 90,
+            width: 60, height: 60,
             decoration: BoxDecoration(
-              color: Colors.black,
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFFE0B85A), width: 2),
+              color: const Color(0xFF0F172A),
+              border: Border.all(color: const Color(0xFFE0B85A), width: 1.5),
             ),
             child: const Icon(Icons.workspace_premium_rounded,
-                color: Colors.white, size: 48),
+                color: Color(0xFFE0B85A), size: 30),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+
           Text(
             'Mi Recibo Business Premium',
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              fontSize: 17,
             ),
           ),
 
           const SizedBox(height: 8),
-          Text(
-            'Por solo US\$0.99 al mes',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              color: Color(0xFFE0B85A),
-              fontWeight: FontWeight.bold,
-              fontSize: 15,
+
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE0B85A).withOpacity(0.12),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: const Color(0xFFE0B85A).withOpacity(0.35)),
+            ),
+            child: Text(
+              'Solo US\$0.99 al mes',
+              style: GoogleFonts.inter(
+                color: const Color(0xFFE0B85A),
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
             ),
           ),
 
           const SizedBox(height: 22),
+          Divider(color: Colors.white.withOpacity(0.07)),
+          const SizedBox(height: 18),
+
           _benefit(
             icon: Icons.bar_chart_rounded,
-            color: Color(0xFF2563EB),
-            text:
-            'Consulta tus ganancias totales y por categoría.',
+            color: const Color(0xFF3B82F6),
+            text: 'Consulta tus ganancias totales y por categoría de negocio.',
           ),
           const SizedBox(height: 14),
           _benefit(
             icon: Icons.auto_awesome_rounded,
-            color: Color(0xFF10B981),
-            text:
-            'Accede al Potenciador Premium con estrategias y lecturas diarias.',
+            color: const Color(0xFF10B981),
+            text: 'Potenciador Premium con estrategias y lecturas diarias para crecer.',
           ),
           const SizedBox(height: 14),
           _benefit(
             icon: Icons.shield_rounded,
-            color: Color(0xFF8B5CF6),
-            text:
-            'App sin anuncios y soporte técnico prioritario.',
+            color: const Color(0xFF8B5CF6),
+            text: 'Experiencia sin anuncios y soporte técnico prioritario.',
           ),
 
-          const SizedBox(height: 26),
+          const SizedBox(height: 20),
+          Divider(color: Colors.white.withOpacity(0.07)),
+          const SizedBox(height: 14),
+
           Text(
-            'Convierte la gestión diaria en crecimiento real con herramientas profesionales.',
+            'Convierte la gestión diaria en crecimiento real\ncon herramientas profesionales.',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
-              color: Colors.white.withOpacity(0.85),
-              fontSize: 13.5,
-              height: 1.4,
+              color: Colors.white.withOpacity(0.45),
+              fontSize: 12.5,
+              height: 1.6,
             ),
           ),
         ],
@@ -526,22 +581,26 @@ class _PremiumPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.all(8),
+          width: 34, height: 34,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            color: color.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: color.withOpacity(0.22)),
           ),
-          child: Icon(icon, color: color, size: 20),
+          child: Icon(icon, color: color, size: 17),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Text(
-            text,
-            style: GoogleFonts.inter(
-              color: Colors.white.withOpacity(0.92),
-              fontSize: 14.2,
-              height: 1.45,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              text,
+              style: GoogleFonts.inter(
+                color: Colors.white.withOpacity(0.78),
+                fontSize: 13.5,
+                height: 1.5,
+                fontWeight: FontWeight.w400,
+              ),
             ),
           ),
         ),
