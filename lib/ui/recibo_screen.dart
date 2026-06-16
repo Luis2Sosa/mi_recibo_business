@@ -12,7 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
-import 'package:media_store_plus/media_store_plus.dart';
+
 
 import 'package:mi_recibo/ui/theme/app_theme.dart';
 import 'package:mi_recibo/ui/widgets/app_frame.dart';
@@ -495,30 +495,16 @@ class _ReciboScreenState extends State<ReciboScreen> {
 
   Future<String?> _guardarSilencioso(Uint8List bytes, String fileName) async {
     try {
-      if (Platform.isAndroid) {
-        final tempDir = await getTemporaryDirectory();
-        final tmpPath = '${tempDir.path}/$fileName';
-        final tmpFile = File(tmpPath);
-        await tmpFile.writeAsBytes(bytes, flush: true);
+      final dir = Platform.isIOS
+          ? await getApplicationDocumentsDirectory()
+          : await getTemporaryDirectory();
 
-        final ms = MediaStore();
-        final savedUri = await ms.saveFile(
-          tempFilePath: tmpPath,
-          dirType: DirType.download,
-          dirName: DirName.download,
-        );
-        return savedUri?.toString();
-      } else if (Platform.isIOS) {
-        final docs = await getApplicationDocumentsDirectory();
-        final path = '${docs.path}/$fileName';
-        await File(path).writeAsBytes(bytes, flush: true);
-        return path;
-      } else {
-        final dir = await getTemporaryDirectory();
-        final path = '${dir.path}/$fileName';
-        await File(path).writeAsBytes(bytes, flush: true);
-        return path;
-      }
+      final path = '${dir.path}/$fileName';
+      final file = File(path);
+
+      await file.writeAsBytes(bytes, flush: true);
+
+      return path;
     } catch (e, st) {
       debugPrint('Error guardando archivo: $e\n$st');
       return null;

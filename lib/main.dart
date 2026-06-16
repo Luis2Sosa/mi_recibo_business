@@ -16,7 +16,7 @@ import 'core/notifications_plus.dart';
 
 // ⬇️ IMPORTANTE: importa tu servicio de auto filtro (ajusta la ruta si lo guardaste en otro lugar/nombre)
 import 'ui/clientes/auto_filtro_service.dart';
-import 'package:media_store_plus/media_store_plus.dart';
+
 
 
 /// 🔔 Handler de mensajes en background/terminated
@@ -28,9 +28,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await MediaStore.ensureInitialized();  // 👈 FALTA ESTO
-  // Carpeta donde se guardarán los PDF
-  MediaStore.appFolder = "MiReciboBusiness";
 
 
   await SystemChrome.setPreferredOrientations([
