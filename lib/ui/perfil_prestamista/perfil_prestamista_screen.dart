@@ -81,45 +81,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
     );
   }
 
-  Widget _botonCircularPremiumV7({
-    required IconData icon,
-    required String label,
-    required List<Color> gradienteBase,
-    required VoidCallback onTap,
-    bool activo = false,
-  }) {
-    final grad = gradienteBase;
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(colors: grad, begin: Alignment.topLeft, end: Alignment.bottomRight),
-              border: Border.all(color: Colors.white.withOpacity(activo ? 0.95 : 0.7), width: activo ? 2.0 : 1.2),
-              boxShadow: [if (activo) BoxShadow(color: grad.last.withOpacity(0.35), blurRadius: 12, offset: const Offset(0, 5))],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 26, color: Colors.white),
-                const SizedBox(height: 3),
-                Icon(Icons.touch_app_rounded, size: 14, color: Colors.white.withOpacity(0.9)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: .3)),
-        ],
-      ),
-    );
-  }
-
   int _tab = 1;
   PerfilCategoria? _catSel;
 
@@ -151,10 +112,11 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
   int mayorSaldo = -1;
   String promInteres = '—', proximoVenc = '—';
 
-  int lifetimePrestado = 0;
-  int lifetimeRecuperado = 0;
-  int lifetimeGanancia = 0;
-  int lifetimePagosProm = 0;
+  // FIX: se quitaron lifetimePrestado / lifetimeRecuperado / lifetimeGanancia /
+  // lifetimePagosProm. Esas 4 variables nunca se mostraban en pantalla (la
+  // tarjeta de resumen usa totalPrestado / totalRecuperado, calculadas en
+  // _loadStats() desde Firestore), así que solo generaban confusión: el botón
+  // "Borrar historial" las reseteaba a 0 pero nada visible cambiaba.
   String histPrimerPago = '—';
   String histUltimoPago = '—';
   String histMesTop = '—';
@@ -1413,8 +1375,16 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
         setState(() {
           pagosMes = List.filled(12, 0);
           pagosMesLabels = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-          lifetimeRecuperado = 0;
-          lifetimePagosProm = 0;
+          // FIX: antes esta función reseteaba lifetimeRecuperado y
+          // lifetimePagosProm — dos variables que NUNCA se mostraban en
+          // pantalla (la tarjeta de resumen usa totalPrestado/totalRecuperado).
+          // El usuario presionaba "Borrar historial", recibía el mensaje de
+          // éxito, pero el capital recuperado/total prestado en pantalla no
+          // cambiaba nada porque dependían de otras variables.
+          // Ahora se resetean las variables que SÍ están conectadas a la UI.
+          totalPrestado = 0;
+          totalPendiente = 0;
+          totalRecuperado = 0;
           histPrimerPago = '—';
           histUltimoPago = '—';
           histMesTop = '—';
@@ -1537,55 +1507,6 @@ class _PerfilPrestamistaScreenState extends State<PerfilPrestamistaScreen> {
             }),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _filtroBoton({
-    required String label,
-    required IconData icon,
-    required bool activo,
-    required VoidCallback onTap,
-    required List<Color> gradiente,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        constraints: const BoxConstraints(minHeight: 56),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          gradient: activo ? LinearGradient(colors: gradiente) : const LinearGradient(colors: [Colors.white, Color(0xFFF1F5F9)]),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: activo ? Colors.transparent : const Color(0xFFE2E8F0), width: 1.2),
-          boxShadow: [if (activo) BoxShadow(color: gradiente.last.withOpacity(0.35), blurRadius: 12, offset: const Offset(0, 4))],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
-              Icon(icon, size: 18, color: activo ? Colors.white : const Color(0xFF475569)),
-              const SizedBox(width: 6),
-              Flexible(child: Text(label, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: activo ? Colors.white : const Color(0xFF1E293B), fontWeight: FontWeight.w800, fontSize: 14))),
-            ]),
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: activo ? Colors.white.withOpacity(.95) : Colors.white,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: activo ? Colors.white : const Color(0xFFE2E8F0)),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 6, offset: const Offset(0, 2))],
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.touch_app_outlined, size: 10, color: activo ? gradiente.first : const Color(0xFF2563EB)),
-                const SizedBox(width: 4),
-                Text('Toca para ver', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: activo ? gradiente.first : const Color(0xFF1E293B))),
-              ]),
-            ),
-          ],
-        ),
       ),
     );
   }

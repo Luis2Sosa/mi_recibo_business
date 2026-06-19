@@ -168,7 +168,13 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final bool isSmall = size.height < 700;
-    final double kb = MediaQuery.of(context).viewInsets.bottom;
+
+    // FIX: el logo ya NO se anima ni colapsa según el teclado. Antes,
+    // mientras escribías el logo se achicaba a altura 0 y al cerrar el
+    // teclado volvía de golpe a 180-250px, empujando todo el formulario
+    // hacia abajo y obligando a un scroll grande y brusco. Ahora el logo
+    // tiene una altura fija y moderada que no cambia nunca.
+    final double logoHeight = isSmall ? 150 : 210;
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -183,120 +189,134 @@ class _PrestamistaRegistroScreenState extends State<PrestamistaRegistroScreen> {
           ),
         ),
         child: SafeArea(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0),
-              child: Column(
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    height: kb > 0 ? 0 : (isSmall ? 180 : 250),
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 200),
-                      opacity: kb > 0 ? 0 : 1,
-                      child: Center(
-                        child: Image.asset(
-                          'assets/images/logoB.png',
-                          fit: BoxFit.contain,
+          // FIX: LayoutBuilder + ConstrainedBox(minHeight) es el patrón
+          // estándar de Flutter para "centrar si cabe, hacer scroll si no
+          // cabe". Como el Scaffold ya reduce la altura disponible cuando
+          // el teclado está abierto (resizeToAvoidBottomInset: true), el
+          // alto disponible (constraints.maxHeight) ya viene correcto:
+          // con teclado cerrado es la pantalla completa (contenido
+          // centrado), con teclado abierto es menos (y ahí sí se desliza,
+          // de forma suave, sin saltos, hasta el campo que estás llenando).
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: ConstrainedBox(
+                  // FIX: minHeight solo asegura que el fondo con gradiente
+                  // cubra toda la pantalla cuando el contenido es corto;
+                  // el Column NO se centra (mainAxisAlignment.start, el
+                  // default), así el logo se queda pegado arriba como
+                  // antes, sin dejar un hueco grande encima.
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: logoHeight,
+                        child: Center(
+                          child: Image.asset(
+                            'assets/images/logoB.png',
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 15),
-                    child: Text(
-                      'Registro',
-                      style: GoogleFonts.playfairDisplay(
-                        textStyle: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 30,
-                          fontWeight: FontWeight.w600,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Container(
-                    width: double.infinity,
-                    constraints: const BoxConstraints(maxWidth: 500),
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.15),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Form(
-                      key: _formKey,
-                      autovalidateMode: AutovalidateMode.onUserInteraction,
-                      child: Column(
-                        children: [
-                          _field(
-                            controller: _empresaCtrl,
-                            label: 'Nombre de la empresa (opcional)',
-                            icon: Icons.domain,
-                            textInputAction: TextInputAction.next,
-                          ),
-                          const SizedBox(height: 16),
-                          _field(
-                            controller: _servidorCtrl,
-                            label: 'Nombre y Apellido *',
-                            icon: Icons.badge,
-                            textInputAction: TextInputAction.next,
-                            validator: (v) => (v == null || v.trim().isEmpty) ? 'Obligatorio' : null,
-                          ),
-                          const SizedBox(height: 16),
-                          _field(
-                            controller: _telefonoCtrl,
-                            label: 'Teléfono *',
-                            icon: Icons.call,
-                            keyboardType: TextInputType.phone,
-                            textInputAction: TextInputAction.next,
-                            inputFormatters: [TelefonoFormatter()],
-                            validator: (v) {
-                              if (v == null || v.trim().isEmpty) return 'Obligatorio';
-                              return _soloDigitos(v).length < 8 ? 'Teléfono inválido' : null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          _field(
-                            controller: _direccionCtrl,
-                            label: 'Dirección (opcional)',
-                            icon: Icons.home,
-                            textInputAction: TextInputAction.done,
-                          ),
-                          const SizedBox(height: 26),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 60,
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF2563EB),
-                                foregroundColor: Colors.white,
-                                shape: const StadiumBorder(),
-                                elevation: 4,
-                              ),
-                              onPressed: _guardando ? null : _handleRegistro,
-                              child: Text(
-                                _guardando ? 'Guardando...' : 'Siguiente',
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                              ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, bottom: 15),
+                        child: Text(
+                          'Registro',
+                          style: GoogleFonts.playfairDisplay(
+                            textStyle: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 30,
+                              fontWeight: FontWeight.w600,
+                              fontStyle: FontStyle.italic,
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                      Container(
+                        width: double.infinity,
+                        constraints: const BoxConstraints(maxWidth: 500),
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(28),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Form(
+                          key: _formKey,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          child: Column(
+                            children: [
+                              _field(
+                                controller: _empresaCtrl,
+                                label: 'Nombre de la empresa (opcional)',
+                                icon: Icons.domain,
+                                textInputAction: TextInputAction.next,
+                              ),
+                              const SizedBox(height: 16),
+                              _field(
+                                controller: _servidorCtrl,
+                                label: 'Nombre y Apellido *',
+                                icon: Icons.badge,
+                                textInputAction: TextInputAction.next,
+                                validator: (v) => (v == null || v.trim().isEmpty) ? 'Obligatorio' : null,
+                              ),
+                              const SizedBox(height: 16),
+                              _field(
+                                controller: _telefonoCtrl,
+                                label: 'Teléfono *',
+                                icon: Icons.call,
+                                keyboardType: TextInputType.phone,
+                                textInputAction: TextInputAction.next,
+                                inputFormatters: [TelefonoFormatter()],
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) return 'Obligatorio';
+                                  return _soloDigitos(v).length < 8 ? 'Teléfono inválido' : null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              _field(
+                                controller: _direccionCtrl,
+                                label: 'Dirección (opcional)',
+                                icon: Icons.home,
+                                textInputAction: TextInputAction.done,
+                              ),
+                              const SizedBox(height: 26),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 60,
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF2563EB),
+                                    foregroundColor: Colors.white,
+                                    shape: const StadiumBorder(),
+                                    elevation: 4,
+                                  ),
+                                  onPressed: _guardando ? null : _handleRegistro,
+                                  child: Text(
+                                    _guardando ? 'Guardando...' : 'Siguiente',
+                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
                   ),
-                  const SizedBox(height: 40),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ),
       ),
